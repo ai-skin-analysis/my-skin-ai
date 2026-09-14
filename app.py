@@ -25,6 +25,7 @@ from flask import Flask, abort, g, render_template, request, redirect, send_from
 from PIL import Image, ImageOps, UnidentifiedImageError
 from cryptography.fernet import Fernet, InvalidToken
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import SecurityError
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 from predict import (
@@ -1938,6 +1939,14 @@ PUBLIC_INFORMATION_ALLOWED_ENDPOINTS = frozenset({
 def enforce_csrf_protection():
     global last_retention_cleanup_at
     g.csp_nonce = secrets.token_urlsafe(18)
+    # Flask validates ``TRUSTED_HOSTS`` lazily.  In public-information mode a
+    # rejected host can otherwise reach the legacy-route redirect below, where
+    # URL generation has no valid adapter and turns a bad request into a 500.
+    # Fail closed before touching routing or session behaviour instead.
+    try:
+        request.host
+    except SecurityError:
+        abort(400)
     now_monotonic = time.monotonic()
     if (
         not app.config['PUBLIC_INFORMATION_MODE']

@@ -1,0 +1,17 @@
+# Builds only an immutable container image. Runtime settings and all secrets
+# are supplied when deploying Cloud Run; they must never be embedded here.
+substitutions:
+  _REGION: asia-southeast3
+  _REPOSITORY: smart-skin
+  _IMAGE: smart-skin-ai
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA

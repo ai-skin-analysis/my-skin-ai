@@ -43,6 +43,10 @@
 
 สำหรับการเปิดเว็บไซต์ผ่านอินเทอร์เน็ต ให้ทำตาม [PUBLIC_RELEASE_RUNBOOK.md](PUBLIC_RELEASE_RUNBOOK.md) ด้วย: ใช้ HTTPS, reverse proxy/WAF และ Waitress; ห้ามเปิด Flask development server หรือพอร์ต WSGI ตรงสู่สาธารณะ
 
+สำหรับการเผยแพร่ **public-information mode** บน Google Cloud Run ให้ทำตาม
+[deploy/gcp/README.md](deploy/gcp/README.md) ก่อน ระบบจะยังไม่รับบัญชีหรือภาพ
+จนกว่าจะย้าย storage ออกจาก SQLite/ไฟล์ในเครื่องและผ่านเงื่อนไขการเปิดใช้โมเดลครบถ้วน
+
 ## ขยายเป็นหลายกลุ่มโรค
 
 ระบบมี catalog เป้าหมาย 50 กลุ่มและ pipeline สำหรับฝึกโมเดลใหม่ แต่โมเดลที่แนบมาในปัจจุบันยังรองรับเพียง 6 กลุ่มเท่านั้น เพื่อไม่ให้แสดงผลเกินความสามารถของโมเดล อ่านขั้นตอนข้อมูล การฝึก และการประเมินได้ที่ [MULTICLASS_TRAINING.md](MULTICLASS_TRAINING.md) และดู release contract สำหรับเปิดใช้ครบ 50 กลุ่มที่ [MODEL_50_CLASS_RELEASE.md](MODEL_50_CLASS_RELEASE.md)

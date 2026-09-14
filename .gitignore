@@ -22,6 +22,7 @@ archive.zip
 .env
 .env.*
 !.env.example
+deploy/gcp/runtime.env.yaml
 *.db-journal
 *.log
 __pycache__/
