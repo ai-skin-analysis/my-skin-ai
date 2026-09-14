@@ -5,3 +5,4 @@ cryptography==50.0.0
 Pillow==12.3.0
 numpy==1.26.4
 waitress==3.0.2
+gunicorn==23.0.0

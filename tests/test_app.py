@@ -194,6 +194,16 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertEqual(readiness.status_code, 200)
         self.assertEqual(readiness.get_json(), {'status': 'ready'})
 
+    def test_rejected_trusted_host_fails_closed_without_redirect_error(self):
+        previous_hosts = application.app.config.get('TRUSTED_HOSTS')
+        application.app.config['TRUSTED_HOSTS'] = ['skin.example.test', '.run.app']
+        try:
+            response = self.client.get('/healthz', headers={'Host': 'untrusted.example'})
+            self.assertEqual(response.status_code, 400)
+            self.assertNotEqual(response.status_code, 500)
+        finally:
+            application.app.config['TRUSTED_HOSTS'] = previous_hosts
+
     def test_weather_and_map_location_features_require_an_in_app_consent_before_geolocation(self):
         landing_response = self.client.get('/')
         landing_page = landing_response.get_data(as_text=True)
@@ -1314,7 +1324,7 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertEqual(scan_count, 0)
         self.assertEqual(list(self.upload_path.iterdir()), [])
 
-    def test_close_supported_scores_are_recorded_as_ambiguous(self):
+    def test_candidate_model_scores_are_not_stored_while_release_gate_is_closed(self):
         application.model = AmbiguousStubModel()
         user_id = self.create_user()
         self.sign_in_session(user_id)
@@ -1331,12 +1341,15 @@ class TestSmartSkinApp(unittest.TestCase):
             },
             content_type='multipart/form-data',
         )
-        self.assertIn('ผลคัดกรองยังไม่ชัดเจน', response.get_data(as_text=True))
+        # A candidate/legacy model cannot become an image service merely
+        # because it returns close scores. The release gate keeps the upload
+        # route closed and must leave no private record behind.
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers['Location'].endswith('/dashboard'))
         conn = application.get_db_connection()
         scan = conn.execute('SELECT is_uncertain, decision_status FROM scan_logs WHERE user_id = ?', (user_id,)).fetchone()
         conn.close()
-        self.assertEqual(scan[0], 1)
-        self.assertEqual(scan[1], 'ambiguous')
+        self.assertIsNone(scan)
 
     def test_scan_removes_embedded_image_metadata(self):
         user_id = self.create_user()
@@ -1387,7 +1400,7 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertIn('ผลจำแนกจากโมเดล', page)
         self.assertIn('AI SCREENING LOGS', page)
 
-    def test_admin_training_refuses_an_incomplete_dataset_without_creating_a_job(self):
+    def test_admin_training_http_route_stays_closed_without_creating_a_job(self):
         conn = application.get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -1403,9 +1416,12 @@ class TestSmartSkinApp(unittest.TestCase):
         response = self.client.post(
             '/admin/training/start',
             data={'csrf_token': token, 'epochs': '10'},
-            follow_redirects=True,
         )
-        self.assertIn('ยังเริ่มฝึกงานวิจัยไม่ได้', response.get_data(as_text=True))
+        # Candidate training was intentionally removed from the web dashboard.
+        # Training can only be prepared through the controlled back-office
+        # workflow, so a posted browser form must not create a job.
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers['Location'].endswith('/admin_dashboard'))
         conn = application.get_db_connection()
         self.assertEqual(conn.execute('SELECT COUNT(*) FROM training_jobs').fetchone()[0], 0)
         conn.close()

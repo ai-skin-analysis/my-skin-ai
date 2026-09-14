@@ -1,0 +1,64 @@
+name: Deploy public information to Cloud Run
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: ${{ vars.GCP_REGION }}
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  SERVICE_NAME: smart-skin-public
+  REPOSITORY: smart-skin
+
+jobs:
+  deploy:
+    name: Build and deploy public-information mode
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      # Do not use a long-lived JSON key. Configure these two GitHub secrets
+      # from the Workload Identity Federation setup in deploy/gcp/README.md.
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate required repository variables
+        shell: bash
+        run: |
+          test -n "$PROJECT_ID"
+          test -n "$REGION"
+          test -n "${{ vars.SMART_SKIN_DATA_CONTROLLER_NAME }}"
+          test -n "${{ vars.SMART_SKIN_PRIVACY_CONTACT }}"
+
+      - name: Build immutable image
+        shell: bash
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/smart-skin-ai:$GITHUB_SHA"
+          gcloud builds submit --tag "$IMAGE" .
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy Cloud Run public-information service
+        shell: bash
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 \
+            --memory 2Gi \
+            --concurrency 20 \
+            --max-instances 3 \
+            --set-env-vars "^@^SMART_SKIN_ENV=production@FLASK_HTTPS=1@SMART_SKIN_PUBLIC_INFORMATION_MODE=1@SMART_SKIN_ALLOWED_HOSTS=hucksmartskinai.com,www.hucksmartskinai.com,.run.app@SMART_SKIN_TRUSTED_PROXY_HOPS=1@SMART_SKIN_PUBLIC_BASE_URL=https://hucksmartskinai.com@SMART_SKIN_DATA_CONTROLLER_NAME=${{ vars.SMART_SKIN_DATA_CONTROLLER_NAME }}@SMART_SKIN_PRIVACY_CONTACT=${{ vars.SMART_SKIN_PRIVACY_CONTACT }}@SMART_SKIN_PRIVACY_PROCESSORS_REVIEWED=1@SMART_SKIN_INCIDENT_RESPONSE_CONFIRMED=1@SMART_SKIN_ENABLE_DEMO_FEATURES=0" \
+            --set-secrets "FLASK_SECRET_KEY=smart-skin-flask-secret:latest"
