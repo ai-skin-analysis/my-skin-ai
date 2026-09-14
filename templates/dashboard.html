@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if public_information_mode %}ข้อมูลสาธารณะเพื่อการดูแลผิว{% else %}ระบบข้อมูลผิวหนังจากภาพ{% endif %}</title>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Anuphan:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script nonce="{{ csp_nonce }}" src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }
+        .font-code { font-family: 'JetBrains Mono', 'Anuphan', monospace; }
+        .scan-medical-page {
+            background:
+                radial-gradient(circle at 8% 2%, rgba(45, 212, 191, .18), transparent 24rem),
+                radial-gradient(circle at 100% 18%, rgba(56, 189, 248, .16), transparent 27rem),
+                #f4fafb;
+        }
+        .scan-medical-backdrop {
+            background: #f5fbfc;
+        }
+        .scan-engineering-art {
+            object-position: center;
+            opacity: .30;
+            filter: brightness(1.55) saturate(.58) contrast(.88);
+        }
+        .scan-engineering-wash {
+            background:
+                linear-gradient(90deg, rgba(250, 254, 254, .56) 0%, rgba(250, 254, 254, .78) 48%, rgba(246, 253, 253, .60) 100%),
+                linear-gradient(180deg, rgba(246, 252, 253, .32) 0%, rgba(241, 250, 251, .58) 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.05);
+        }
+        .scan-hero {
+            isolation: isolate;
+            overflow: hidden;
+            background-color: #061a2b;
+            background-image:
+                linear-gradient(90deg, rgba(2, 19, 36, .98) 0%, rgba(3, 33, 49, .92) 46%, rgba(3, 57, 67, .55) 100%),
+                radial-gradient(circle at 72% 44%, rgba(45, 212, 191, .18), transparent 22rem),
+                url("{{ url_for('static', filename='assets/scan-hero-medical-tech-v3.png') }}");
+            background-position: center;
+            background-size: cover;
+            box-shadow: 0 24px 55px -28px rgba(8, 47, 73, .75);
+        }
+        .scan-hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(115deg, rgba(15, 118, 110, .12), transparent 42%, rgba(94, 234, 212, .09));
+        }
+        .scan-hero-person {
+            mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+            mix-blend-mode: screen;
+            animation: scanHeroIllustrationFloat 5.5s ease-in-out infinite;
+            transform-origin: 52% 88%;
+            filter: drop-shadow(0 22px 18px rgba(2, 44, 55, .32));
+        }
+        @keyframes scanHeroIllustrationFloat {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+            50% { transform: translate3d(-7px, -10px, 0) rotate(-.4deg); }
+        }
+        /* Keep the Thai heading on one line only when the hero has enough
+           room for both readable copy and the illustration. */
+        @media (min-width: 1536px) {
+            .scan-hero-content {
+                max-width: calc(100% - 18rem);
+            }
+            .scan-hero-title {
+                font-size: clamp(1.85rem, 2vw, 2.35rem);
+                letter-spacing: -.045em;
+                white-space: nowrap;
+            }
+            .scan-hero-subtitle {
+                max-width: none;
+                white-space: nowrap;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .scan-hero-person, .life-motion, .radar-sweeper,
+            .animate-ping, .animate-pulse, .animate-spin {
+                animation: none !important;
+            }
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
+            }
+        }
+        .scan-workbench {
+            background: rgba(255,255,255,.96);
+            border: 1px solid rgba(203, 213, 225, .85);
+            box-shadow: 0 22px 45px -25px rgba(15, 23, 42, .24);
+        }
+        .scan-side-card {
+            background: rgba(255,255,255,.88);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(226, 232, 240, .92);
+            box-shadow: 0 18px 36px -25px rgba(15, 23, 42, .28);
+        }
+
+        @keyframes realisticLife {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            35% { transform: translateY(-5px) scale(1.006); }
+            70% { transform: translateY(-2px) scale(1.002); }
+        }
+        .life-motion {
+            animation: realisticLife 5s ease-in-out infinite;
+            transform-origin: bottom center;
+        }
+
+        .bottom-soft-fade {
+            -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 78%, rgba(0,0,0,0) 98%);
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 78%, rgba(0,0,0,0) 98%);
+        }
+
+        .brand-logo-glow {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            box-shadow: 0 0 15px rgba(13, 148, 136, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        }
+
+        .gis-radar-bg {
+            background-color: #090d16;
+            background-image: 
+                radial-gradient(rgba(13, 148, 136, 0.3) 1px, transparent 0),
+                linear-gradient(to right, rgba(15, 23, 42, 0.8) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(15, 23, 42, 0.8) 1px, transparent 1px);
+            background-size: 20px 20px, 40px 40px, 40px 40px;
+        }
+
+        @keyframes radarSweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweeper {
+            animation: radarSweep 4s linear infinite;
+            transform-origin: center center;
+        }
+    </style>
+</head>
+<body class="scan-medical-page text-slate-800 antialiased min-h-screen relative pb-10 overflow-x-hidden">
+    
+    <!-- Decorative computer-engineering and medical background; it contains no patient or diagnosis data. -->
+    <div class="scan-medical-backdrop pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <img class="scan-engineering-art absolute inset-0 h-full w-full object-cover" src="{{ url_for('static', filename='assets/scan-medical-engineering-bg-v2.png') }}" alt="">
+        <div class="scan-engineering-wash absolute inset-0"></div>
+    </div>
+
+    <!-- Header Bar -->
+    <header class="w-full bg-slate-900 text-white py-4 px-4 sm:px-8 border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl brand-logo-glow border border-teal-400/40 flex items-center justify-center text-teal-200 shrink-0">
+                    <i data-lucide="cross" class="w-5 h-5"></i>
+                </div>
+                <span class="min-w-0 break-words font-extrabold text-xs sm:text-sm tracking-wide text-teal-300 uppercase">
+                    AI-BASED SKIN DISEASE ANALYSIS AND CLASSIFICATION USING DEEP LEARNING
+                </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3 font-code">
+                {% if session.get('user_role') == 'user' %}
+                {% set account_name = session.get('user_name', 'ผู้ใช้') %}
+                <div id="userAccountControl" class="relative">
+                    <button id="userAccountButton" type="button" onclick="toggleUserAccountMenu()" aria-haspopup="menu" aria-expanded="false" aria-label="เปิดเมนูบัญชีของ {{ account_name }}" class="inline-flex items-center gap-2 rounded-xl border border-teal-400/40 bg-slate-800 px-2.5 py-2 text-xs font-bold text-white shadow-sm transition hover:border-teal-300 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-900" title="เมนูบัญชีและข้อมูลของฉัน">
+                        {% if profile_avatar %}
+                        <img id="userProfileAvatarImage" src="{{ url_for('own_profile_avatar', v=profile_avatar.updated_at) }}" alt="" class="h-7 w-7 rounded-lg border border-teal-200/50 object-cover shadow-sm">
+                        {% else %}
+                        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-cyan-600 text-[11px] font-extrabold text-slate-950 shadow-sm">{{ account_name[:1] | upper }}</span>
+                        {% endif %}
+                        <span class="hidden max-w-28 truncate sm:inline">{{ account_name }}</span>
+                        <i data-lucide="chevron-down" class="h-3.5 w-3.5 text-teal-200"></i>
+                    </button>
+                    <div id="userAccountMenu" class="absolute right-0 z-50 mt-3 hidden w-72 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-2 text-left shadow-2xl shadow-slate-950/40" role="menu" aria-label="เมนูบัญชีผู้ใช้">
+                        <div class="mb-2 rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-3">
+                            <p class="truncate text-xs font-extrabold text-white">{{ account_name }}</p>
+                            <p class="mt-1 truncate text-[10px] text-slate-400">{{ session.get('user_email', '') }}</p>
+                        </div>
+                        <button id="profileAvatarMenuItem" type="button" onclick="closeUserAccountMenu(); openProfileAvatarModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="circle-user-round" class="h-4 w-4 text-teal-300"></i>จัดการรูปโปรไฟล์
+                        </button>
+                        <button id="userTimelineButton" type="button" onclick="closeUserAccountMenu(); openTimelineModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="clock" class="h-4 w-4 text-teal-300"></i>ประวัติการสแกน
+                        </button>
+                        <button id="nearbyEnvironmentRadarButton" type="button" onclick="closeUserAccountMenu(); openNearbyContextModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="radar" class="h-4 w-4 text-cyan-300"></i>Nearby Environment Radar
+                        </button>
+                        <div class="my-2 border-t border-slate-700"></div>
+                        <a href="{{ url_for('terms', return_to='scan') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="file-text" class="h-4 w-4 text-slate-400"></i>ข้อกำหนดการใช้งาน
+                        </a>
+                        <a href="{{ url_for('privacy', return_to='scan') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="shield-check" class="h-4 w-4 text-slate-400"></i>ความเป็นส่วนตัวและข้อมูล
+                        </a>
+                        <button id="changePasswordMenuItem" type="button" onclick="closeUserAccountMenu(); openChangePasswordModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-slate-800 hover:text-white" role="menuitem">
+                            <i data-lucide="key-round" class="h-4 w-4 text-teal-300"></i>เปลี่ยนรหัสผ่าน
+                        </button>
+                        <button type="button" onclick="closeUserAccountMenu(); openAccountDeletionModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 hover:text-rose-200" role="menuitem">
+                            <i data-lucide="trash-2" class="h-4 w-4"></i>ลบบัญชีและข้อมูล
+                        </button>
+                        <div class="my-2 border-t border-slate-700"></div>
+                        <button type="button" onclick="closeUserAccountMenu(); openLogoutModal()" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-200 transition hover:bg-rose-500/10 hover:text-rose-200" role="menuitem">
+                            <i data-lucide="log-out" class="h-4 w-4"></i>ออกจากระบบ
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if session.get('user_role') == 'admin' %}
+                <a href="/admin_dashboard" class="inline-flex items-center space-x-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-teal-500/50 transition-all shadow-sm">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    <span>Dashboard</span>
+                </a>
+                <button onclick="openLogoutModal()" class="inline-flex items-center space-x-2 bg-slate-800 hover:bg-rose-600/90 text-slate-200 hover:text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-700 transition-all shadow-sm">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>ออกจากระบบ</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Scan workspace -->
+    <main class="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:py-8">
+        <section class="scan-hero relative rounded-[2rem] px-6 py-7 text-white sm:px-9 sm:py-10 lg:min-h-[330px] lg:px-12" aria-labelledby="scanHeroTitle">
+            <div class="scan-hero-content relative z-10 max-w-2xl">
+                <div class="inline-flex items-center gap-2 rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1.5 text-[10px] font-extrabold tracking-[.16em] text-teal-100">
+                    <span class="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_12px_rgba(94,234,212,.9)]"></span>
+                    {% if public_information_mode %}PUBLIC SKIN INFORMATION{% else %}PERSONAL SKIN IMAGE WORKSPACE{% endif %}
+                </div>
+                <h1 id="scanHeroTitle" class="scan-hero-title mt-5 max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">{% if public_information_mode %}ข้อมูลประกอบการดูแล<span class="text-teal-200">ผิวหนังอย่างรับผิดชอบ</span>{% else %}ส่งภาพบริเวณผิวหนัง <span class="text-teal-200">ที่ต้องการตรวจอย่างชัดเจน</span>{% endif %}</h1>
+                <p class="scan-hero-subtitle mt-4 max-w-xl text-sm leading-6 text-slate-200">{% if public_information_mode %}ขณะนี้หน้าเว็บแสดงข้อมูลการดูแลผิวทั่วไปและสภาพแวดล้อมตามการยินยอมเท่านั้น ไม่รับภาพ ไม่วิเคราะห์ภาพ และไม่ใช้แทนคำแนะนำจากแพทย์{% else %}เลือกไฟล์หรือใช้กล้องถ่ายเฉพาะบริเวณผิวหนังที่ต้องการตรวจ ยืนยันสิทธิ์การใช้งาน แล้วจึงเข้าถึงบริการภาพที่เปิดใช้งานอยู่{% endif %}</p>
+                <div class="mt-6 grid max-w-xl grid-cols-3 gap-2 text-left text-[10px] font-bold sm:text-xs">
+                    {% if public_information_mode %}
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">1</span>อ่านข้อมูลทั่วไป</div>
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">2</span>เลือกแชร์ตำแหน่ง</div>
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">3</span>ขอคำแนะนำเมื่อกังวล</div>
+                    {% else %}
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">1</span>ส่งภาพผิวหนัง</div>
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">2</span>ยืนยันข้อมูล</div>
+                    <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">3</span>เริ่มตรวจสอบ</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="scan-hero-illustration pointer-events-none absolute inset-y-0 right-0 z-[1] hidden w-[43%] overflow-hidden lg:block" aria-hidden="true">
+                <img src="{{ url_for('static', filename='รูป.png') }}" alt="" class="scan-hero-person absolute bottom-[-17%] right-[-8%] h-[128%] w-auto max-w-none object-contain">
+            </div>
+        </section>
+
+        <div class="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+            <aside class="grid grid-cols-1 gap-4 lg:col-span-12 md:grid-cols-3">
+                <section class="scan-side-card rounded-3xl p-5 text-left" aria-labelledby="photoGuideTitle">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-sm"><i data-lucide="scan-line" class="h-5 w-5"></i></span>
+                        <div>
+                            <p class="text-[10px] font-extrabold tracking-[.14em] text-teal-700">PHOTO GUIDE</p>
+                            <h2 id="photoGuideTitle" class="mt-0.5 text-sm font-extrabold text-slate-900">{% if public_information_mode %}การใช้ข้อมูลอย่างปลอดภัย{% else %}ภาพแบบไหนเหมาะกับการตรวจสอบ{% endif %}</h2>
+                        </div>
+                    </div>
+                    <ol class="mt-5 space-y-3">
+                        {% if public_information_mode %}
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">1</span><div><p class="text-xs font-bold text-slate-800">อ่านข้อมูลเป็นแนวทางทั่วไป</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">ข้อมูลสาธารณะไม่ใช่ผลวินิจฉัยโรคหรือแผนรักษา</p></div></li>
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">2</span><div><p class="text-xs font-bold text-slate-800">เลือกแชร์ตำแหน่งเมื่อจำเป็น</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">ข้อมูลอากาศและแผนที่เป็นตัวเลือก และมีการขอความยินยอมแยกกัน</p></div></li>
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">3</span><div><p class="text-xs font-bold text-slate-800">พบผู้เชี่ยวชาญเมื่อมีความกังวล</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">โดยเฉพาะเมื่อผื่นลามเร็ว ปวดมาก เลือดออก หรือแผลไม่หาย</p></div></li>
+                        {% else %}
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">1</span><div><p class="text-xs font-bold text-slate-800">ใช้แสงธรรมชาติหรือแสงสว่างพอดี</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">หลีกเลี่ยงภาพย้อนแสง มืด หรือมีเงาบังรอยโรค</p></div></li>
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">2</span><div><p class="text-xs font-bold text-slate-800">โฟกัสเฉพาะบริเวณที่ต้องการตรวจ</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">วางรอยโรคไว้กลางภาพและไม่ถ่ายไกลเกินไป</p></div></li>
+                        <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-[11px] font-extrabold text-teal-700 ring-1 ring-teal-100">3</span><div><p class="text-xs font-bold text-slate-800">ตรวจอีกครั้งก่อนส่ง</p><p class="mt-0.5 text-[11px] leading-relaxed text-slate-500">เลือกเฉพาะภาพผิวหนังมนุษย์ ไม่ส่งเอกสาร สัตว์ หรือวัตถุ</p></div></li>
+                        {% endif %}
+                    </ol>
+                </section>
+                <section class="flex h-full flex-col rounded-3xl border border-rose-200 bg-rose-50/95 p-5 text-left shadow-sm" aria-label="อาการที่ควรพบแพทย์โดยเร็ว">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white"><i data-lucide="triangle-alert" class="h-4 w-4"></i></span>
+                        <div>
+                            <h2 class="text-xs font-extrabold text-rose-950">มีอาการน่ากังวล ไม่ต้องรอผลจากระบบ</h2>
+                            <p class="mt-1 text-[11px] leading-relaxed text-rose-900">ระบบมีไว้คัดกรองภาพเบื้องต้นเท่านั้น หากกังวลเกี่ยวกับอาการ ควรติดต่อแพทย์หรือบริการฉุกเฉินในพื้นที่โดยไม่ต้องรอผลจากระบบ</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 rounded-2xl border border-rose-200/80 bg-white/65 p-3">
+                        <p class="text-[10px] font-extrabold tracking-wide text-rose-800">ควรพบแพทย์โดยเร็ว หากมีอาการต่อไปนี้</p>
+                        <ul class="mt-2 space-y-1.5 text-[11px] leading-relaxed text-rose-900">
+                            <li class="flex gap-2"><span class="text-rose-500">•</span><span>รอยโรคใหม่ หรือเปลี่ยนแปลงเร็วผิดปกติ</span></li>
+                            <li class="flex gap-2"><span class="text-rose-500">•</span><span>มีเลือดออก แผลไม่หาย หรือปวดมาก</span></li>
+                            <li class="flex gap-2"><span class="text-rose-500">•</span><span>มีไข้ หรือผื่นลามเร็วร่วมกับอาการกังวล</span></li>
+                        </ul>
+                    </div>
+                    <p class="mt-auto pt-4 text-[10px] font-semibold text-rose-700">ห้ามใช้ผลจากระบบเพื่อชะลอการขอความช่วยเหลือทางการแพทย์</p>
+                </section>
+                <section class="flex h-full flex-col rounded-3xl border border-slate-200 bg-slate-900 p-5 text-left text-slate-100 shadow-xl shadow-slate-900/15">
+                    <div class="flex items-start gap-3"><i data-lucide="shield-check" class="mt-0.5 h-5 w-5 shrink-0 text-teal-300"></i><div><h2 class="text-xs font-extrabold text-white">{% if public_information_mode %}ข้อมูลนี้เพื่อการดูแลผิวทั่วไป{% else %}ข้อมูลนี้เพื่อการตรวจสอบเบื้องต้น{% endif %}</h2><p class="mt-1 text-[11px] leading-relaxed text-slate-300">{% if public_information_mode %}หน้าเว็บนี้ไม่รับภาพและไม่แสดงผลวิเคราะห์จากภาพในโหมดข้อมูลสาธารณะ{% else %}ข้อมูลจากภาพมีไว้ประกอบการสังเกต ไม่ใช่การวินิจฉัยโรคหรือแผนการรักษา{% endif %}</p></div></div>
+                    <div class="mt-4 rounded-2xl border border-slate-700 bg-slate-800/90 p-3">
+                        <ul class="space-y-2 text-[11px] leading-relaxed text-slate-300">
+                            <li class="flex gap-2"><i data-lucide="image" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-300"></i><span>คุณภาพภาพ แสง และมุมถ่ายอาจมีผลต่อผลการคัดกรอง</span></li>
+                            <li class="flex gap-2"><i data-lucide="stethoscope" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-300"></i><span>ใช้ผลเพื่อประกอบการสังเกตอาการ ไม่ใช้ยืนยันโรคหรือเลือกการรักษาด้วยตนเอง</span></li>
+                            <li class="flex gap-2"><i data-lucide="circle-help" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-300"></i><span>หากผลไม่ชัดเจนหรือมีความกังวล ควรปรึกษาแพทย์ผิวหนัง</span></li>
+                        </ul>
+                    </div>
+                    <p class="mt-auto pt-4 text-[10px] font-semibold text-teal-200">{% if public_information_mode %}หากมีอาการน่ากังวล ควรติดต่อสถานพยาบาลโดยเร็ว{% else %}ตรวจทานภาพและข้อความยินยอมก่อนส่งข้อมูลทุกครั้ง{% endif %}</p>
+                </section>
+            </aside>
+
+            <section class="scan-workbench space-y-5 lg:col-span-10 lg:col-start-2 rounded-[2rem] p-5 text-center sm:p-8" aria-labelledby="scanWorkspaceTitle">
+                <div class="mb-6 border-b border-slate-100 pb-5">
+                    <div class="inline-flex items-center space-x-2 bg-slate-900 text-teal-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide shadow-inner font-code">
+                    <span class="w-2 h-2 rounded-full {% if public_information_mode %}bg-amber-400{% elif model_release_ready %}bg-emerald-400 animate-pulse{% else %}bg-amber-400{% endif %}"></span>
+                    <span>{% if public_information_mode %}PUBLIC INFORMATION ONLY{% elif model_release_ready %}SCREENING RELEASE VERIFIED{% else %}MODEL RELEASE NOT VERIFIED{% endif %}</span>
+                    </div>
+                    <h2 id="scanWorkspaceTitle" class="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">{% if public_information_mode %}สถานะบริการข้อมูลสาธารณะ{% else %}ส่งภาพบริเวณผิวหนังที่ต้องการตรวจ{% endif %}</h2>
+                    <p class="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">{% if public_information_mode %}บริการรับภาพและประมวลผลภาพยังไม่เปิดใช้ในหน้านี้ ข้อมูลที่แสดงด้านล่างเป็นคำแนะนำทั่วไปเท่านั้น{% else %}ใช้ภาพที่มีแสงพอดีและโฟกัสบริเวณผิวหนังที่ต้องการตรวจ เพื่อให้ระบบตรวจคุณภาพภาพก่อนเริ่มการตรวจสอบ{% endif %}</p>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% for category, message in messages %}
+                    <div class="p-3.5 text-xs font-bold rounded-xl border {% if category == 'error' %}bg-rose-50 text-rose-700 border-rose-200{% elif category == 'warning' %}bg-amber-50 text-amber-800 border-amber-200{% else %}bg-emerald-50 text-emerald-700 border-emerald-200{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endwith %}
+
+                {% if disease_info and not public_information_mode %}
+                <div class="p-5 bg-teal-50/80 border border-teal-200 rounded-2xl text-left space-y-2">
+                    <div class="flex items-center justify-between border-b border-teal-200/60 pb-2">
+                        <span class="text-xs font-bold text-teal-800">ผลการวิเคราะห์เบื้องต้น:</span>
+                        <span class="text-xs font-extrabold text-teal-600 bg-teal-100 px-2.5 py-1 rounded-full font-code">คะแนนโมเดล: {{ confidence }}</span>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-900">{{ disease_info.th_name }}</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">{{ disease_info.desc }}</p>
+                    <div class="pt-2 text-xs text-teal-700 font-semibold">
+                        💡 <strong>คำแนะนำ:</strong> {{ disease_info.advice }}
+                    </div>
+                </div>
+                {% if top_predictions %}
+                <div class="mt-3 rounded-2xl border {% if is_uncertain %}border-amber-200 bg-amber-50{% else %}border-slate-200 bg-slate-50{% endif %} p-4 text-left">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h4 class="text-xs font-extrabold text-slate-800">คะแนนกลุ่มที่ใกล้เคียงที่สุดจากโมเดล</h4>
+                        <span class="text-[10px] font-mono text-slate-500">ส่วนต่างอันดับ 1–2: {{ margin }}</span>
+                    </div>
+                    {% if decision_status == 'out_of_scope' %}
+                    <p class="mt-2 text-xs font-semibold leading-relaxed text-amber-800">ระบบงดสรุปผล: {{ uncertainty_reason }} ภาพนี้ไม่ตรงกับกลุ่มที่โมเดลรู้จักมากพอ จึงไม่สามารถตั้งชื่อโรคที่ไม่มีในระบบได้</p>
+                    {% elif is_uncertain %}
+                    <p class="mt-2 text-xs font-semibold leading-relaxed text-amber-800">ระบบงดสรุปผล: {{ uncertainty_reason }} จึงไม่ควรตีความว่าเป็นการวินิจฉัย</p>
+                    {% endif %}
+                    <ol class="mt-3 space-y-2">
+                        {% for prediction in top_predictions %}
+                        <li class="flex items-center justify-between gap-3 text-xs">
+                            <span class="text-slate-700"><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-teal-700 ring-1 ring-slate-200">{{ loop.index }}</span>{{ prediction.label }}</span>
+                            <span class="font-mono font-bold text-slate-600">{{ '%.2f'|format(prediction.confidence) }}%</span>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                    <p class="mt-3 text-[10px] leading-relaxed text-slate-500">Model: {{ model_version }} · คะแนนเป็นผลของโมเดล ไม่ใช่ความน่าจะเป็นทางคลินิกหรือการวินิจฉัย</p>
+                </div>
+                {% endif %}
+                {% if gradcam_url %}
+                <section id="gradcamExplanation" class="mt-3 overflow-hidden rounded-2xl border border-cyan-200 bg-cyan-50/70 text-left">
+                    <div class="flex items-start gap-3 border-b border-cyan-200/80 bg-white/70 p-4">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white shadow-sm"><i data-lucide="focus" class="h-4 w-4"></i></span>
+                        <div>
+                            <h4 class="text-xs font-extrabold text-slate-900">Explainable AI · Grad-CAM</h4>
+                            <p class="mt-1 text-[11px] leading-relaxed text-slate-600">สีเหลือง–แดงคือบริเวณที่มีอิทธิพลต่อคะแนนของโมเดลสำหรับผลอันดับหนึ่งในภาพนี้</p>
+                        </div>
+                    </div>
+                    <img src="{{ gradcam_url }}" alt="Grad-CAM แสดงบริเวณที่โมเดลให้ความสำคัญ" class="max-h-[420px] w-full bg-slate-900 object-contain">
+                    <p class="p-4 text-[10px] leading-relaxed text-slate-600">แผนที่นี้อธิบายความสนใจของโมเดลเท่านั้น ไม่ใช่เส้นขอบของรอยโรค ไม่ใช่การแบ่งส่วนภาพ และไม่ใช่หลักฐานยืนยันการวินิจฉัย</p>
+                </section>
+                {% endif %}
+                {% endif %}
+
+                <!-- กล่องแสดงผลลัพธ์แบบ Dynamic หลังสแกน -->
+                <div id="dynamicScanResult" class="hidden p-5 bg-teal-50/80 border border-teal-200 rounded-2xl text-left space-y-2" {% if public_information_mode %}aria-hidden="true"{% endif %}>
+                    <div class="flex items-center justify-between border-b border-teal-200/60 pb-2">
+                        <span class="text-xs font-bold text-teal-800">ผลการวิเคราะห์เบื้องต้น (บันทึกเข้าระบบแล้ว):</span>
+                        <span id="dynAccuracy" class="text-xs font-extrabold text-teal-600 bg-teal-100 px-2.5 py-1 rounded-full font-code"></span>
+                    </div>
+                    <h3 id="dynDiseaseName" class="text-base font-extrabold text-slate-900"></h3>
+                    <p id="dynDiseaseDesc" class="text-xs text-slate-600 leading-relaxed"></p>
+                    <div class="pt-2 text-xs text-teal-700 font-semibold">
+                        💡 <strong>คำแนะนำ:</strong> <span id="dynDiseaseAdvice"></span>
+                    </div>
+                </div>
+
+                <!-- ฟอร์มสแกนรูป -->
+                {% if not public_information_mode and analysis_available %}
+                <form id="scanForm" onsubmit="handleScanSubmit(event)" action="{{ url_for('dashboard') }}" method="POST" enctype="multipart/form-data" class="space-y-5 pt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="file" id="fileInput" name="file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleFileSelect(this)">
+
+                    <section id="imageSuitabilityGate" class="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 text-left">
+                        <div class="flex items-start gap-3">
+                            <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white"><i data-lucide="shield-check" class="h-4 w-4"></i></span>
+                            <div>
+                                <h3 class="text-xs font-extrabold text-cyan-950">ตรวจความเหมาะสมของภาพก่อนวิเคราะห์</h3>
+                                <p class="mt-1 text-xs leading-relaxed text-cyan-900">ระบบตรวจไฟล์ ความสว่าง รายละเอียดภาพ และสัญญาณความสอดคล้องกับขอบเขตของโมเดลก่อนแสดงผลจำแนก ภาพมืด เบลอ เรียบเกินไป หรือไม่เข้าเกณฑ์จะถูกปฏิเสธและไม่บันทึกเป็นผลสแกน</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <input type="hidden" name="image_domain" value="{{ active_image_domains[0].id }}">
+
+                    <div class="border-2 border-dashed border-teal-200 hover:border-teal-400 bg-teal-50/30 rounded-3xl p-6 sm:p-8 transition-all relative">
+                        <div id="previewContainer" class="hidden space-y-4">
+                            <img id="imagePreview" src="#" alt="ภาพสแกน" class="max-h-64 mx-auto rounded-2xl shadow-md border border-slate-200 object-contain">
+                            <p id="fileNameDisplay" class="text-xs font-bold text-slate-600 font-code"></p>
+                            <button type="button" onclick="clearSelectedImage()" class="text-xs text-rose-500 hover:underline font-semibold">
+                                ✕ ยกเลิกและเลือกภาพใหม่
+                            </button>
+                        </div>
+
+                        <div id="uploadPlaceholder" class="space-y-4">
+                            <div class="w-16 h-16 bg-white text-teal-600 rounded-2xl flex items-center justify-center mx-auto shadow-md border border-teal-100">
+                                <i data-lucide="image-plus" class="w-8 h-8"></i>
+                            </div>
+
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">อัปโหลดหรือถ่ายภาพบริเวณผิวหนัง</h3>
+                                <p class="text-xs text-slate-400 mt-1">รองรับ JPG, JPEG, PNG และ WEBP ขนาดไม่เกิน 8 MB ภาพควรชัด มีแสงพอดี และโฟกัสเฉพาะจุดหรืออาการบนผิวหนังที่ต้องการตรวจ ใบหน้าและหนังศีรษะใช้ได้เมื่อจำเป็น; ครอปข้อมูลส่วนบุคคลที่ไม่เกี่ยวข้องออกเมื่อทำได้</p>
+                            </div>
+
+                            <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                                <button type="button" onclick="document.getElementById('fileInput').click()" class="w-full sm:w-auto px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-2">
+                                    <i data-lucide="folder-open" class="w-4 h-4 text-teal-400"></i>
+                                    <span>เลือกรูปภาพ / ไฟล์</span>
+                                </button>
+
+                                <button type="button" onclick="openCameraModal()" class="w-full sm:w-auto px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-600/20 flex items-center justify-center space-x-2">
+                                    <i data-lucide="camera" class="w-4 h-4"></i>
+                                    <span>ถ่ายภาพด้วยกล้อง</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="flex items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4 text-left cursor-pointer">
+                        <input id="lesionImageConfirmation" type="checkbox" name="lesion_image_confirmation" class="mt-0.5 h-4 w-4 rounded border-cyan-400 text-cyan-700 focus:ring-cyan-500" required>
+                        <span class="text-xs leading-relaxed text-slate-700">
+                            ฉันยืนยันว่าภาพนี้แสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่น โดยอาจอยู่ที่ใบหน้า หนังศีรษะ หรือทุกตำแหน่งของร่างกาย และไม่ใช่ภาพกระเป๋า วัตถุ เอกสาร สัตว์ หรือภาพอื่นที่ไม่ใช่ผิวหนังมนุษย์
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left cursor-pointer">
+                        <input id="scanConsent" type="checkbox" name="scan_consent" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" required>
+                        <span class="text-xs leading-relaxed text-slate-600">
+                            ฉันยืนยันว่ามีสิทธิ์ส่งภาพนี้ และยินยอมให้ระบบเก็บภาพกับผลคัดกรองไว้ในบัญชีของฉันไม่เกิน {{ retention_days }} วันตามประกาศความเป็นส่วนตัว โดยสามารถลบรายการได้ทันที
+                            <a href="{{ url_for('privacy', return_to='scan') }}" class="font-bold text-teal-700 hover:underline">อ่านประกาศความเป็นส่วนตัว</a>
+                        </span>
+                    </label>
+
+                    <button type="submit" id="submitScanBtn" class="w-full py-4 bg-slate-900 hover:bg-teal-700 text-white font-extrabold text-sm rounded-2xl transition-all shadow-lg flex items-center justify-center space-x-2 font-code">
+                        <i data-lucide="zap" class="w-5 h-5 text-teal-400"></i>
+                        <span>START SCAN PROCESS</span>
+                    </button>
+                </form>
+                {% else %}
+                <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-left" aria-live="polite">
+                    {% if public_information_mode %}
+                    <h3 class="text-sm font-extrabold text-amber-900">หน้านี้อยู่ในโหมดข้อมูลสาธารณะ</h3>
+                    <p class="mt-2 text-xs leading-relaxed text-amber-800">บริการรับภาพและผลจากภาพถูกปิดไว้ เพื่อไม่ให้ข้อมูลทั่วไปถูกเข้าใจว่าเป็นการประเมินหรือวินิจฉัยทางการแพทย์</p>
+                    {% else %}
+                    <h3 class="text-sm font-extrabold text-amber-900">บริการข้อมูลจากภาพยังไม่เปิดใช้กับข้อมูลสุขภาพ</h3>
+                    <p class="mt-2 text-xs leading-relaxed text-amber-800">การอัปโหลดถูกระงับจนกว่าโมเดลจะมี output ครบ 50 โรค, ข้อมูลที่มา, ผลประเมินอิสระ, การปรับเทียบ และการอนุมัติ intended use ครบถ้วน</p>
+                    <ul class="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-800">
+                        {% for problem in model_readiness_problems %}<li>{{ problem }}</li>{% endfor %}
+                    </ul>
+                    {% endif %}
+                </section>
+                {% endif %}
+                {% if session.get('user_role') == 'user' %}
+                <section id="scanFeedbackControl" class="flex justify-end border-t border-slate-200 pt-5 text-left" aria-label="ส่งข้อเสนอแนะ">
+                    <span id="scanFeedbackDescription" class="sr-only">ส่งความเห็นให้ทีมผู้ดูแลได้โดยตรงจากหน้าแสกนนี้</span>
+                    <button id="scanFeedbackButton" type="button" onclick="openFeedbackModal()" aria-label="ส่งข้อเสนอแนะเกี่ยวกับหน้าแสกน" aria-describedby="scanFeedbackDescription" class="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2">
+                        <i data-lucide="message-square-text" class="h-4 w-4"></i>
+                        <span>ข้อเสนอแนะ</span>
+                    </button>
+                </section>
+                {% endif %}
+            </div>
+
+
+        </div>
+    </main>
+
+    <!-- 🆕 [Skin Timeline Modal] หน้าต่างประวัติ -->
+    <div id="timelineModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 transition-all duration-300" role="dialog" aria-modal="true" aria-labelledby="timelineModalTitle" aria-describedby="timelineSubtitle" data-accessible-modal="true">
+        <div class="bg-white w-full max-w-4xl rounded-3xl p-6 sm:p-8 relative shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-100 flex flex-col">
+            
+            <!-- ส่วนหัว Modal -->
+            <div class="flex justify-between items-start border-b border-slate-100 pb-5 mb-6 shrink-0">
+                <div class="space-y-3">
+                    <h2 id="timelineModalTitle" class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="clock" class="w-6 h-6 text-teal-600"></i>
+                        Skin Timeline
+                    </h2>
+                    <p id="timelineSubtitle" class="text-xs text-slate-500">ประวัติข้อมูลที่บันทึกไว้ในบัญชี ใช้ประกอบการติดตามส่วนบุคคล ไม่ใช่การวินิจฉัยโรค</p>
+                    
+                    <!-- แสดงชื่อและอีเมลเฉพาะ User ปกติเท่านั้น -->
+                    {% if session.get('user_role') != 'admin' %}
+                    <div class="inline-flex flex-wrap items-center gap-3 text-sm text-slate-700 bg-slate-50/80 px-4 py-2 rounded-xl border border-slate-200">
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="user" class="w-4 h-4 text-teal-600"></i>
+                            <span class="font-bold">ชื่อ:</span>
+                            <span id="timelineUserName">{{ session.get('user_name', 'ผู้ใช้งานทั่วไป') }} ({{ session.get('user_role', 'user') | upper }})</span>
+                        </div>
+                        <span class="hidden sm:block w-px h-4 bg-slate-300"></span>
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="mail" class="w-4 h-4 text-teal-600"></i>
+                            <span class="font-bold">อีเมล:</span>
+                            <span id="timelineUserEmail">{{ session.get('user_email', 'user@example.com') }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <button id="timelineCloseButton" type="button" onclick="closeTimelineModal()" aria-label="ปิดประวัติ" data-modal-close class="text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-200 p-2 rounded-full transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- พื้นที่แสดงข้อมูล Timeline -->
+            <div id="timelineContentArea" class="flex-1 w-full relative"></div>
+            
+        </div>
+    </div>
+
+
+    {% if session.get('user_role') == 'user' %}
+    <!-- Consent for a one-time browser location used by the optional map and live weather panel. -->
+    <div id="locationServiceConsentModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="locationServiceConsentTitle" aria-describedby="locationServiceConsentDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 text-slate-800 shadow-2xl sm:p-8">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div class="flex gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 text-cyan-700"><i data-lucide="map-pin" class="h-6 w-6"></i></div>
+                    <div>
+                        <h3 id="locationServiceConsentTitle" class="text-base font-extrabold text-slate-900">อนุญาตใช้ตำแหน่งสำหรับแผนที่และอากาศ</h3>
+                        <p id="locationServiceConsentDescription" class="mt-1 text-xs leading-relaxed text-slate-500">หลังยืนยัน ระบบจะแสดงกล่องอนุญาตของเบราว์เซอร์อีกครั้ง คุณเลือกปฏิเสธได้เสมอ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeDashboardLocationConsent()" class="px-2 text-xl font-bold text-slate-400 hover:text-slate-700" aria-label="ปิด" data-modal-close>×</button>
+            </div>
+
+            <div class="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-relaxed text-cyan-950">
+                <p class="font-bold">การใช้งานและผู้รับข้อมูล</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li>พิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่งส่งไปยัง OpenStreetMap Nominatim เพื่อแสดงชื่อพื้นที่โดยประมาณ</li>
+                    <li>พิกัดที่ปัดแล้วส่งไปยัง Open-Meteo เพื่อข้อมูลอากาศ, UV และ PM2.5</li>
+                    <li>Google Maps จะไม่ได้รับพิกัดจากขั้นตอนนี้ เว้นแต่คุณติ๊กความยินยอมแยกด้านล่าง</li>
+                </ul>
+                <p class="mt-2">พิกัดจริงจะอยู่ในหน่วยความจำของเบราว์เซอร์ชั่วคราวเพื่อปัดค่า และจะไม่ถูกส่งเข้าเซิร์ฟเวอร์ของระบบผ่านขั้นตอนนี้</p>
+            </div>
+
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                <input id="dashboardLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-cyan-400 text-cyan-700 focus:ring-cyan-500">
+                <span class="text-xs leading-relaxed text-slate-700">ฉันเข้าใจและยินยอมให้ใช้ตำแหน่งโดยประมาณของฉันกับ OpenStreetMap และ Open-Meteo สำหรับครั้งนี้</span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                <input id="dashboardGoogleMapsConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-cyan-400 text-cyan-700 focus:ring-cyan-500">
+                <span class="text-xs leading-relaxed text-slate-700">ไม่บังคับ: ฉันยินยอมให้ส่งพิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่งไปยัง Google Maps เพื่อแสดงแผนที่ตำแหน่งของฉันในครั้งนี้</span>
+            </label>
+            <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">หมายเหตุ: GPS ใช้ได้เมื่อเปิดเว็บผ่าน HTTPS เท่านั้น ลิงก์ IP แบบ HTTP จะไม่สามารถเรียกตำแหน่งจากเบราว์เซอร์ได้</p>
+            <p id="dashboardLocationConsentStatus" class="min-h-5 text-xs font-semibold text-rose-600" aria-live="polite"></p>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" onclick="closeDashboardLocationConsent()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">ไม่ใช้ตำแหน่ง</button>
+                <button type="button" onclick="approveDashboardLocationConsent()" class="rounded-xl bg-cyan-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-cyan-800">ยืนยันและเรียกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- เรดาร์บริบทสิ่งแวดล้อมจากตำแหน่งที่ผู้ใช้ยินยอม -->
+    <div id="nearbyContextModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="nearbyContextTitle" aria-describedby="nearbyContextDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-2xl space-y-5 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-8">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div class="flex gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 text-cyan-700"><i data-lucide="radar" class="h-6 w-6"></i></div>
+                    <div>
+                        <h3 id="nearbyContextTitle" class="text-base font-extrabold text-slate-900">เรดาร์ข้อมูลสภาพแวดล้อม</h3>
+                        <p id="nearbyContextDescription" class="mt-1 text-xs leading-relaxed text-slate-500">แสดง UV, PM2.5 และสภาพอากาศจากตำแหน่งโดยประมาณ ไม่ใช่การระบุความเสี่ยงโรคผิวหนัง</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeNearbyContextModal()" class="px-2 text-xl font-bold text-slate-400 hover:text-slate-700" aria-label="ปิด" data-modal-close>×</button>
+            </div>
+
+            <div class="rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-xs leading-relaxed text-cyan-950">
+                <strong>ความเป็นส่วนตัว:</strong> เมื่อคุณยืนยัน ระบบจะขอตำแหน่งจากเบราว์เซอร์ แล้วส่งเฉพาะพิกัดโดยประมาณระดับราว 1 กม. ไปยัง Open-Meteo เพื่อเรียกข้อมูลอากาศสาธารณะ จากนั้นระบบจะเก็บเฉพาะพิกัดโดยประมาณ ค่าอากาศ และข้อความแจ้งเตือนไว้ให้แอดมินเห็นเป็นเวลาไม่เกิน {{ location_context_retention_hours }} ชั่วโมง คุณลบได้ทันทีด้านล่าง
+            </div>
+
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                <input id="nearbyContextConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-cyan-400 text-cyan-700 focus:ring-cyan-500">
+                <span class="text-xs leading-relaxed text-slate-700">ฉันยินยอมให้เรียกข้อมูลสภาพอากาศตามตำแหน่งโดยประมาณครั้งนี้ และให้ระบบส่งเฉพาะกริดตำแหน่งโดยประมาณพร้อมบริบทสิ่งแวดล้อมแก่ผู้ดูแลตามระยะเวลาที่ระบุ</span>
+            </label>
+
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-[10px] font-mono text-slate-500">PM2.5</p><p id="nearbyPm25" class="mt-1 text-lg font-extrabold text-slate-900">{% if nearby_context %}{{ '%.1f'|format(nearby_context.pm25) }}{% else %}—{% endif %}</p></div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-[10px] font-mono text-slate-500">UV INDEX</p><p id="nearbyUv" class="mt-1 text-lg font-extrabold text-slate-900">{% if nearby_context %}{{ '%.1f'|format(nearby_context.uv_index) }}{% else %}—{% endif %}</p></div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-[10px] font-mono text-slate-500">HUMIDITY</p><p id="nearbyHumidity" class="mt-1 text-lg font-extrabold text-slate-900">{% if nearby_context %}{{ '%.0f'|format(nearby_context.relative_humidity) }}%{% else %}—{% endif %}</p></div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-[10px] font-mono text-slate-500">TEMP</p><p id="nearbyTemperature" class="mt-1 text-lg font-extrabold text-slate-900">{% if nearby_context %}{{ '%.1f'|format(nearby_context.temperature_c) }}°C{% else %}—{% endif %}</p></div>
+            </div>
+
+            <div class="rounded-2xl border {% if nearby_context and nearby_context.context_level != 'ข้อมูลทั่วไป' %}border-amber-200 bg-amber-50{% else %}border-emerald-200 bg-emerald-50{% endif %} p-4">
+                <p id="nearbyContextLevel" class="text-sm font-extrabold {% if nearby_context and nearby_context.context_level != 'ข้อมูลทั่วไป' %}text-amber-900{% else %}text-emerald-900{% endif %}">{% if nearby_context %}{{ nearby_context.context_level }}{% else %}ยังไม่มีข้อมูลบริบทพื้นที่{% endif %}</p>
+                <p id="nearbyContextSummary" class="mt-1 text-xs leading-relaxed text-slate-700">{% if nearby_context %}{{ nearby_context.context_summary }}{% else %}กดปุ่มด้านล่างเพื่อเลือกแชร์ตำแหน่งโดยประมาณครั้งนี้{% endif %}</p>
+                <p id="nearbyContextLocation" class="mt-2 text-[10px] font-mono text-slate-500">{% if nearby_context %}พิกัดโดยประมาณ {{ '%.2f'|format(nearby_context.latitude_approx) }}, {{ '%.2f'|format(nearby_context.longitude_approx) }} · ลบอัตโนมัติ {{ nearby_context.retention_expires_at }}{% endif %}</p>
+            </div>
+
+            <p id="nearbyContextStatus" class="min-h-5 text-xs font-semibold text-slate-500" aria-live="polite"></p>
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                {% if nearby_context %}
+                <form action="{{ url_for('delete_nearby_context') }}" method="POST" onsubmit="return confirm('ยืนยันลบตำแหน่งโดยประมาณและข้อมูลสิ่งแวดล้อมล่าสุดใช่หรือไม่?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50">ลบข้อมูลพื้นที่ล่าสุด</button>
+                </form>
+                {% else %}<span></span>{% endif %}
+                <button type="button" onclick="requestNearbyContext()" class="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-cyan-800"><i data-lucide="locate-fixed" class="h-4 w-4"></i>ยินยอมและตรวจบริบทพื้นที่</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Legacy demo map; no longer linked from the general-user workflow. -->
+    <div id="skinMapModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md transition-all duration-300" role="dialog" aria-modal="true" aria-labelledby="skinMapModalTitle" aria-describedby="skinMapModalDescription" data-accessible-modal="true">
+        <div class="bg-white w-full max-w-6xl rounded-3xl p-6 sm:p-8 relative shadow-2xl space-y-4 border border-slate-100 max-h-[95vh] overflow-y-auto">
+            
+            <!-- Header Bar -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-11 h-11 rounded-2xl brand-logo-glow border border-teal-400/40 flex items-center justify-center text-teal-100 shrink-0">
+                        <i data-lucide="cross" class="w-6 h-6"></i>
+                    </div>
+
+                    <div>
+                        <h3 id="skinMapModalTitle" class="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                            Skin Health Map
+                            <span class="text-[10px] bg-slate-900 text-teal-300 font-extrabold px-2.5 py-0.5 rounded-full border border-teal-800 font-code">SPATIAL GIS MATRIX v2.4</span>
+                        </h3>
+                        <p id="skinMapModalDescription" class="text-xs text-slate-500 font-medium">ตัวอย่างการแสดงผลเชิงพื้นที่ ไม่ใช่ข้อมูลเฝ้าระวังโรคหรือคำแนะนำทางการแพทย์</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 self-end sm:self-auto font-code">
+                    <button type="button" onclick="openUserLocationMap()" title="ใช้ตำแหน่งล่าสุดของคุณ" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-900 hover:border-cyan-400 transition-all flex items-center gap-1.5 shadow-sm group cursor-pointer">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform"></i>
+                        <span id="header-location-text">ใช้ตำแหน่งล่าสุดของฉัน</span>
+                    </button>
+
+                    <button class="px-4 py-2 rounded-xl text-xs font-bold bg-teal-800 text-white shadow-md border border-teal-600 flex items-center gap-2 cursor-default">
+                        <i data-lucide="radio" class="w-4 h-4 text-emerald-300 animate-pulse"></i>
+                        <span>DEMO DATA</span>
+                    </button>
+                    <button type="button" onclick="closeSkinMapModal()" aria-label="ปิดแผนที่ตัวอย่าง" data-modal-close class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">✕</button>
+                </div>
+            </div>
+
+            <!-- โครงสร้างหลัก 2 คอลัมน์ -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                <!-- เรดาร์ GIS Matrix -->
+                <div class="lg:col-span-5 gis-radar-bg rounded-2xl border border-slate-800 relative overflow-hidden flex flex-col justify-between p-4 shadow-2xl min-h-[370px]">
+                    <div class="flex justify-between items-center text-[10px] font-code text-teal-400 border-b border-slate-800 pb-2">
+                        <span class="flex items-center gap-1.5 font-bold"><i data-lucide="crosshair" class="w-3.5 h-3.5 text-rose-500"></i> แผนที่ตัวอย่างเพื่ออธิบายหน้าจอ</span>
+                        <span class="bg-teal-950 text-teal-300 px-2 py-0.5 rounded border border-teal-800 font-code">NOT CLINICAL DATA</span>
+                    </div>
+
+                    <div class="relative w-full h-56 flex items-center justify-center my-2">
+                        <div class="absolute w-48 h-48 rounded-full border border-teal-500/30 flex items-center justify-center">
+                            <div class="w-32 h-32 rounded-full border border-teal-500/20 flex items-center justify-center">
+                                <div class="w-16 h-16 rounded-full border border-teal-500/10"></div>
+                            </div>
+                        </div>
+
+                        <div class="absolute w-48 h-48 rounded-full overflow-hidden radar-sweeper opacity-60 pointer-events-none">
+                            <div class="w-1/2 h-1/2 bg-gradient-to-br from-teal-400/40 to-transparent"></div>
+                        </div>
+
+                        <button type="button" onclick="selectRiskNode('high')" aria-label="เลือกจุดตัวอย่างระดับสูง" class="absolute z-20 top-12 left-16 cursor-pointer border-0 bg-transparent p-0 group">
+                            <span class="absolute -inset-1 rounded-full bg-rose-500 animate-ping opacity-75"></span>
+                            <span class="w-3 h-3 rounded-full bg-rose-600 block shadow-lg relative group-hover:scale-125 transition-all"></span>
+                        </button>
+                        <button type="button" onclick="selectRiskNode('medium')" aria-label="เลือกจุดตัวอย่างระดับกลาง" class="absolute z-20 top-28 right-16 cursor-pointer border-0 bg-transparent p-0 group">
+                            <span class="w-3 h-3 rounded-full bg-orange-500 block shadow-md relative group-hover:scale-125 transition-all"></span>
+                        </button>
+                        <button type="button" onclick="selectRiskNode('low')" aria-label="เลือกจุดตัวอย่างระดับต่ำ" class="absolute z-20 bottom-12 left-24 cursor-pointer border-0 bg-transparent p-0 group">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 block shadow-md relative group-hover:scale-125 transition-all"></span>
+                        </button>
+                        <button type="button" onclick="selectRiskNode('user_gps')" aria-label="เลือกตำแหน่งของฉัน" class="absolute z-30 bottom-16 right-20 cursor-pointer border-0 bg-transparent p-0 group">
+                            <span class="w-3.5 h-3.5 rounded-full bg-cyan-400 block shadow-lg ring-4 ring-cyan-400/30"></span>
+                        </button>
+                    </div> 
+
+                    <div id="risk-card-container" class="relative z-30 w-full mb-3 bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-xl border border-rose-500/50 text-[10px] font-code space-y-1.5 transition-all">
+                        <div class="text-rose-300 font-bold flex justify-between items-center">
+                            <span id="card-title-text">📍 จุดตัวอย่าง: ตลาดสดเมืองใหม่ ยะลา</span>
+                            <button onclick="openRiskImageModal()" class="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded font-bold text-[9px] flex items-center gap-1 shadow-sm transition-all">
+                                <i data-lucide="map" class="w-3 h-3"></i> ดูตำแหน่งตัวอย่าง
+                            </button>
+                        </div>
+                        <div class="text-[9px] text-slate-300 flex justify-between pt-1 border-t border-slate-800">
+                            <span>ข้อมูลตัวอย่าง: <strong id="card-pm-val" class="text-amber-400">ไม่ระบุ</strong></span>
+                            <span>ระดับตัวอย่าง: <strong id="card-level-val" class="text-rose-400 font-bold">สูง (High)</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="w-full bg-slate-900/90 p-2 rounded-xl border border-slate-800 text-[10px] font-code flex justify-between items-center text-slate-300">
+                        <span class="text-slate-400">เลือกดูจุดตัวอย่าง:</span>
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="selectRiskNode('high')" class="px-2.5 py-0.5 rounded bg-rose-600 text-white font-bold hover:bg-rose-500 transition-all">สูง</button>
+                            <button onclick="selectRiskNode('medium')" class="px-2.5 py-0.5 rounded bg-orange-500 text-white font-bold hover:bg-orange-400 transition-all">กลาง</button>
+                            <button onclick="selectRiskNode('low')" class="px-2.5 py-0.5 rounded bg-emerald-600 text-white font-bold hover:bg-emerald-500 transition-all">ต่ำ</button>
+                            <button onclick="getUserRealLocation()" class="px-2 py-0.5 rounded bg-cyan-600 text-white font-bold hover:bg-cyan-500 transition-all flex items-center gap-1">คุณ (GPS)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ฝั่งขวา: แผงข้อมูลสภาวะผิว -->
+                <div class="lg:col-span-7 space-y-3 flex flex-col justify-between">
+                    <div class="bg-slate-900 text-slate-100 p-3.5 rounded-2xl shadow-md border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-xs font-bold text-teal-400 flex items-center gap-1.5">
+                                <i data-lucide="droplets" class="w-4 h-4 text-teal-300"></i>
+                                ตัวชี้วัดผิวที่ระบบยังไม่สามารถวัดได้
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 font-code">OPTIONAL DATA</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-center relative p-2 bg-slate-800/50 rounded-xl border border-slate-700">
+                            <div class="bg-slate-800/80 p-2 rounded-xl border border-slate-700/60 mt-1">
+                                <span class="text-[9px] text-slate-400 block font-semibold">ความเสี่ยงเชื้อรา/แบคทีเรีย</span>
+                                <span id="microbiome-risk-val" class="text-base font-extrabold text-amber-400">ไม่ได้วัด</span>
+                            </div>
+                            <div class="bg-slate-800/80 p-2 rounded-xl border border-slate-700/60 mt-1">
+                                <span class="text-[9px] text-slate-400 block font-semibold">ค่าความกรด-ด่างผิว</span>
+                                <span id="ph-val" class="text-base font-extrabold text-teal-300 font-code">ไม่ได้วัด</span>
+                            </div>
+                            <div class="bg-slate-800/80 p-2 rounded-xl border border-slate-700/60 mt-1">
+                                <span class="text-[9px] text-slate-400 block font-semibold">การอุดตันของรูขุมขน</span>
+                                <span id="pore-clog-val" class="text-base font-extrabold text-rose-400 font-code">ไม่ได้วัด</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-rose-900/90 to-slate-900 text-white p-3.5 rounded-2xl shadow-md border border-rose-900/50 space-y-2">
+                        <div class="flex items-center justify-between border-b border-rose-800/60 pb-1.5">
+                            <span class="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                                <i data-lucide="activity" class="w-4 h-4 text-rose-400"></i>
+                                การสูญเสียน้ำในผิว (TEWL)
+                            </span>
+                            <span class="text-[10px] font-bold bg-rose-500/20 text-rose-200 px-2.5 py-0.5 rounded-full border border-rose-500/40 flex items-center gap-1 font-code">
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+                                <span id="tewl-sync-tag">NO SENSOR DATA</span>
+                            </span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-[11px]">
+                                <span>อัตราการสูญเสียน้ำออกจากผิวหนัง:</span>
+                                <strong id="tewl-value-text" class="text-rose-400 font-code transition-all duration-300">ไม่ได้วัด</strong>
+                            </div>
+                            <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700 relative">
+                                <div id="tewl-progress-bar" class="bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 h-full w-[0%] transition-all duration-700"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-3 rounded-2xl border border-slate-200 space-y-2 shadow-sm">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                <i data-lucide="layers" class="w-4 h-4 text-teal-600"></i>
+                                ข้อมูลอากาศประกอบการดูแลผิว (ไม่ใช้ประเมินโรค)
+                            </span>
+                            <span class="text-[9px] font-bold text-slate-500 font-code">AFTER CONSENT</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-[11px]">
+                                <thead>
+                                    <tr class="text-slate-400 border-b border-slate-100 text-[10px]">
+                                        <th class="pb-1">ตำแหน่งที่เลือก</th>
+                                        <th class="pb-1">PM2.5</th>
+                                        <th class="pb-1">ดัชนี UV</th>
+                                        <th class="pb-1">หมายเหตุ</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+                                    <tr>
+                                        <td class="py-1 font-bold text-slate-900" id="tb-dist-1">ยังไม่เลือกตำแหน่ง</td>
+                                        <td class="py-1 text-rose-600 font-bold font-code" id="tb-pm-1">-- µg/m³</td>
+                                        <td class="py-1 text-amber-600 font-bold font-code" id="tb-uv-1">UV --</td>
+                                        <td class="py-1 text-slate-600" id="tb-risk-1">ใช้ประกอบการดูแลผิวทั่วไป</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🗺️ Modal แผนที่ตำแหน่งตัวอย่าง -->
+    <div id="riskImageModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="modal-image-header" aria-describedby="modal-desc-text" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-xl space-y-4 overflow-y-auto rounded-2xl border border-teal-500/40 bg-slate-900 p-6 font-code text-white shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 id="modal-image-header" class="text-sm font-bold text-teal-400 flex items-center gap-2">
+                    <i data-lucide="map-pin" class="w-4 h-4"></i> แผนที่ประกอบการแสดงผล
+                </h3>
+                <button type="button" onclick="closeRiskImageModal()" aria-label="ปิดแผนที่" data-modal-close class="text-slate-400 hover:text-white font-bold text-xl px-2">✕</button>
+            </div>
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center space-y-3">
+                <div class="w-full h-72 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative">
+                    <iframe id="modal-map-iframe" src="" width="100%" height="100%" style="border:0;" title="แผนที่ผลการค้นหาสถานพยาบาล" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+                <p id="modal-desc-text" class="text-[11px] text-slate-300 text-left leading-relaxed">
+                    <strong>รายละเอียดพิกัดเชิงพื้นที่:</strong> กำลังซิงค์ข้อมูล...
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ยืนยันการออกจากระบบ -->
+    <div id="feedbackModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="feedbackTitle" data-accessible-modal="true">
+        <div class="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-8">
+            <button type="button" onclick="closeFeedbackModal()" aria-label="ปิดหน้าต่างข้อเสนอแนะ" data-modal-close class="absolute right-5 top-5 text-xl font-bold text-slate-400 hover:text-slate-700">✕</button>
+            <div class="mb-5 flex items-center space-x-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-600/10 text-teal-700"><i data-lucide="message-square-text" class="h-5 w-5"></i></div>
+                <div>
+                    <h3 id="feedbackTitle" class="text-lg font-extrabold text-slate-900">ส่งข้อเสนอแนะ</h3>
+                    <p class="text-xs text-slate-500">คำติชมหรือข้อเสนอแนะของคุณช่วยให้เราพัฒนาระบบได้ดีขึ้น</p>
+                </div>
+            </div>
+            <form action="{{ url_for('send_feedback') }}" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="feedbackMessage" class="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">ข้อเสนอแนะ</label>
+                    <textarea id="feedbackMessage" name="message" rows="5" maxlength="2000" placeholder="พิมพ์ข้อความของคุณที่นี่..." class="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100" required></textarea>
+                    <p class="mt-2 text-[10px] leading-relaxed text-slate-400">อย่าใส่ข้อมูลสุขภาพหรือข้อมูลส่วนบุคคลที่ไม่จำเป็นในข้อเสนอแนะ</p>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeFeedbackModal()" class="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-200">ยกเลิก</button>
+                    <button type="submit" class="rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-teal-700">ส่งข้อเสนอแนะ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="logoutModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" aria-describedby="logoutModalDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-sm space-y-4 overflow-y-auto rounded-3xl bg-white p-6 text-center shadow-2xl mx-4">
+            <h3 id="logoutModalTitle" class="text-base font-bold text-slate-900">ยืนยันการออกจากระบบ</h3>
+            <p id="logoutModalDescription" class="text-xs text-slate-500">คุณต้องการออกจากระบบเซสชันนี้ใช่หรือไม่?</p>
+            <div class="flex gap-3 pt-2">
+                <button id="logoutCancelButton" type="button" onclick="closeLogoutModal()" data-modal-close class="w-1/2 py-2.5 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-bold text-xs">ยกเลิก</button>
+                <form action="{{ url_for('logout') }}" method="POST" class="w-1/2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="w-full py-2.5 rounded-xl text-white bg-rose-600 hover:bg-rose-700 font-bold text-xs flex justify-center items-center">ตกลง</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if session.get('user_role') == 'user' %}
+    <div id="profileAvatarModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="profileAvatarTitle" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700"><i data-lucide="circle-user-round" class="h-5 w-5"></i></span>
+                    <div>
+                        <h2 id="profileAvatarTitle" class="text-base font-extrabold text-slate-900">จัดการรูปโปรไฟล์</h2>
+                        <p class="mt-1 text-xs leading-relaxed text-slate-500">รูปนี้จะแสดงเฉพาะในปุ่มบัญชีของคุณเท่านั้น</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeProfileAvatarModal()" aria-label="ปิด" data-modal-close class="text-xl font-bold text-slate-400 hover:text-slate-700">×</button>
+            </div>
+
+            <div class="mt-5 flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                {% if profile_avatar %}
+                <img src="{{ url_for('own_profile_avatar', v=profile_avatar.updated_at) }}" alt="รูปโปรไฟล์ปัจจุบัน" class="h-16 w-16 rounded-2xl border border-slate-200 object-cover shadow-sm">
+                {% else %}
+                <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-cyan-600 text-xl font-extrabold text-slate-950 shadow-sm">{{ account_name[:1] | upper }}</span>
+                {% endif %}
+                <p class="text-xs leading-relaxed text-slate-600">รองรับ JPEG, PNG หรือ WEBP ไม่เกิน 2 MB ระบบจะตัดเป็น 256 × 256 พิกเซลและลบข้อมูลเมตาของภาพก่อนบันทึก</p>
+            </div>
+
+            <form id="profileAvatarUploadForm" action="{{ url_for('update_own_profile_avatar') }}" method="POST" enctype="multipart/form-data" class="mt-5 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="profileAvatarInput" class="mb-1.5 block text-xs font-bold text-slate-700">เลือกรูปใหม่</label>
+                    <input id="profileAvatarInput" name="profile_avatar" type="file" accept="image/jpeg,image/png,image/webp" required class="block w-full cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-teal-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-teal-800 hover:file:bg-teal-200">
+                </div>
+                <p class="text-[11px] leading-relaxed text-slate-500">รูปจะถูกเก็บไว้จนกว่าคุณจะเปลี่ยนรูป ลบรูป หรือปิดบัญชี ไม่ใช้เป็นภาพสำหรับการคัดกรองผิวหนัง</p>
+                <div class="flex justify-end gap-3 pt-1">
+                    <button type="button" onclick="closeProfileAvatarModal()" class="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200">ยกเลิก</button>
+                    <button type="submit" class="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800">บันทึกรูปโปรไฟล์</button>
+                </div>
+            </form>
+
+            {% if profile_avatar %}
+            <form action="{{ url_for('remove_own_profile_avatar') }}" method="POST" class="mt-4 border-t border-slate-100 pt-4" onsubmit="return confirm('ต้องการลบรูปโปรไฟล์นี้ใช่หรือไม่?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button id="removeProfileAvatarButton" type="submit" class="text-xs font-bold text-rose-600 transition hover:text-rose-700">ลบรูปโปรไฟล์</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="changePasswordModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700"><i data-lucide="key-round" class="h-5 w-5"></i></span>
+                    <div>
+                        <h2 id="changePasswordTitle" class="text-base font-extrabold text-slate-900">เปลี่ยนรหัสผ่าน</h2>
+                        <p class="mt-1 text-xs leading-relaxed text-slate-500">ตั้งรหัสใหม่ที่ยาวอย่างน้อย 12 ตัวอักษร และมีทั้งตัวอักษรกับตัวเลข</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeChangePasswordModal()" aria-label="ปิด" data-modal-close class="text-xl font-bold text-slate-400 hover:text-slate-700">×</button>
+            </div>
+            <form action="{{ url_for('change_own_password') }}" method="POST" class="mt-6 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="currentPassword" class="mb-1.5 block text-xs font-bold text-slate-700">รหัสผ่านปัจจุบัน</label>
+                    <input id="currentPassword" name="current_password" type="password" autocomplete="current-password" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100">
+                </div>
+                <div>
+                    <label for="newPassword" class="mb-1.5 block text-xs font-bold text-slate-700">รหัสผ่านใหม่</label>
+                    <input id="newPassword" name="new_password" type="password" autocomplete="new-password" minlength="12" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100">
+                </div>
+                <div>
+                    <label for="newPasswordConfirmation" class="mb-1.5 block text-xs font-bold text-slate-700">ยืนยันรหัสผ่านใหม่</label>
+                    <input id="newPasswordConfirmation" name="new_password_confirmation" type="password" autocomplete="new-password" minlength="12" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100">
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeChangePasswordModal()" class="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200">ยกเลิก</button>
+                    <button type="submit" class="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800">บันทึกรหัสผ่านใหม่</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="accountDeletionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="accountDeletionTitle" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-rose-100 bg-white p-6 shadow-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="accountDeletionTitle" class="text-base font-extrabold text-slate-900">ลบบัญชีและข้อมูลทั้งหมด</h2>
+                    <p class="mt-2 text-xs leading-relaxed text-slate-600">จะลบรูปโปรไฟล์ ภาพรอยโรค ผลคัดกรอง ประวัติ บริบทพื้นที่ และข้อเสนอแนะที่ผูกกับบัญชีนี้ การดำเนินการย้อนกลับไม่ได้</p>
+                </div>
+                <button type="button" onclick="closeAccountDeletionModal()" aria-label="ปิด" data-modal-close class="text-xl font-bold text-slate-400 hover:text-slate-700">×</button>
+            </div>
+            <form action="{{ url_for('delete_own_account') }}" method="POST" class="mt-5 space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label for="deleteAccountConfirmation" class="block text-xs font-bold text-slate-700">พิมพ์ <span class="font-mono text-rose-700">DELETE</span> เพื่อยืนยัน</label>
+                <input id="deleteAccountConfirmation" name="delete_account_confirmation" autocomplete="off" class="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100" required>
+                <div class="flex justify-end gap-3">
+                    <button type="button" onclick="closeAccountDeletionModal()" class="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-200">ยกเลิก</button>
+                    <button type="submit" class="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-700">ลบบัญชีถาวร</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Modal กล้องถ่ายรูป -->
+    <div id="cameraModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4" role="dialog" aria-modal="true" aria-labelledby="cameraModalTitle" aria-describedby="cameraModalDescription" data-accessible-modal="true">
+        <div class="relative max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="cameraModalTitle" class="text-sm font-bold text-slate-800 flex items-center space-x-2">
+                    <i data-lucide="camera" class="w-4 h-4 text-teal-600"></i>
+                    <span>ถ่ายภาพบริเวณผิวหนัง</span>
+                </h3>
+                <button type="button" onclick="closeCameraModal()" aria-label="ปิดกล้อง" data-modal-close class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="relative bg-black rounded-2xl overflow-hidden aspect-square flex items-center justify-center">
+                <video id="cameraStream" autoplay playsinline class="w-full h-full object-cover"></video>
+                <canvas id="cameraCanvas" class="hidden"></canvas>
+            </div>
+            <p id="cameraModalDescription" class="text-[11px] text-slate-400">กรุณาจัดให้บริเวณผิวหนังที่ต้องการตรวจอยู่บริเวณจุดกลางจอ</p>
+            <div class="flex items-center justify-center gap-3">
+                <button type="button" onclick="closeCameraModal()" class="w-1/2 py-2.5 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-bold text-xs">ยกเลิก</button>
+                <button id="takeSnapshotButton" type="button" onclick="takeSnapshot()" class="w-1/2 py-2.5 rounded-xl text-white bg-teal-600 hover:bg-teal-700 font-bold text-xs flex items-center justify-center space-x-1">
+                    <i data-lucide="aperture" class="w-4 h-4"></i>
+                    <span>ถ่ายภาพ</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script ควบคุมระบบ -->
+    <script nonce="{{ csp_nonce }}">
+        const scanHistory = {{ scan_history | tojson }};
+        const csrfToken = "{{ csrf_token() }}";
+        const dashboardModalFocusRestore = new Map();
+
+        function getDashboardFocusableElements(container) {
+            return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                .filter((element) => !element.closest('[hidden], .hidden'));
+        }
+
+        function getOpenDashboardModal() {
+            return [...document.querySelectorAll('[data-accessible-modal="true"]')]
+                .filter((modal) => !modal.classList.contains('hidden'))
+                .at(-1) || null;
+        }
+
+        function syncDashboardModalPageState() {
+            const hasOpenModal = Boolean(getOpenDashboardModal());
+            document.documentElement.classList.toggle('overflow-hidden', hasOpenModal);
+            document.body.classList.toggle('overflow-hidden', hasOpenModal);
+        }
+
+        function openDashboardModal(modalId, initialFocusSelector = '') {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            if (modal.classList.contains('hidden')) {
+                dashboardModalFocusRestore.set(modalId, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.setAttribute('aria-hidden', 'false');
+            syncDashboardModalPageState();
+            window.setTimeout(() => {
+                const focusable = getDashboardFocusableElements(modal);
+                const target = (initialFocusSelector && modal.querySelector(initialFocusSelector)) || focusable[0];
+                if (target instanceof HTMLElement) target.focus();
+            }, 0);
+        }
+
+        function closeDashboardModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            modal.setAttribute('aria-hidden', 'true');
+            syncDashboardModalPageState();
+            const trigger = dashboardModalFocusRestore.get(modalId);
+            dashboardModalFocusRestore.delete(modalId);
+            if (trigger instanceof HTMLElement && document.contains(trigger)) {
+                window.setTimeout(() => trigger.focus(), 0);
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const modal = getOpenDashboardModal();
+            if (!modal) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                const closeButton = modal.querySelector('[data-modal-close]');
+                if (closeButton instanceof HTMLElement) closeButton.click();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = getDashboardFocusableElements(modal);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
+        let currentUploadMethod = 'UPLOAD_IMAGE';
+        let currentImageSrc = '';
+
+        // ส่งภาพไปวิเคราะห์กับโมเดลจริงที่ฝั่งเซิร์ฟเวอร์
+        function handleScanSubmit(event) {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                event.preventDefault();
+                alert('กรุณาเลือกรูปภาพหรือถ่ายภาพบริเวณผิวหนังที่ต้องการตรวจก่อนเริ่มคัดกรอง');
+                return;
+            }
+            if (!document.getElementById('lesionImageConfirmation').checked) {
+                event.preventDefault();
+                alert('กรุณายืนยันว่าภาพแสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่นก่อนทำการสแกน');
+                return;
+            }
+
+            const btn = document.getElementById('submitScanBtn');
+            btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> <span>ANALYZING...</span>`;
+            btn.disabled = true;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function getMonthName(m) {
+            const mNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            return mNames[m];
+        }
+
+        // ประมวลผลและวาดหน้า Timeline
+        function renderTimeline() {
+            const area = document.getElementById('timelineContentArea');
+            const subtitle = document.getElementById('timelineSubtitle');
+            const history = scanHistory;
+            
+            subtitle.textContent = "ระบบติดตามการเปลี่ยนแปลงของโรคผิวหนัง (ข้อมูลส่วนบุคคล)";
+                
+                // กรองเอาเฉพาะข้อมูลของ User ปัจจุบันโดยยึดจาก email จริง
+                const userHistory = history;
+                
+                // 🛑 ถ้ายังไม่มีการสแกน ให้แสดงหน้าโล่งๆ โฟลเดอร์
+                if(userHistory.length === 0) {
+                    area.innerHTML = `
+                    <div class="text-center py-16 flex flex-col items-center justify-center h-full mt-10">
+                        <i data-lucide="folder" class="w-20 h-20 text-slate-200 mb-4 stroke-[1.5]"></i>
+                        <h3 class="text-slate-700 font-extrabold text-xl">คุณยังไม่มีประวัติการสแกน</h3>
+                        <p class="text-sm text-slate-400 mt-2 font-medium">อัปโหลดภาพเพื่อเริ่มต้นบันทึกข้อมูล</p>
+                    </div>`;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                    return;
+                }
+
+                // จัดกลุ่มประวัติตามชื่อโรค (เพื่อเช็คว่าโรคไหนสแกนกี่ครั้ง)
+                let grouped = {};
+                userHistory.forEach(item => {
+                    if(!grouped[item.result_disease]) grouped[item.result_disease] = [];
+                    grouped[item.result_disease].push(item);
+                });
+
+                let html = `
+                    <div class="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <p class="text-xs leading-relaxed text-slate-600">ลบผลสแกนเฉพาะรายการ หรือเลือกนำประวัติและภาพทั้งหมดออกจากบัญชีของคุณ</p>
+                        <form action="{{ url_for('delete_all_scan_logs') }}" method="POST" class="shrink-0" onsubmit="return confirm('ยืนยันลบประวัติสแกนและภาพทั้งหมดของคุณใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้')">
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <button type="submit" class="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50">ลบประวัติทั้งหมด</button>
+                        </form>
+                    </div>
+                    <div class="relative ml-4 space-y-8 border-l-2 border-teal-100 pb-4">`;
+
+                // วนลูปวาดข้อมูลทีละโรค (สิว, กลาก ฯลฯ แยกกรอบกัน)
+                for(let disease in grouped) {
+                    let records = grouped[disease].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                    let latest = records[0];
+                    let count = records.length; 
+                    const iconType = 'image';
+
+                    // โครงสร้างหลัก (จะแสดงเสมอเมื่อมีการสแกนโรคนั้น 1 ครั้งขึ้นไป)
+                    html += `
+                    <div class="relative pl-6">
+                        <div class="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-teal-500 ring-4 ring-white shadow-sm"></div>
+                        
+                        <div class="bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-teal-500"></div>
+                            
+                            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
+                                <div class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                    วันที่: ${latest.created_at}
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col sm:flex-row gap-4 items-start">
+                                <div class="w-20 h-20 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center text-slate-400">
+                                    <img src="${latest.image_url}" class="w-full h-full object-cover" alt="ภาพที่ส่งเพื่อสแกน">
+                                </div>
+                                <div>
+                                    <div class="font-extrabold text-teal-700 text-base">${disease}</div>
+                                    <p class="text-xs text-slate-600 mt-1 leading-relaxed">${latest.decision_status === 'out_of_scope' ? 'ไม่พบกลุ่มที่ใกล้เคียงเพียงพอในโมเดล ควรใช้เป็นข้อมูลประกอบเท่านั้น' : (latest.is_uncertain ? 'ผลคัดกรองไม่ชัดเจน ควรใช้เป็นข้อมูลประกอบเท่านั้น' : 'ผลการคัดกรองจากโมเดลถูกบันทึกไว้ในประวัติของคุณ')} (สแกนครั้งที่ ${count})</p>
+                                    <div class="mt-2 text-[10px] text-slate-400 font-code">MODEL CONFIDENCE: ${latest.confidence}</div>
+                                    <form action="/scan-logs/${latest.id}/delete" method="POST" class="mt-3" onsubmit="return confirm('ยืนยันลบผลสแกนและภาพนี้ใช่หรือไม่?')">
+                                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                                        <button type="submit" class="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline">ลบผลสแกนนี้</button>
+                                    </form>
+                                </div>
+                            </div>
+                    `;
+
+                    html += `</div></div>`;
+                }
+
+                html += `</div>`;
+                area.innerHTML = html;
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // ================== โค้ดส่วนอื่นๆ ที่เหลือ ==================
+        let currentLat = null;
+        let currentLng = null;
+        let currentSelectedRisk = 'high';
+        let dashboardMapLocationConsent = false;
+        let dashboardGoogleMapsLocationConsent = false;
+
+        function mayShareDashboardLocationWithGoogleMaps() {
+            return dashboardMapLocationConsent
+                && dashboardGoogleMapsLocationConsent
+                && Number.isFinite(currentLat)
+                && Number.isFinite(currentLng);
+        }
+
+        function resetDashboardLocationConsent() {
+            dashboardMapLocationConsent = false;
+            dashboardGoogleMapsLocationConsent = false;
+            document.getElementById('dashboardLocationConsentCheck').checked = false;
+            document.getElementById('dashboardGoogleMapsConsentCheck').checked = false;
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+
+        function openTimelineModal() {
+            renderTimeline();
+            openDashboardModal('timelineModal', '#timelineCloseButton');
+        }
+        function closeTimelineModal() {
+            closeDashboardModal('timelineModal');
+        }
+
+        function openUserLocationMap() {
+            if (currentLat === null || currentLng === null) {
+                getUserRealLocation();
+                return;
+            }
+            if (!mayShareDashboardLocationWithGoogleMaps()) {
+                openDashboardLocationConsent();
+                document.getElementById('dashboardLocationConsentStatus').textContent = 'หากต้องการเปิดแผนที่ Google Maps โปรดยืนยันความยินยอมแยกในช่องด้านล่าง';
+                return;
+            }
+            selectRiskNode('user_gps');
+            openRiskImageModal();
+        }
+
+        function getUserRealLocation() {
+            if (!window.isSecureContext) {
+                document.getElementById('header-location-text').textContent = dashboardInsecureLocationMessage();
+                return;
+            }
+            if (!navigator.geolocation) {
+                document.getElementById('header-location-text').textContent = 'เบราว์เซอร์นี้ไม่รองรับตำแหน่ง';
+                return;
+            }
+            openDashboardLocationConsent();
+        }
+
+        function openDashboardLocationConsent() {
+            // Each request starts a new consent scope. It must not reuse an
+            // earlier coordinate or Google Maps permission after this modal is reopened.
+            resetDashboardLocationConsent();
+            document.getElementById('dashboardLocationConsentStatus').textContent = '';
+            openDashboardModal('locationServiceConsentModal', '#dashboardLocationConsentCheck');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeDashboardLocationConsent() {
+            closeDashboardModal('locationServiceConsentModal');
+        }
+
+        function dashboardLocationLabel(data) {
+            const address = data?.address || {};
+            const subdistrict = address.subdistrict || address.neighbourhood || address.village || address.town || '';
+            const district = address.city_district || address.city || address.municipality || address.county || address.district || '';
+            const province = address.province || address.state || '';
+            return [subdistrict, district, province].filter(Boolean).filter((value, index, parts) => parts.indexOf(value) === index).join(' · ');
+        }
+
+        async function fetchDashboardLocationName(lat, lng) {
+            const roundedLat = Number(lat.toFixed(4));
+            const roundedLng = Number(lng.toFixed(4));
+            const response = await fetchDashboardResource(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=10&addressdetails=1&accept-language=th`);
+            if (!response.ok) throw new Error('Location service unavailable');
+            return dashboardLocationLabel(await response.json());
+        }
+
+        async function fetchDashboardResource(url, timeoutMs = 12000) {
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                return await fetch(url, { signal: controller.signal });
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
+        }
+
+        function dashboardInsecureLocationMessage() {
+            return 'ต้องเปิดผ่าน HTTPS เพื่อใช้ตำแหน่ง';
+        }
+
+        function dashboardLocationErrorMessage(error) {
+            if (!window.isSecureContext) return dashboardInsecureLocationMessage();
+            if (error?.code === 1) return 'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง';
+            if (error?.code === 2) return 'ไม่พบตำแหน่งปัจจุบัน โปรดเปิด GPS แล้วลองอีกครั้ง';
+            if (error?.code === 3) return 'การระบุตำแหน่งใช้เวลานานเกินไป โปรดลองอีกครั้ง';
+            return 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้';
+        }
+
+        function approveDashboardLocationConsent() {
+            const status = document.getElementById('dashboardLocationConsentStatus');
+            const locationTextEl = document.getElementById('header-location-text');
+            if (!document.getElementById('dashboardLocationConsentCheck').checked) {
+                status.textContent = 'โปรดยืนยันความเข้าใจก่อนขอตำแหน่งจากเบราว์เซอร์';
+                return;
+            }
+            if (!window.isSecureContext) {
+                status.textContent = 'ลิงก์ HTTP/IP ใช้ GPS ไม่ได้ โปรดเปิดเว็บผ่าน HTTPS ที่มีใบรับรองเชื่อถือได้';
+                return;
+            }
+            if (!navigator.geolocation) {
+                status.textContent = 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง';
+                return;
+            }
+            // Capture the separate Google choice before asking the browser for
+            // GPS. Coordinates gathered for OpenStreetMap/Open-Meteo cannot be
+            // sent to Google Maps unless this explicit choice was made first.
+            const wantsGoogleMapsLocation = document.getElementById('dashboardGoogleMapsConsentCheck').checked === true;
+            closeDashboardLocationConsent();
+            locationTextEl.textContent = 'กำลังขอตำแหน่งล่าสุด';
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    currentLat = position.coords.latitude;
+                    currentLng = position.coords.longitude;
+                    dashboardMapLocationConsent = true;
+                    dashboardGoogleMapsLocationConsent = wantsGoogleMapsLocation;
+                    const locationName = await fetchDashboardLocationName(currentLat, currentLng).catch(() => 'ตำแหน่งโดยประมาณของคุณ');
+                    locationTextEl.textContent = locationName || 'ตำแหน่งโดยประมาณของคุณ';
+                    await fetchDynamicRealtimeData(currentLat, currentLng);
+                    if (mayShareDashboardLocationWithGoogleMaps()) {
+                        selectRiskNode('user_gps');
+                        openRiskImageModal();
+                    }
+                },
+                (error) => { locationTextEl.textContent = dashboardLocationErrorMessage(error); },
+                // Never reuse a cached GPS reading for an explicit location request.
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function selectRiskNode(type) {
+            currentSelectedRisk = type;
+            const cardTitle = document.getElementById('card-title-text');
+            const cardLevel = document.getElementById('card-level-val');
+            const cardContainer = document.getElementById('risk-card-container');
+
+            if (type === 'high') {
+                cardContainer.className = "relative z-30 w-full mb-3 bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-xl border border-rose-500/50 text-[10px] font-code space-y-1.5 transition-all";
+                cardTitle.textContent = `📍 จุดตัวอย่างระดับสูง: ตลาดสดเมืองใหม่ ยะลา`;
+                cardLevel.textContent = `สูง (ตัวอย่าง)`;
+                cardLevel.className = "text-rose-400 font-bold";
+            } else if (type === 'medium') {
+                cardContainer.className = "relative z-30 w-full mb-3 bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-xl border border-orange-500/50 text-[10px] font-code space-y-1.5 transition-all";
+                cardTitle.textContent = `📍 จุดตัวอย่างระดับกลาง: ย่านชุมชนสะพานดำ`;
+                cardLevel.textContent = `ปานกลาง (ตัวอย่าง)`;
+                cardLevel.className = "text-orange-400 font-bold";
+            } else if (type === 'low') {
+                cardContainer.className = "relative z-30 w-full mb-3 bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-xl border border-emerald-500/50 text-[10px] font-code space-y-1.5 transition-all";
+                cardTitle.textContent = `📍 จุดตัวอย่างระดับต่ำ: สวนขวัญเมืองยะลา`;
+                cardLevel.textContent = `ต่ำ (ตัวอย่าง)`;
+                cardLevel.className = "text-emerald-400 font-bold";
+            } else if (type === 'user_gps') {
+                cardContainer.className = "relative z-30 w-full mb-3 bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-xl border border-cyan-500/50 text-[10px] font-code space-y-1.5 transition-all";
+                cardTitle.textContent = `📍 ตำแหน่งปัจจุบันของคุณ`;
+                cardLevel.textContent = `ข้อมูลอากาศประกอบ`;
+                cardLevel.className = "text-cyan-400 font-bold";
+            }
+        }
+
+        function openRiskImageModal() {
+            const modalHeader = document.getElementById('modal-image-header');
+            const modalMapIframe = document.getElementById('modal-map-iframe');
+            const modalDesc = document.getElementById('modal-desc-text');
+
+            if (currentSelectedRisk === 'high') {
+                modalHeader.textContent = 'ตำแหน่งตัวอย่าง: ตลาดสดเมืองใหม่ ยะลา';
+                modalMapIframe.src = "https://maps.google.com/maps?q=6.5411,101.2825&z=15&output=embed";
+                modalDesc.textContent = 'ตัวอย่างการแสดงผล: จุดนี้ใช้สาธิตหน้าจอแผนที่เท่านั้น ไม่ได้ระบุความเสี่ยงโรคหรือข้อมูลสุขภาพของพื้นที่';
+            } else if (currentSelectedRisk === 'medium') {
+                modalHeader.textContent = 'ตำแหน่งตัวอย่าง: ย่านชุมชนสะพานดำ';
+                modalMapIframe.src = "https://maps.google.com/maps?q=6.5520,101.2910&z=15&output=embed";
+                modalDesc.textContent = 'ตัวอย่างการแสดงผล: จุดนี้ใช้สาธิตหน้าจอแผนที่เท่านั้น ไม่ได้ระบุความเสี่ยงโรคหรือข้อมูลสุขภาพของพื้นที่';
+            } else if (currentSelectedRisk === 'low') {
+                modalHeader.textContent = 'ตำแหน่งตัวอย่าง: สวนขวัญเมืองยะลา';
+                modalMapIframe.src = "https://maps.google.com/maps?q=6.5350,101.2780&z=15&output=embed";
+                modalDesc.textContent = 'ตัวอย่างการแสดงผล: จุดนี้ใช้สาธิตหน้าจอแผนที่เท่านั้น ไม่ได้ระบุความเสี่ยงโรคหรือข้อมูลสุขภาพของพื้นที่';
+            } else if (currentSelectedRisk === 'user_gps') {
+                const locationText = document.getElementById('header-location-text').textContent;
+                modalHeader.textContent = `ตำแหน่งของคุณ: ${locationText}`;
+                if (mayShareDashboardLocationWithGoogleMaps()) {
+                    modalMapIframe.src = `https://maps.google.com/maps?q=${currentLat.toFixed(4)},${currentLng.toFixed(4)}&z=15&output=embed`;
+                    modalDesc.textContent = `ตำแหน่งที่เลือก (${locationText}): ส่งเฉพาะพิกัดที่ปัดแล้วให้ Google Maps เพื่อแสดงแผนที่ และเรียกดูข้อมูลอากาศประกอบเท่านั้น ไม่ได้ใช้วินิจฉัยหรือประเมินความเสี่ยงโรค`;
+                } else {
+                    modalMapIframe.src = '';
+                    modalDesc.textContent = 'ยังไม่ได้รับความยินยอมแยกให้ส่งตำแหน่งไปยัง Google Maps';
+                }
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            openDashboardModal('riskImageModal');
+        }
+
+        function closeRiskImageModal() {
+            const mapFrame = document.getElementById('modal-map-iframe');
+            if (mapFrame) mapFrame.src = '';
+            closeDashboardModal('riskImageModal');
+        }
+
+        async function fetchDynamicRealtimeData(lat, lng) {
+            try {
+                const roundedLat = Number(lat.toFixed(4));
+                const roundedLng = Number(lng.toFixed(4));
+                const [airRes, weatherRes] = await Promise.all([
+                    fetchDashboardResource(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLng}&current=pm2_5,us_aqi&timezone=auto`),
+                    fetchDashboardResource(`https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code&timezone=auto`)
+                ]);
+                if (!airRes.ok || !weatherRes.ok) throw new Error('Weather service unavailable');
+                const airData = await airRes.json();
+                const weatherData = await weatherRes.json();
+
+                const pm25 = Math.round(Number(airData.current?.pm2_5));
+                const uv = Math.round(Number(weatherData.current?.uv_index));
+                if (!Number.isFinite(pm25) || !Number.isFinite(uv)) throw new Error('Invalid weather data');
+                const condition = dashboardWeatherCodeLabel(weatherData.current?.weather_code);
+                document.getElementById('microbiome-risk-val').textContent = 'ไม่ได้วัด';
+                document.getElementById('ph-val').textContent = 'ไม่ได้วัด';
+                document.getElementById('pore-clog-val').textContent = 'ไม่ได้วัด';
+                document.getElementById('tewl-value-text').textContent = 'ไม่ได้วัด';
+                document.getElementById('tewl-progress-bar').style.width = '0%';
+                document.getElementById('tb-dist-1').textContent = document.getElementById('header-location-text').textContent;
+                document.getElementById('tb-pm-1').textContent = `${pm25} µg/m³`;
+                document.getElementById('tb-uv-1').textContent = `UV ${uv}`;
+                document.getElementById('tb-risk-1').textContent = `${condition} · ใช้ประกอบการดูแลผิวทั่วไป`;
+            } catch(err) { console.error(err); }
+        }
+
+        function dashboardWeatherCodeLabel(code) {
+            const labels = {
+                0: 'ท้องฟ้าโปร่ง', 1: 'มีเมฆเล็กน้อย', 2: 'มีเมฆเป็นบางส่วน', 3: 'เมฆมาก',
+                45: 'มีหมอก', 48: 'มีหมอกน้ำค้างแข็ง', 51: 'ฝนปรอยเล็กน้อย', 53: 'ฝนปรอย',
+                55: 'ฝนปรอยหนัก', 61: 'ฝนเล็กน้อย', 63: 'ฝนปานกลาง', 65: 'ฝนหนัก',
+                71: 'หิมะเล็กน้อย', 73: 'หิมะปานกลาง', 75: 'หิมะหนัก', 80: 'ฝนซู่เล็กน้อย',
+                81: 'ฝนซู่ปานกลาง', 82: 'ฝนซู่หนัก', 95: 'พายุฝนฟ้าคะนอง',
+                96: 'พายุฝนฟ้าคะนองและลูกเห็บ', 99: 'พายุฝนฟ้าคะนองและลูกเห็บหนัก'
+            };
+            return labels[Number(code)] || 'สภาพอากาศปัจจุบัน';
+        }
+
+        const nearbyContextCsrfToken = "{{ csrf_token() }}";
+
+        function openNearbyContextModal() {
+            if (!document.getElementById('nearbyContextModal')) return;
+            openDashboardModal('nearbyContextModal', '#nearbyContextConsentCheck');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeNearbyContextModal() {
+            closeDashboardModal('nearbyContextModal');
+        }
+
+        function setNearbyContextStatus(message, isError = false) {
+            const status = document.getElementById('nearbyContextStatus');
+            if (!status) return;
+            status.textContent = message;
+            status.className = `min-h-5 text-xs font-semibold ${isError ? 'text-rose-600' : 'text-cyan-700'}`;
+        }
+
+        async function fetchNearbyEnvironment(latitude, longitude) {
+            // Only a ~1 km rounded coordinate is sent to the public weather APIs.
+            const latitudeApprox = Number(latitude.toFixed(2));
+            const longitudeApprox = Number(longitude.toFixed(2));
+            const [airResponse, weatherResponse] = await Promise.all([
+                fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitudeApprox}&longitude=${longitudeApprox}&current=pm2_5&timezone=auto`),
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitudeApprox}&longitude=${longitudeApprox}&current=temperature_2m,relative_humidity_2m,uv_index&timezone=auto`),
+            ]);
+            if (!airResponse.ok || !weatherResponse.ok) throw new Error('ไม่สามารถรับข้อมูลสภาพแวดล้อมจากแหล่งข้อมูลสาธารณะได้');
+            const air = await airResponse.json();
+            const weather = await weatherResponse.json();
+            const readings = {
+                pm25: Number(air.current?.pm2_5),
+                uv_index: Number(weather.current?.uv_index),
+                relative_humidity: Number(weather.current?.relative_humidity_2m),
+                temperature_c: Number(weather.current?.temperature_2m),
+            };
+            if (!Object.values(readings).every(Number.isFinite)) throw new Error('ข้อมูลสภาพแวดล้อมไม่สมบูรณ์');
+            return { latitudeApprox, longitudeApprox, readings };
+        }
+
+        function formatNearbyContextUpdatedAt(timestamp) {
+            return new Intl.DateTimeFormat('th-TH', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+            }).format(new Date(timestamp || Date.now()));
+        }
+
+        function renderNearbyContext(data, readings) {
+            document.getElementById('nearbyPm25').textContent = readings.pm25.toFixed(1);
+            document.getElementById('nearbyUv').textContent = readings.uv_index.toFixed(1);
+            document.getElementById('nearbyHumidity').textContent = `${readings.relative_humidity.toFixed(0)}%`;
+            document.getElementById('nearbyTemperature').textContent = `${readings.temperature_c.toFixed(1)}°C`;
+            document.getElementById('nearbyContextLevel').textContent = data.context_level;
+            document.getElementById('nearbyContextSummary').textContent = data.context_summary;
+            document.getElementById('nearbyContextLocation').textContent = `ข้อมูลล่าสุด ${formatNearbyContextUpdatedAt(data.updated_at)} · พิกัดโดยประมาณ ${data.latitude_approx.toFixed(2)}, ${data.longitude_approx.toFixed(2)} · ลบอัตโนมัติ ${data.retention_expires_at}`;
+        }
+
+        function requestNearbyContext() {
+            if (!window.isSecureContext) {
+                setNearbyContextStatus('ลิงก์ HTTP/IP ใช้ GPS ไม่ได้ โปรดเปิดเว็บผ่าน HTTPS ที่มีใบรับรองเชื่อถือได้', true);
+                return;
+            }
+            if (!navigator.geolocation) {
+                setNearbyContextStatus('เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง', true);
+                return;
+            }
+            if (!document.getElementById('nearbyContextConsentCheck').checked) {
+                setNearbyContextStatus('โปรดยืนยันความยินยอมด้านบนก่อนขอตำแหน่งจากเบราว์เซอร์', true);
+                return;
+            }
+            setNearbyContextStatus('กำลังขอตำแหน่งล่าสุดและข้อมูลสิ่งแวดล้อม…');
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+                        const environment = await fetchNearbyEnvironment(latitude, longitude);
+                        const response = await fetch("{{ url_for('save_nearby_context') }}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-Token': nearbyContextCsrfToken,
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({
+                                consent: true,
+                                // Do not transmit exact device GPS to this application.
+                                latitude: environment.latitudeApprox,
+                                longitude: environment.longitudeApprox,
+                                ...environment.readings,
+                            }),
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error || 'ไม่สามารถบันทึกบริบทพื้นที่ได้');
+                        renderNearbyContext(data, environment.readings);
+                        setNearbyContextStatus('บันทึกบริบทสิ่งแวดล้อมล่าสุดแล้ว ผู้ดูแลจะเห็นเฉพาะข้อมูลที่คุณยินยอม');
+                    } catch (error) {
+                        setNearbyContextStatus(error.message || 'ไม่สามารถตรวจบริบทพื้นที่ได้', true);
+                    }
+                },
+                (error) => setNearbyContextStatus(dashboardLocationErrorMessage(error), true),
+                // This is a new, user-initiated consent action: do not use cached GPS.
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+            );
+        }
+
+        function openSkinMapModal() { openDashboardModal('skinMapModal', '[data-modal-close]'); }
+        function closeSkinMapModal() { closeDashboardModal('skinMapModal'); }
+        function toggleUserAccountMenu() {
+            const menu = document.getElementById('userAccountMenu');
+            const button = document.getElementById('userAccountButton');
+            if (!menu || !button) return;
+            const isOpening = menu.classList.contains('hidden');
+            menu.classList.toggle('hidden', !isOpening);
+            button.setAttribute('aria-expanded', String(isOpening));
+        }
+        function closeUserAccountMenu() {
+            const menu = document.getElementById('userAccountMenu');
+            const button = document.getElementById('userAccountButton');
+            if (!menu || !button) return;
+            menu.classList.add('hidden');
+            button.setAttribute('aria-expanded', 'false');
+        }
+        document.addEventListener('click', (event) => {
+            const accountControl = document.getElementById('userAccountControl');
+            if (accountControl && !accountControl.contains(event.target)) closeUserAccountMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeUserAccountMenu();
+        });
+        function openFeedbackModal() {
+            openDashboardModal('feedbackModal', '#feedbackMessage');
+        }
+        function closeFeedbackModal() {
+            closeDashboardModal('feedbackModal');
+        }
+        function openProfileAvatarModal() {
+            const modal = document.getElementById('profileAvatarModal');
+            if (!modal) return;
+            openDashboardModal('profileAvatarModal', '#profileAvatarInput');
+        }
+        function closeProfileAvatarModal() {
+            const modal = document.getElementById('profileAvatarModal');
+            if (!modal) return;
+            closeDashboardModal('profileAvatarModal');
+            const form = document.getElementById('profileAvatarUploadForm');
+            if (form) form.reset();
+        }
+        function openChangePasswordModal() {
+            const modal = document.getElementById('changePasswordModal');
+            if (!modal) return;
+            openDashboardModal('changePasswordModal', '#currentPassword');
+        }
+        function closeChangePasswordModal() {
+            const modal = document.getElementById('changePasswordModal');
+            if (!modal) return;
+            closeDashboardModal('changePasswordModal');
+            const form = modal.querySelector('form');
+            if (form) form.reset();
+        }
+        function openAccountDeletionModal() {
+            const modal = document.getElementById('accountDeletionModal');
+            if (!modal) return;
+            openDashboardModal('accountDeletionModal', '#deleteAccountConfirmation');
+        }
+        function closeAccountDeletionModal() {
+            const modal = document.getElementById('accountDeletionModal');
+            if (!modal) return;
+            closeDashboardModal('accountDeletionModal');
+        }
+        function openLogoutModal() { openDashboardModal('logoutModal', '#logoutCancelButton'); }
+        function closeLogoutModal() { closeDashboardModal('logoutModal'); }
+        
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentImageSrc = e.target.result;
+                    currentUploadMethod = 'UPLOAD_IMAGE';
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('fileNameDisplay').textContent = "FILE: " + input.files[0].name;
+                    document.getElementById('previewContainer').classList.remove('hidden');
+                    document.getElementById('uploadPlaceholder').classList.add('hidden');
+                    document.getElementById('dynamicScanResult').classList.add('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearSelectedImage() {
+            document.getElementById('fileInput').value = '';
+            currentImageSrc = '';
+            document.getElementById('previewContainer').classList.add('hidden');
+            document.getElementById('uploadPlaceholder').classList.remove('hidden');
+            document.getElementById('dynamicScanResult').classList.add('hidden');
+        }
+
+        let videoStream = null;
+        async function openCameraModal() {
+            const modal = document.getElementById('cameraModal');
+            const video = document.getElementById('cameraStream');
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+                video.srcObject = videoStream;
+                openDashboardModal('cameraModal', '#takeSnapshotButton');
+            } catch (err) {
+                alert("⚠️ ไม่สามารถเปิดกล้องได้: กรุณากด 'อนุญาต' (Allow) ในเบราว์เซอร์");
+            }
+        }
+
+        function takeSnapshot() {
+            const video = document.getElementById('cameraStream');
+            const canvas = document.getElementById('cameraCanvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            currentImageSrc = canvas.toDataURL('image/jpeg', 0.92);
+            currentUploadMethod = 'CAMERA_CAPTURE';
+
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    alert('ไม่สามารถสร้างภาพจากกล้องได้ กรุณาลองใหม่อีกครั้ง');
+                    return;
+                }
+                const capturedFile = new File([blob], "camera_scan_" + Date.now() + ".jpg", { type: "image/jpeg" });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(capturedFile);
+                const fileInput = document.getElementById('fileInput');
+                fileInput.files = dataTransfer.files;
+
+                document.getElementById('imagePreview').src = currentImageSrc;
+                document.getElementById('fileNameDisplay').textContent = "FILE: " + capturedFile.name;
+                document.getElementById('previewContainer').classList.remove('hidden');
+                document.getElementById('uploadPlaceholder').classList.add('hidden');
+                document.getElementById('dynamicScanResult').classList.add('hidden');
+                closeCameraModal();
+            }, 'image/jpeg', 0.92);
+        }
+
+        function closeCameraModal() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            closeDashboardModal('cameraModal');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!--
+  WinSW configuration example. Download WinSW from its official release,
+  verify the binary according to your organisation's software-supply-chain
+  policy, rename it SmartSkinAI.Service.exe, and place this file beside it as
+  SmartSkinAI.Service.xml. Do not add environment secrets to this XML.
+
+  The service account must have only the access it needs to read the deployed
+  application and secret-store supplied values, and modify only approved data
+  and protected log directories.
+-->
+<service>
+  <id>SmartSkinAI</id>
+  <name>Smart Skin AI</name>
+  <description>Smart Skin AI public-information Waitress service. Public traffic must enter through Caddy over HTTPS.</description>
+
+  <executable>%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe</executable>
+  <arguments>-NoLogo -NoProfile -NonInteractive -File &quot;C:\Apps\SmartSkinAI\deploy\Start-SmartSkinProduction.ps1&quot; -ProjectRoot &quot;C:\Apps\SmartSkinAI&quot; -ServiceAccount &quot;NT SERVICE\SmartSkinAI&quot; -PublicInformationMode</arguments>
+  <workingdirectory>C:\Apps\SmartSkinAI</workingdirectory>
+
+  <!-- Keep SMART_SKIN_PUBLIC_INFORMATION_MODE=1 in the service environment.
+       Remove -PublicInformationMode only after the separate screening release
+       gate and private-data controls have passed. Configure the service
+       identity with Windows Service Control Manager or
+       your deployment tool. Do not use LocalSystem for health data. -->
+  <log mode="roll-by-size">
+    <sizeThreshold>10485760</sizeThreshold>
+    <keepFiles>14</keepFiles>
+  </log>
+
+  <stoptimeout>30sec</stoptimeout>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="none" />
+  <resetfailure>1 hour</resetfailure>
+</service>

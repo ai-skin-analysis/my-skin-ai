@@ -1,0 +1,51 @@
+id,name_en,name_th,group,legacy_model
+acne_vulgaris,Acne vulgaris,สิว,clinical,False
+rosacea,Rosacea,โรซาเซีย,clinical,False
+eczema_unspecified,Eczema,ผื่นเอ็กซีมา,clinical,False
+atopic_dermatitis,Atopic dermatitis,ผื่นภูมิแพ้ผิวหนัง,clinical,False
+allergic_contact_dermatitis,Allergic contact dermatitis,ผื่นแพ้สัมผัส,clinical,False
+seborrheic_dermatitis,Seborrheic dermatitis,ผื่นเซ็บเดิร์ม,clinical,False
+dyshidrotic_eczema,Dyshidrotic eczema,ผื่นตุ่มน้ำที่มือ/เท้า,clinical,False
+psoriasis,Psoriasis,สะเก็ดเงิน,clinical,False
+urticaria,Urticaria,ลมพิษ,clinical,False
+pityriasis_rosea,Pityriasis rosea,ผื่นกุหลาบ,clinical,False
+lichen_planus,Lichen planus,ไลเคนพลานัส,clinical,False
+prurigo_nodularis,Prurigo nodularis,ผื่นคันตุ่มนูนเรื้อรัง,clinical,False
+granuloma_annulare,Granuloma annulare,แกรนูโลมาแอนนูลาเร,clinical,False
+hidradenitis_suppurativa,Hidradenitis suppurativa,ต่อมเหงื่ออักเสบเรื้อรัง,clinical,False
+folliculitis,Folliculitis,รูขุมขนอักเสบ,clinical,False
+vitiligo,Vitiligo,ด่างขาว,clinical,False
+melasma,Melasma,ฝ้า,clinical,False
+postinflammatory_hyperpigmentation,Post-inflammatory hyperpigmentation,รอยดำหลังการอักเสบ,clinical,False
+tinea_corporis,Tinea corporis,กลาก,clinical,False
+tinea_cruris,Tinea cruris,สังคัง,clinical,False
+tinea_pedis,Tinea pedis,เชื้อราที่เท้า,clinical,False
+tinea_versicolor,Tinea versicolor,เกลื้อน,clinical,False
+onychomycosis,Onychomycosis,เชื้อราที่เล็บ,clinical,False
+candidiasis,Candidiasis,เชื้อราแคนดิดา,clinical,False
+scabies,Scabies,หิด,clinical,False
+impetigo,Impetigo,พุพอง,clinical,False
+molluscum_contagiosum,Molluscum contagiosum,หูดข้าวสุก,clinical,False
+viral_warts,Viral warts,หูด,clinical,False
+herpes_simplex,Herpes simplex,เริม,clinical,False
+herpes_zoster,Herpes zoster,งูสวัด,clinical,False
+alopecia_areata,Alopecia areata,ผมร่วงเป็นหย่อม,clinical,False
+androgenetic_alopecia,Androgenetic alopecia,ผมบางจากพันธุกรรม,clinical,False
+keloid,Keloid,แผลเป็นคีลอยด์,clinical,False
+dermatofibroma,Dermatofibroma,เดอร์มาโตไฟโบรมา,clinical,False
+seborrheic_keratosis,Seborrheic keratosis,กระเนื้อ,clinical,False
+melanocytic_nevus,Melanocytic nevus,ไฝ,clinical,False
+actinic_keratosis,Actinic keratosis,กระแดด,clinical,False
+basal_cell_carcinoma,Basal cell carcinoma,มะเร็งผิวหนังบีซีซี,clinical,False
+squamous_cell_carcinoma,Squamous cell carcinoma,มะเร็งผิวหนังเอสซีซี,clinical,False
+melanoma,Melanoma,เมลาโนมา,clinical,False
+pyogenic_granuloma,Pyogenic granuloma,ติ่งเนื้อหลอดเลือดอักเสบ,clinical,False
+syringoma,Syringoma,เนื้องอกต่อมเหงื่อชนิดไม่ร้าย,clinical,False
+milia,Milia,สิวข้าวสาร,clinical,False
+neurofibromatosis,Neurofibromatosis,โรคนิวโรไฟโบรมาโตซิส,clinical,False
+cutaneous_lupus_erythematosus,Cutaneous lupus erythematosus,ลูปัสผิวหนัง,clinical,False
+scleroderma,Scleroderma,หนังแข็ง,clinical,False
+erythema_multiforme,Erythema multiforme,ผื่นเป้า,clinical,False
+erythema_nodosum,Erythema nodosum,ผื่นก้อนแดงอักเสบ,clinical,False
+drug_eruption,Drug eruption,ผื่นแพ้ยา,clinical,False
+photodermatoses,Photodermatoses,โรคผิวหนังจากแสง,clinical,False

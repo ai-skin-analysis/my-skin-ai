@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Smart Skin AI",
+  "short_name": "Smart Skin AI",
+  "lang": "th",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f0fdfa",
+  "theme_color": "#0f766e",
+  "description": "ข้อมูลประกอบการดูแลผิวหนังอย่างรับผิดชอบ",
+  "icons": [
+    {
+      "src": "/static/icons/smart-skin-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

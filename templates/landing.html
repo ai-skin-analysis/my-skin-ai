@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Based Skin Disease Analysis and Classification Using Deep Learning</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+    <meta name="theme-color" content="#0f766e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- Keep the information and account page readable even while optional CDN styling is slow or unavailable. -->
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+    <script nonce="{{ csp_nonce }}" src="https://unpkg.com/lucide@latest" defer></script>
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+            padding-top: 0.15em;
+            padding-bottom: 0.15em;
+            line-height: 1.25;
+        }
+        .medical-premium-bg {
+            background-image: 
+                linear-gradient(135deg, rgba(240, 253, 250, 0.95) 20%, rgba(204, 251, 241, 0.90) 55%, rgba(13, 148, 136, 0.20) 100%),
+                url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 25px 50px -12px rgba(13, 148, 136, 0.1);
+        }
+        .live-dot { animation: pulse-dot 1.8s infinite; }
+        @keyframes pulse-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.4; } }
+        @keyframes eilik-float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        @keyframes eilik-walk {
+            0%, 100% { transform: translateY(0) rotate(-3deg); }
+            50% { transform: translateY(-5px) rotate(3deg); }
+        }
+        @keyframes eilik-jump { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scaleY(1.05); } }
+        @keyframes eilik-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+        @keyframes eilik-eye-blink { 0%, 45%, 55%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.05); } }
+        @keyframes eilik-left-arm-up { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(50deg); } }
+        @keyframes eilik-right-arm-up { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-50deg); } }
+        @keyframes eilik-right-arm-wave { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-45deg); } 75% { transform: rotate(-15deg); } }
+        .eilik-state-float { animation: eilik-float 2.5s ease-in-out infinite; }
+        .eilik-state-walk { animation: eilik-walk .45s ease-in-out infinite; }
+        .eilik-state-jump { animation: eilik-jump .5s ease-in-out infinite; }
+        .eilik-state-spin { animation: eilik-spin .7s cubic-bezier(.4, 0, .2, 1) 1; }
+        .eilik-arm-left-up { transform-origin: 44px 96px; animation: eilik-left-arm-up .5s ease-in-out infinite; }
+        .eilik-arm-right-up { transform-origin: 96px 96px; animation: eilik-right-arm-up .5s ease-in-out infinite; }
+        .eilik-arm-right-wave { transform-origin: 96px 96px; animation: eilik-right-arm-wave .3s ease-in-out infinite; }
+        .eilik-animated-eyes { transform-origin: 70px 55px; animation: eilik-eye-blink 4s infinite; }
+        #eilik-space-container { max-width: min(240px, calc(100vw - 32px)); }
+        @media (max-width: 640px) { #eilik-space-container { transform: scale(.76); transform-origin: top left; } }
+        @media (prefers-reduced-motion: reduce) {
+            #eilik-space-container { transition: none !important; }
+            #eilik-render, .eilik-animated-eyes, #eilik-left-arm, #eilik-right-arm,
+            .live-dot, .animate-ping, .animate-pulse, .animate-spin { animation: none !important; }
+            *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body class="medical-premium-bg min-h-screen flex flex-col justify-between overflow-x-hidden relative">
+
+    <!-- Header Area -->
+    <header class="p-6 max-w-7xl mx-auto w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-10 relative">
+        <div class="flex items-center space-x-4 group">
+            <div class="relative cursor-pointer transition-transform duration-500 group-hover:rotate-[45deg] flex-shrink-0">
+                <svg class="w-12 h-12 filter drop-shadow-[0_4px_8px_rgba(13,148,136,0.15)]" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="48" stroke="#0f766e" stroke-width="2.5" />
+                    <circle cx="60" cy="60" r="42" stroke="#14b8a6" stroke-width="1" stroke-dasharray="2 4" opacity="0.6" />
+                    <path d="M60 14 C66 14, 76 28, 72 44 C68 56, 52 56, 48 44 C44 28, 54 14, 60 14 Z" fill="url(#greenDrop)" />
+                    <path d="M14 60 C14 54, 28 44, 44 48 C56 52, 56 68, 44 72 C28 76, 14 66, 14 60 Z" fill="url(#tealDrop)" />
+                    <path d="M60 106 C54 106, 44 92, 48 76 C52 64, 68 64, 72 76 C76 92, 66 106, 60 106 Z" fill="url(#redDrop)" />
+                    <path d="M106 60 C106 66, 92 76, 76 72 C64 68, 64 52, 76 48 C92 44, 106 54, 106 60 Z" fill="url(#redDrop)" />
+                    <circle cx="60" cy="60" r="25" fill="#111827" stroke="#ffffff" stroke-width="2" />
+                    <path d="M60 47v26M47 60h26" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+                    <defs>
+                        <linearGradient id="greenDrop" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#34d399" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <linearGradient id="tealDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2dd4bf" /><stop offset="100%" stop-color="#0d9488" /></linearGradient>
+                        <linearGradient id="redDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f43f5e" /><stop offset="100%" stop-color="#be123c" /></linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div class="font-bold text-xs sm:text-sm md:text-base tracking-wider text-slate-900 uppercase leading-relaxed">
+                AI-Based Skin Disease Analysis and Classification Using <span class="text-teal-600 font-extrabold italic">Deep Learning</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-teal-950 text-teal-300 text-[11px] font-bold tracking-wider uppercase px-4 py-2 rounded-xl shadow-md border border-teal-800" role="status">
+            <span class="w-2 h-2 rounded-full {% if public_information_mode %}bg-amber-400{% else %}bg-emerald-400 live-dot{% endif %}"></span>
+            <span>{% if public_information_mode %}PUBLIC INFORMATION MODE{% else %}ACCOUNT SERVICE AVAILABLE{% endif %}</span>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-6 py-4 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-grow z-10 relative">
+        <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-teal-600/10 text-teal-800 text-[11px] font-extrabold uppercase tracking-widest px-3.5 py-2 rounded-xl border border-teal-200 shadow-sm backdrop-blur-sm">
+                <span>{% if public_information_mode %}ℹ️ RESPONSIBLE SKIN HEALTH INFORMATION{% else %}🔬 COMPUTER VISION & SKIN IMAGE SCREENING{% endif %}</span>
+            </div>
+            <div class="max-w-xl">
+                <h1 class="text-2xl sm:text-3xl lg:text-[2.25rem] font-extrabold text-slate-900 tracking-normal leading-normal">
+                    <span class="block text-slate-900 drop-shadow-sm sm:whitespace-nowrap">ระบบวิเคราะห์และจำแนกรอยโรคผิวหนังด้วย</span>
+                    <div class="w-full text-center mt-1.5">
+                        <span class="gradient-text font-black text-3xl sm:text-4xl lg:text-[2.6rem]">ปัญญาประดิษฐ์</span>
+                    </div>
+                </h1>
+            </div>
+            <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
+                {% if public_information_mode %}Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">ไม่มีการสมัครสมาชิก เข้าสู่ระบบ หรือรับภาพเพื่อวิเคราะห์ในขณะนี้</span> และเนื้อหาไม่ใช้แทนการวินิจฉัยของแพทย์{% else %}Smart Skin AI ให้ข้อมูลเพื่อช่วยสังเกตอาการผิวหนังและเตรียมตัวพบผู้เชี่ยวชาญ <span class="font-bold text-teal-600">การส่งภาพจะเปิดใช้เฉพาะเมื่อโมเดลผ่านการตรวจสอบความพร้อมตามเกณฑ์ที่กำหนด</span> และไม่ใช้แทนการวินิจฉัยของแพทย์{% endif %}
+            </p>
+            <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>{% if public_information_mode %}ข้อมูลหน้านี้มีไว้ประกอบการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล{% else %}เว็บไซต์นี้เป็นระบบข้อมูลประกอบจากภาพ ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล{% endif %}</span></div>
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>{% if public_information_mode %}ตำแหน่งเป็นข้อมูลเลือกใช้ และจะถูกขออนุญาตก่อนเรียกข้อมูลอากาศหรือแผนที่{% else %}การวิเคราะห์ภาพจะเปิดใช้หลังการตรวจสอบความพร้อมและการอนุมัติ intended use ที่เกี่ยวข้องเท่านั้น{% endif %}</span></div>
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>หากกังวลเกี่ยวกับอาการผิวหนัง ควรปรึกษาแพทย์หรือผู้เชี่ยวชาญ</span></div>
+            </div>
+        </div>
+
+        <!-- บริการบัญชีจะไม่แสดงในโหมดข้อมูลสาธารณะ -->
+        <div class="lg:col-span-5 flex justify-center lg:justify-end">
+            <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-[32px]">
+                {% if public_information_mode %}
+                <div class="space-y-5 text-center" aria-live="polite">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><i data-lucide="info" class="h-7 w-7"></i></div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-900">โหมดข้อมูลสาธารณะ</h2>
+                        <p class="mt-2 text-sm leading-relaxed text-slate-600">ขณะนี้ระบบเปิดเผยเฉพาะข้อมูลการดูแลผิวทั่วไปและข้อมูลอากาศตามการยินยอมของคุณ</p>
+                    </div>
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-xs leading-relaxed text-amber-900">
+                        การสร้างบัญชี การเข้าสู่ระบบ และบริการรับภาพถูกปิดไว้ จนกว่าจะผ่านการทดสอบความพร้อมและเปิดให้บริการอย่างเป็นทางการ
+                    </div>
+                    <p class="text-xs leading-relaxed text-slate-500">หากมีอาการน่ากังวล เช่น แผลไม่หาย เลือดออก ปวดมาก หรือผื่นลามเร็ว โปรดติดต่อสถานพยาบาลโดยเร็ว</p>
+                </div>
+                {% else %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="mb-4 p-3.5 text-xs font-bold rounded-xl border {% if category == 'error' %} bg-rose-50 text-rose-700 border-rose-200 {% elif category == 'warning' %} bg-amber-50 text-amber-800 border-amber-200 {% else %} bg-emerald-50 text-emerald-700 border-emerald-200 {% endif %}">
+                          {{ message }}
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
+                <div class="flex bg-slate-200/60 p-1.5 rounded-xl mb-6">
+                    <button id="btnTabLogin" onclick="switchForm('login')" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm">เข้าสู่ระบบ</button>
+                    <button id="btnTabRegister" onclick="switchForm('register')" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900">ลงทะเบียนใหม่</button>
+                </div>
+                
+                <form id="formLogin" action="{{ url_for('login') }}" method="POST" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label for="loginEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">อีเมลผู้ใช้งาน</label>
+                        <input id="loginEmail" type="email" name="email" maxlength="254" autocomplete="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <div>
+                        <label for="loginPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสผ่าน</label>
+                        <input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    {% if password_reset_email_configured %}
+                    <div class="flex items-center justify-between gap-3">
+                        <a href="{{ url_for('resend_email_verification') }}" class="text-[11px] font-bold text-slate-500 hover:text-teal-700 hover:underline">ยังไม่ได้ยืนยันอีเมล?</a>
+                        <a href="{{ url_for('forgot_password') }}" class="text-[11px] font-bold text-teal-700 hover:text-teal-800 hover:underline">ลืมรหัสผ่าน?</a>
+                    </div>
+                    {% endif %}
+                    <button type="submit" class="w-full bg-teal-950 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">เข้าสู่ระบบ (Sign In)</button>
+                </form>
+                
+                <form id="formRegister" action="{{ url_for('register') }}" method="POST" class="space-y-4 hidden">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label for="registerName" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อของคุณ</label>
+                        <input id="registerName" type="text" name="name" maxlength="100" autocomplete="name" placeholder="ชื่อ-นามสกุล" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <div>
+                        <label for="registerEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระบุอีเมลของคุณ</label>
+                        <input id="registerEmail" type="email" name="email" maxlength="254" autocomplete="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <div>
+                        <label for="registerPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ตั้งรหัสผ่าน</label>
+                        <input id="registerPassword" type="password" name="password" minlength="12" autocomplete="new-password" placeholder="อย่างน้อย 12 ตัวอักษร" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-[11px] leading-relaxed text-slate-600 cursor-pointer">
+                        <input type="checkbox" name="terms_consent" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500" required>
+                        <span>ฉันอ่านและยอมรับ <a href="{{ url_for('terms') }}" target="_blank" rel="noopener" class="font-bold text-teal-700 hover:underline">ข้อกำหนดการใช้งาน</a> และ <a href="{{ url_for('privacy') }}" target="_blank" rel="noopener" class="font-bold text-teal-700 hover:underline">ประกาศความเป็นส่วนตัว</a> ฉบับปัจจุบัน</span>
+                    </label>
+                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">ส่งข้อมูลเพื่อรออนุมัติ</button>
+                    <p class="text-[11px] text-slate-400 text-center font-medium">* รหัสผ่านต้องยาวอย่างน้อย 12 ตัวอักษรและมีทั้งตัวอักษรกับตัวเลข หลังจากลงทะเบียน ผู้ดูแลระบบจะตรวจสอบและอนุมัติการใช้งานก่อนเข้าสู่ระบบ</p>
+                    <p class="text-[11px] text-slate-500 text-center font-medium">การลงทะเบียนไม่ได้ยืนยันว่าบริการคัดกรองภาพเปิดใช้แล้ว และไม่ใช่การยืนยันผลทางการแพทย์</p>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Environment-Aware Section -->
+    <section class="max-w-7xl mx-auto px-6 py-8 w-full z-10 relative">
+        <div class="bg-white/85 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden w-full">
+            <div class="absolute -top-24 -right-24 w-60 h-60 bg-teal-400/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                <div class="flex items-center space-x-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-500 to-teal-700 text-white flex items-center justify-center shadow-md shadow-teal-500/20 border border-teal-400/30">
+                        <i data-lucide="cloud-sun" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            Environment-Aware
+                            <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-teal-950 text-teal-300 border border-teal-800 shadow-sm">
+                                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                <span>OPTIONAL LOCATION DATA</span>
+                            </span>
+                        </h2>
+                        <p class="text-xs text-slate-500">ข้อมูลอากาศประกอบการดูแลผิว ไม่ใช้วินิจฉัยหรือประเมินโรค</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2 self-start sm:self-auto">
+                    <button onclick="useCurrentLocationForEnvironment()" class="flex items-center space-x-2 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 px-4 py-2.5 rounded-xl border border-teal-600 shadow-md shadow-teal-700/20 transition-all group cursor-pointer">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-teal-200"></i>
+                        <span id="location-text">ใช้ตำแหน่งล่าสุดของฉัน</span>
+                    </button>
+                    <button onclick="openMapModal('dermatologist')" class="flex items-center space-x-2 text-xs font-bold text-teal-800 bg-white hover:bg-teal-50 px-4 py-2.5 rounded-xl border border-teal-200 shadow-sm transition-all group cursor-pointer">
+                        <i data-lucide="search" class="w-4 h-4 text-teal-700"></i>
+                        <span>ค้นหาสถานพยาบาล</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid 4 การ์ดสภาพอากาศหลัก -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
+                <!-- UV Index -->
+                <div onclick="openEnvDetailModal('uv')" class="bg-white/70 hover:bg-amber-50/80 border border-slate-100 hover:border-amber-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="sun" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">UV INDEX</span>
+                    <span id="card-uv-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-uv-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- Temperature -->
+                <div onclick="openEnvDetailModal('temp')" class="bg-white/70 hover:bg-orange-50/80 border border-slate-100 hover:border-orange-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="thermometer" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">อุณหภูมิ</span>
+                    <span id="card-temp-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-temp-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- Humidity -->
+                <div onclick="openEnvDetailModal('humidity')" class="bg-white/70 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="droplets" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">ความชื้น</span>
+                    <span id="card-humidity-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-humidity-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- AQI -->
+                <div onclick="openEnvDetailModal('aqi')" class="bg-white/70 hover:bg-emerald-50/80 border border-slate-100 hover:border-emerald-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="wind" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">AQI</span>
+                    <span id="card-aqi-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-aqi-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-100 bg-slate-50/85 px-4 py-3 text-xs leading-relaxed text-slate-600" aria-live="polite">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <i data-lucide="radio" class="h-3.5 w-3.5 text-teal-700"></i>
+                    <span id="environment-source-text" class="font-semibold text-slate-700">รอการอนุญาตตำแหน่งเพื่อเรียกข้อมูลอากาศปัจจุบัน</span>
+                    <button id="environmentRefreshButton" type="button" onclick="refreshEnvironmentData()" class="rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700 transition hover:bg-teal-50 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-describedby="environment-source-note">อัปเดตข้อมูล</button>
+                </div>
+                <p id="environment-source-note" class="mt-1 text-[11px] text-slate-600">อุณหภูมิแสดงเป็นค่าประมาณจาก Open-Meteo ไม่ใช่ค่าจากเซนเซอร์โทรศัพท์หรือสถานีเดียวกัน จึงอาจต่างกันได้</p>
+            </div>
+
+            <!-- คำแนะนำดูแลผิวตามสภาวะอากาศ -->
+            <div class="bg-slate-900 text-white rounded-2xl p-5 space-y-4 relative overflow-hidden shadow-inner border border-slate-800">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-2 text-teal-400 font-bold text-xs">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>คำแนะนำดูแลผิวตามสภาวะอากาศขณะนี้</span>
+                    </div>
+                    <span id="time-period-badge" class="px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 bg-slate-800 border border-slate-700">
+                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                        <span id="time-period-text">กำลังตรวจสอบเวลา...</span>
+                    </span>
+                </div>
+                
+                <p id="env-summary-text" class="text-xs text-slate-300 leading-relaxed">
+                    เลือกใช้ตำแหน่งเพื่อดูข้อมูลอากาศจากบริการภายนอก ข้อมูลนี้เป็นเพียงคำแนะนำดูแลผิวทั่วไป
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-1-el" data-lucide="shield-check" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-1">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-2-el" data-lucide="sparkles" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-2">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div id="rec-icon-3-box" class="p-2 bg-amber-500/20 text-amber-400 rounded-lg shrink-0 border border-amber-500/30">
+                            <i id="rec-icon-3-el" data-lucide="wind" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-3">เปิดเครื่องฟอกอากาศและปิดหน้าต่างลดฝุ่นสะสม</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-4-el" data-lucide="glass-water" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-4">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- น้องอิลลิคเวอร์ชันเดิม: เดินสำรวจ ทักทาย และโต้ตอบได้ -->
+    <aside id="eilik-space-container" class="fixed z-40 pointer-events-none transition-all duration-[2500ms] ease-in-out" style="left: 100px; top: 60%;" aria-label="น้องอิลลิค ผู้ช่วย AI">
+        <div class="relative flex flex-col items-center select-none">
+            <div class="mb-2 max-w-[240px] rounded-2xl border border-teal-800 bg-slate-950 px-4 py-2.5 text-center text-xs font-medium text-slate-100 shadow-xl">
+                <div class="absolute bottom-[-6px] left-1/2 h-0 w-0 -translate-x-1/2 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-950"></div>
+                💚 <span id="eilik-speech">กำลังเตรียมระบบต้อนรับ...</span>
+            </div>
+            <button id="eilik-render" type="button" class="eilik-state-float pointer-events-auto h-28 w-24 cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-4 focus-visible:ring-teal-400/70" aria-label="โต้ตอบกับน้องอิลลิค">
+                <svg viewBox="0 0 140 160" class="h-full w-full drop-shadow-xl" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="eilikBodyGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#f1f5f9" /></linearGradient>
+                        <linearGradient id="eilikGreenGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#10b981" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <filter id="eilikEyeGlow"><feGaussianBlur stdDeviation="1" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
+                    </defs>
+                    <path d="M25 45 C21 45 21 65 26 65 Z" fill="#94a3b8" />
+                    <path d="M115 45 C119 45 119 65 114 65 Z" fill="#94a3b8" />
+                    <ellipse cx="70" cy="52" rx="44" ry="39" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    <path d="M50 14 Q70 8 90 14 Q70 20 50 14 Z" fill="url(#eilikGreenGradient)" />
+                    <ellipse cx="70" cy="55" rx="33" ry="26" fill="#121316" />
+                    <g class="eilik-animated-eyes" filter="url(#eilikEyeGlow)">
+                        <path d="M48 59 C48 48 63 48 63 59 C63 56 48 56 48 59 Z" fill="#00ffcc" />
+                        <path d="M77 59 C77 48 92 48 92 59 C92 56 77 56 77 59 Z" fill="#00ffcc" />
+                    </g>
+                    <ellipse cx="70" cy="91" rx="10" ry="3.5" fill="#334155" />
+                    <path d="M42 94 C42 94 36 143 70 145 C104 143 98 94 98 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    <path d="M52 93 C54 105 58 118 70 118 C82 118 86 105 88 93 C78 96 62 96 52 93 Z" fill="url(#eilikGreenGradient)" />
+                    <g id="eilik-left-arm">
+                        <path d="M44 96 C38 96 36 108 42 115 Z" fill="url(#eilikGreenGradient)" />
+                        <path d="M42 94 C23 99 23 126 35 133 C43 127 45 111 42 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    </g>
+                    <g id="eilik-right-arm">
+                        <path d="M96 96 C102 96 104 108 98 115 Z" fill="url(#eilikGreenGradient)" />
+                        <path d="M98 94 C117 99 117 126 105 133 C97 127 95 111 98 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    </g>
+                    <text x="75" y="108" font-family="'Plus Jakarta Sans', sans-serif" font-size="6.5" font-weight="800" fill="#0f766e" letter-spacing=".1">Eilik</text>
+                </svg>
+            </button>
+            <div id="eilik-floor-shadow" class="h-1.5 w-14 rounded-full bg-teal-950/10 transition-all duration-500"></div>
+        </div>
+    </aside>
+
+    <!-- Explicit consent shown before asking the browser for a location. -->
+    <div id="environmentLocationConsentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="environmentLocationConsentTitle" aria-describedby="environmentLocationConsentDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-7">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div class="flex gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-200 bg-teal-50 text-teal-700"><i data-lucide="map-pin" class="h-5 w-5"></i></div>
+                    <div>
+                        <h3 id="environmentLocationConsentTitle" class="text-base font-extrabold text-slate-900">อนุญาตใช้ตำแหน่งสำหรับข้อมูลอากาศ</h3>
+                        <p id="environmentLocationConsentDescription" class="mt-1 text-xs leading-relaxed text-slate-600">ระบบจะยังไม่เข้าถึงตำแหน่งจนกว่าคุณจะยืนยันด้านล่าง แล้วจึงแสดงกล่องอนุญาตของเบราว์เซอร์</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeEnvironmentLocationConsent()" class="px-2 text-xl font-bold text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดหน้าต่างอนุญาตตำแหน่ง" data-modal-close>×</button>
+            </div>
+
+            <div class="rounded-2xl border border-teal-100 bg-teal-50/70 p-4 text-xs leading-relaxed text-teal-950">
+                <p class="font-bold">ข้อมูลที่ส่งเฉพาะหลังยินยอม</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li>พิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่งไปยัง Open-Meteo เพื่ออุณหภูมิ ความชื้น UV และคุณภาพอากาศ</li>
+                    <li>พิกัดที่ปัดแล้วไปยัง OpenStreetMap Nominatim เพื่อแสดงชื่อเขต/จังหวัดโดยประมาณ</li>
+                </ul>
+                <p class="mt-2">พิกัดจริงใช้ชั่วคราวในเบราว์เซอร์เพื่อปัดพิกัดเท่านั้น และไม่ถูกบันทึกในหน้านี้ การเปิด Google Maps ต้องยินยอมแยกต่างหาก</p>
+            </div>
+
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                <input id="environmentLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                <span class="text-xs leading-relaxed text-slate-700">ฉันเข้าใจว่าจะมีการส่งตำแหน่งโดยประมาณให้บริการภายนอกตามที่ระบุ เพื่อขอข้อมูลอากาศและชื่อพื้นที่สำหรับครั้งนี้</span>
+            </label>
+            <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">หมายเหตุ: เบราว์เซอร์อนุญาต GPS ให้เว็บที่เปิดผ่าน HTTPS เท่านั้น หากเปิดจากลิงก์ IP แบบ HTTP ระบบจะแจ้งวิธีแก้ก่อนส่งข้อมูลใด ๆ</p>
+            <p id="environmentLocationConsentStatus" class="min-h-5 text-xs font-semibold text-rose-600" aria-live="polite"></p>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" onclick="closeEnvironmentLocationConsent()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">ไม่ใช้ตำแหน่ง</button>
+                <button type="button" onclick="approveEnvironmentLocationConsent()" class="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-teal-800">ยืนยันและขอตำแหน่ง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🏥 Medical Dermatology Locator Modal (เพิ่มช่องค้นหาคำสำคัญ Search Box) 🏥 -->
+    <div id="mapModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-all duration-300 p-4" role="dialog" aria-modal="true" aria-labelledby="mapModalTitle" aria-describedby="coords-text" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-3xl space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100">
+                        <i data-lucide="cross" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 id="mapModalTitle" class="text-base font-bold text-slate-900">ค้นหาสถานพยาบาลโรคผิวหนัง (Live Medical Map)</h3>
+                        <p class="text-xs text-slate-500" id="coords-text">ค้นหาตามคำสำคัญ — ยังไม่ได้ใช้ตำแหน่งของคุณ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeMapModal()" class="text-slate-500 hover:text-slate-700 font-bold text-xl px-2 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดแผนที่" data-modal-close>✕</button>
+            </div>
+
+            <!-- 🔍 ช่องค้นหาคำสำคัญ (Search Bar) เพิ่มใหม่ 🔍 -->
+            <div class="flex items-center gap-2">
+                <div class="relative flex-grow">
+                        <input type="text" id="customSearchInput" onkeypress="handleSearchKeyPress(event)" placeholder="พิมพ์ชื่อสถานที่, โรงพยาบาล, คลินิก หรืออำเภอ..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-xs bg-slate-50 font-medium" aria-label="ค้นหาสถานพยาบาล">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                </div>
+                <button onclick="executeCustomSearch()" class="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 shrink-0">
+                    <span>ค้นหา</span>
+                </button>
+            </div>
+
+            <!-- Quick Filter Tabs ค้นหาสถานพยาบาลย่อย -->
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button onclick="filterMapSearch('dermatologist')" id="mapBtnDerm" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white shadow-sm flex items-center gap-1.5 transition-all">
+                    <i data-lucide="stethoscope" class="w-3.5 h-3.5"></i> คลินิกหมอผิวหนัง
+                </button>
+                <button onclick="filterMapSearch('hospital')" id="mapBtnHosp" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all">
+                    <i data-lucide="building-2" class="w-3.5 h-3.5"></i> ศูนย์โรคผิวหนัง โรงพยาบาลใหญ่
+                </button>
+                <button onclick="filterMapSearch('pharmacy')" id="mapBtnPharm" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all">
+                    <i data-lucide="pill" class="w-3.5 h-3.5"></i> ร้านขายยา (มียาทาผิวหนัง)
+                </button>
+            </div>
+
+            <!-- Map frame: the approximate device position is marked only after a separate opt-in. -->
+            <div class="w-full h-80 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+                <iframe id="googleMapIframe" class="w-full h-full border-0" title="แผนที่ค้นหาสถานพยาบาลและตำแหน่งโดยประมาณ" loading="lazy" referrerpolicy="no-referrer" allowfullscreen src=""></iframe>
+                <div id="mapFrameFallback" class="absolute inset-0 hidden items-center justify-center bg-slate-100 p-6 text-center" aria-live="polite">
+                    <div class="max-w-sm space-y-2 text-xs text-slate-600">
+                        <i data-lucide="map-off" class="mx-auto h-8 w-8 text-slate-400"></i>
+                        <p id="mapFrameFallbackText" class="font-semibold">ยังไม่สามารถแสดงแผนที่ได้</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                <div class="flex flex-col gap-1 text-xs text-slate-500 font-medium">
+                    <span>💡 ค้นหาสถานพยาบาลด้วยคำสำคัญได้โดยไม่แชร์ตำแหน่ง</span>
+                    <label class="mt-1 flex max-w-xl cursor-pointer items-start gap-2 rounded-xl border border-teal-100 bg-teal-50/70 p-2.5 text-left text-[11px] leading-relaxed text-teal-950">
+                        <input id="mapLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                        <span>ฉันยินยอมให้ระบบขอตำแหน่งล่าสุดจากเบราว์เซอร์ และส่งพิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่ง (ราว 10–20 เมตร) ไปยัง OpenStreetMap เพื่อแสดงหมุดตำแหน่งโดยประมาณในแผนที่</span>
+                    </label>
+                    <label class="flex max-w-xl cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-left text-[11px] leading-relaxed text-slate-700">
+                        <input id="googleMapLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                        <span>ไม่บังคับ: ฉันยินยอมให้ส่งพิกัดที่ปัดแล้วไปยัง Google Maps เพื่อจัดกึ่งกลางผลค้นหาสถานพยาบาลใกล้ฉัน หากไม่เลือก Google Maps จะค้นหาโดยไม่ใช้ตำแหน่ง</span>
+                    </label>
+                    <button type="button" onclick="useCurrentLocationForMap()" id="mapLocationButton" class="w-fit font-bold text-teal-700 hover:text-teal-800 hover:underline">แสดงตำแหน่งปัจจุบันโดยประมาณบนแผนที่</button>
+                    <span id="mapLocationStatus" class="min-h-4 text-[11px] font-semibold text-slate-500" aria-live="polite"></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a id="btnExternalNav" href="#" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl hover:bg-rose-700 transition-all flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="navigation" class="w-3.5 h-3.5"></i><span id="btnExternalNavText">ค้นหาใน Google Maps</span>
+                    </a>
+                    <button onclick="closeMapModal()" class="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all">ปิดหน้าต่าง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="envDetailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-all duration-300 p-4" role="dialog" aria-modal="true" aria-labelledby="envModalTitle" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div id="envModalIcon" class="p-3 rounded-2xl"></div>
+                    <div>
+                        <h3 id="envModalTitle" class="text-base font-bold text-slate-900"></h3>
+                        <span id="envModalBadge" class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1"></span>
+                    </div>
+                </div>
+                <button type="button" onclick="closeEnvDetailModal()" class="text-slate-500 hover:text-slate-700 font-bold text-xl px-2 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดรายละเอียดข้อมูลอากาศ" data-modal-close>✕</button>
+            </div>
+            <div class="space-y-3">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">ค่าปัจจุบัน (Live API Data)</span>
+                    <span id="envModalValue" class="text-3xl font-extrabold text-slate-900"></span>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">ผลกระทบต่อผิวหนัง & คำแนะนำ:</h4>
+                    <p id="envModalDesc" class="text-xs text-slate-600 leading-relaxed bg-teal-50/60 p-3.5 rounded-xl border border-teal-100"></p>
+                </div>
+            </div>
+            <div class="pt-2">
+                <button onclick="closeEnvDetailModal()" class="w-full py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all">เข้าใจแล้ว</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script ควบคุมระบบทั้งหมด -->
+    <script nonce="{{ csp_nonce }}">
+        if ('serviceWorker' in navigator && window.isSecureContext) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(() => {
+                    // The online page remains usable if the browser does not support offline mode.
+                });
+            });
+        }
+
+        // Keep modal behavior consistent for keyboard and screen-reader users.
+        // The page never stores a previous focus target beyond this browser tab.
+        const modalFocusRestore = new Map();
+        function getOpenAccessibleModal() {
+            return [...document.querySelectorAll('[data-accessible-modal="true"]')]
+                .filter((modal) => !modal.classList.contains('hidden'))
+                .at(-1) || null;
+        }
+        function getFocusableElements(container) {
+            return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                .filter((element) => !element.closest('[hidden], .hidden'));
+        }
+        function syncAccessibleModalPageState() {
+            const hasOpenModal = Boolean(getOpenAccessibleModal());
+            document.documentElement.classList.toggle('overflow-hidden', hasOpenModal);
+            document.body.classList.toggle('overflow-hidden', hasOpenModal);
+        }
+        function showAccessibleModal(modalId, initialFocusSelector = '') {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            if (modal.classList.contains('hidden')) {
+                modalFocusRestore.set(modalId, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.setAttribute('aria-hidden', 'false');
+            syncAccessibleModalPageState();
+            window.setTimeout(() => {
+                const initial = initialFocusSelector ? modal.querySelector(initialFocusSelector) : null;
+                const target = initial || getFocusableElements(modal)[0];
+                if (target instanceof HTMLElement) target.focus();
+            }, 0);
+        }
+        function hideAccessibleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            modal.setAttribute('aria-hidden', 'true');
+            syncAccessibleModalPageState();
+            const restoreTarget = modalFocusRestore.get(modalId);
+            modalFocusRestore.delete(modalId);
+            if (restoreTarget instanceof HTMLElement && restoreTarget.isConnected) {
+                window.setTimeout(() => restoreTarget.focus(), 0);
+            }
+        }
+        document.addEventListener('keydown', (event) => {
+            const modal = getOpenAccessibleModal();
+            if (!modal) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                const closeButton = modal.querySelector('[data-modal-close]');
+                if (closeButton instanceof HTMLElement) closeButton.click();
+                else hideAccessibleModal(modal.id);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = getFocusableElements(modal);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable.at(-1);
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
+        const eilikContainer = document.getElementById('eilik-space-container');
+        const eilikRender = document.getElementById('eilik-render');
+        const eilikLeftArm = document.getElementById('eilik-left-arm');
+        const eilikRightArm = document.getElementById('eilik-right-arm');
+        const eilikFloorShadow = document.getElementById('eilik-floor-shadow');
+        const eilikSpeech = document.getElementById('eilik-speech');
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const eilikPhrases = [
+            'สแกนเนอร์พร้อมแล้ว เลือกภาพที่ชัดเจนเพื่อเริ่มคัดกรองได้เลยครับ',
+            'ผิวดีเริ่มจากการสังเกตอาการ หากกังวลควรพบแพทย์ผิวหนังนะครับ',
+            'พร้อมช่วยแนะนำขั้นตอนการใช้ระบบอย่างปลอดภัยครับ',
+            'อย่าลืมอ่านและยืนยันความยินยอมก่อนส่งภาพเพื่อคัดกรองนะครับ',
+            'ผลจากระบบเป็นเพียงการคัดกรองจากภาพ ไม่ใช่การวินิจฉัยครับ'
+        ];
+
+        function clearEilikAnimations() {
+            eilikRender.classList.remove('eilik-state-float', 'eilik-state-walk', 'eilik-state-jump', 'eilik-state-spin');
+            eilikLeftArm.classList.remove('eilik-arm-left-up');
+            eilikRightArm.classList.remove('eilik-arm-right-up', 'eilik-arm-right-wave');
+        }
+
+        function roamEilikEverywhere() {
+            if (reduceMotion || eilikRender.classList.contains('eilik-state-jump') || eilikRender.classList.contains('eilik-state-spin') || eilikRightArm.classList.contains('eilik-arm-right-wave')) return;
+
+            const robotWidth = Math.min(240, Math.max(170, window.innerWidth * 0.26));
+            const maxX = Math.max(20, window.innerWidth - robotWidth - 20);
+            const maxY = Math.max(110, window.innerHeight - 250);
+            const randomX = Math.floor(Math.random() * maxX) + 10;
+            const randomY = Math.floor(Math.random() * (maxY - 80)) + 80;
+            const currentX = parseInt(eilikContainer.style.left, 10) || 0;
+            const distance = Math.abs(randomX - currentX);
+
+            clearEilikAnimations();
+            eilikRender.classList.add(distance > 300 ? 'eilik-state-walk' : 'eilik-state-float');
+            eilikContainer.style.transitionDuration = distance > 300 ? '2500ms' : '3500ms';
+            eilikFloorShadow.style.transform = distance > 300 ? 'scale(.6)' : 'scale(1)';
+            eilikSpeech.textContent = eilikPhrases[Math.floor(Math.random() * eilikPhrases.length)];
+            eilikContainer.style.left = `${randomX}px`;
+            eilikContainer.style.top = `${randomY}px`;
+        }
+
+        function resetEilikToNormal() {
+            clearEilikAnimations();
+            eilikRender.classList.add('eilik-state-float');
+            roamEilikEverywhere();
+        }
+
+        function welcomeEilik() {
+            clearEilikAnimations();
+            eilikRender.classList.add('eilik-state-float');
+            eilikRightArm.classList.add('eilik-arm-right-wave');
+            eilikSpeech.textContent = 'สวัสดีครับ! ผมอิลลิค ผู้ช่วย AI ยินดีต้อนรับสู่ Smart Skin AI ครับ';
+            if (!reduceMotion) {
+                window.setTimeout(() => {
+                    eilikRightArm.classList.remove('eilik-arm-right-wave');
+                    roamEilikEverywhere();
+                    window.setInterval(roamEilikEverywhere, 7000);
+                }, 4000);
+            }
+        }
+
+        eilikRender.addEventListener('click', () => {
+            if (reduceMotion) {
+                eilikSpeech.textContent = 'สวัสดีครับ ผมอิลลิค พร้อมช่วยแนะนำการใช้งานระบบครับ';
+                return;
+            }
+            clearEilikAnimations();
+            const actions = ['greet', 'spin', 'jump'];
+            const action = actions[Math.floor(Math.random() * actions.length)];
+            if (action === 'greet') {
+                eilikRightArm.classList.add('eilik-arm-right-wave');
+                eilikSpeech.textContent = 'สวัสดีครับ! ถ้ามีอาการน่ากังวลหรือเปลี่ยนแปลงเร็ว ควรพบแพทย์ผิวหนังนะครับ';
+                window.setTimeout(resetEilikToNormal, 2500);
+            } else if (action === 'spin') {
+                eilikRender.classList.add('eilik-state-spin');
+                eilikSpeech.textContent = 'ว้าว! พร้อมเริ่มต้นดูแลผิวอย่างรอบคอบแล้วครับ';
+                window.setTimeout(resetEilikToNormal, 1000);
+            } else {
+                eilikRender.classList.add('eilik-state-jump');
+                eilikLeftArm.classList.add('eilik-arm-left-up');
+                eilikRightArm.classList.add('eilik-arm-right-up');
+                eilikSpeech.textContent = 'เยี่ยมเลย! เลือกภาพให้ชัดและอ่านคำแนะนำก่อนเริ่มคัดกรองนะครับ';
+                window.setTimeout(resetEilikToNormal, 2500);
+            }
+        });
+
+        window.setTimeout(welcomeEilik, 900);
+
+        let currentLat = null;
+        let currentLng = null;
+        let environmentLocationConsent = false;
+        let mapLocationConsent = false;
+        // This is a separate, one-time approval for a Google Maps URL that
+        // contains coordinates. A later checkbox tick alone is not enough to
+        // reuse a position acquired for OpenStreetMap.
+        let mapGoogleMapsLocationConsent = false;
+        let lastMapQuery = 'คลินิกหมอผิวหนัง';
+        let currentLocationMeta = {
+            capturedAt: null,
+            accuracyMeters: null,
+            approximateName: '',
+        };
+        let mapFrameIsExternal = false;
+
+        let liveEnvData = {
+            uv: { val: 0, status: "กำลังโหลด...", title: "UV Index (ดัชนีรังสีอุลตราไวโอเลต)", badge: "", badgeClass: "", iconBg: "bg-amber-100 text-amber-600", icon: "sun", desc: "" },
+            temp: { val: "0°C", status: "กำลังโหลด...", title: "อุณหภูมิอากาศ (Temperature)", badge: "", badgeClass: "", iconBg: "bg-orange-100 text-orange-600", icon: "thermometer", desc: "" },
+            humidity: { val: "0%", status: "กำลังโหลด...", title: "ความชื้นสัมพัทธ์ (Humidity)", badge: "", badgeClass: "", iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: "" },
+            aqi: { val: "0", status: "กำลังโหลด...", title: "ดัชนีคุณภาพอากาศ (AQI)", badge: "", badgeClass: "", iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: "" }
+        };
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+
+        function openEnvironmentLocationConsent() {
+            document.getElementById('environmentLocationConsentCheck').checked = false;
+            document.getElementById('environmentLocationConsentStatus').textContent = '';
+            showAccessibleModal('environmentLocationConsentModal', '#environmentLocationConsentCheck');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeEnvironmentLocationConsent() {
+            hideAccessibleModal('environmentLocationConsentModal');
+        }
+
+        function insecureLocationContextMessage() {
+            return 'ไม่สามารถใช้ตำแหน่งจากลิงก์ HTTP/IP ได้ — โปรดเปิดเว็บผ่าน HTTPS ที่มีใบรับรองเชื่อถือได้ หรือทดสอบบนเครื่องนี้ที่ http://127.0.0.1:5000';
+        }
+
+        function locationErrorMessage(error) {
+            if (!window.isSecureContext) return insecureLocationContextMessage();
+            if (error?.code === 1) return 'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง โปรดอนุญาต Location ในเบราว์เซอร์แล้วลองอีกครั้ง';
+            if (error?.code === 2) return 'ไม่พบตำแหน่งปัจจุบัน โปรดเปิด GPS หรือเชื่อมต่อเครือข่ายแล้วลองอีกครั้ง';
+            if (error?.code === 3) return 'การระบุตำแหน่งใช้เวลานานเกินไป โปรดลองอีกครั้ง';
+            return 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้';
+        }
+
+        function hasCurrentLocation() {
+            return Number.isFinite(currentLat) && Number.isFinite(currentLng);
+        }
+
+        function saveFreshBrowserLocation(position) {
+            currentLat = position.coords.latitude;
+            currentLng = position.coords.longitude;
+            currentLocationMeta = {
+                capturedAt: Number(position.timestamp) || Date.now(),
+                accuracyMeters: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+                approximateName: '',
+            };
+        }
+
+        function roundedCoordinate(value) {
+            return Number(Number(value).toFixed(4));
+        }
+
+        function setEnvironmentSourceText(text, note = '') {
+            const source = document.getElementById('environment-source-text');
+            const sourceNote = document.getElementById('environment-source-note');
+            if (source) source.textContent = text;
+            if (sourceNote && note) sourceNote.textContent = note;
+        }
+
+        function setMapLocationStatus(text, isError = false) {
+            const status = document.getElementById('mapLocationStatus');
+            if (!status) return;
+            status.textContent = text;
+            status.className = `min-h-4 text-[11px] font-semibold ${isError ? 'text-rose-600' : 'text-teal-700'}`;
+        }
+
+        function showMapFrameFallback(text) {
+            const frame = document.getElementById('googleMapIframe');
+            const fallback = document.getElementById('mapFrameFallback');
+            const fallbackText = document.getElementById('mapFrameFallbackText');
+            mapFrameIsExternal = false;
+            frame.src = '';
+            fallbackText.textContent = text;
+            fallback.classList.remove('hidden');
+            fallback.classList.add('flex');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function loadMapFrame(url) {
+            const frame = document.getElementById('googleMapIframe');
+            const fallback = document.getElementById('mapFrameFallback');
+            mapFrameIsExternal = true;
+            fallback.classList.add('hidden');
+            fallback.classList.remove('flex');
+            frame.src = url;
+        }
+
+        function useCurrentLocationForEnvironment() {
+            if (!window.isSecureContext) {
+                showEnvironmentUnavailable(insecureLocationContextMessage());
+                return;
+            }
+            if (!navigator.geolocation) {
+                showEnvironmentUnavailable('เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง');
+                return;
+            }
+            openEnvironmentLocationConsent();
+        }
+
+        function approveEnvironmentLocationConsent() {
+            const status = document.getElementById('environmentLocationConsentStatus');
+            if (!document.getElementById('environmentLocationConsentCheck').checked) {
+                status.textContent = 'โปรดยืนยันความเข้าใจก่อนขอตำแหน่งจากเบราว์เซอร์';
+                return;
+            }
+            if (!window.isSecureContext) {
+                status.textContent = insecureLocationContextMessage();
+                return;
+            }
+            if (!navigator.geolocation) {
+                status.textContent = 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง';
+                return;
+            }
+            closeEnvironmentLocationConsent();
+            environmentLocationConsent = true;
+            document.getElementById('location-text').textContent = 'กำลังขอตำแหน่งล่าสุดจากอุปกรณ์';
+            setEnvironmentSourceText('กำลังขอตำแหน่งล่าสุดจากอุปกรณ์', 'ระบบจะไม่ใช้ตำแหน่งเก่าที่เก็บในหน้าเว็บ และจะเรียกข้อมูลอากาศใหม่หลังได้รับพิกัด');
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    saveFreshBrowserLocation(position);
+                    document.getElementById('location-text').textContent = 'กำลังโหลดข้อมูลอากาศตามตำแหน่งล่าสุดของคุณ';
+                    fetchLiveWeatherData(currentLat, currentLng, currentLocationMeta);
+                },
+                (error) => showEnvironmentUnavailable(locationErrorMessage(error)),
+                // Request a fresh reading only after the visitor has explicitly consented.
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function refreshEnvironmentData() {
+            if (!environmentLocationConsent || !hasCurrentLocation()) {
+                useCurrentLocationForEnvironment();
+                return;
+            }
+            if (!window.isSecureContext || !navigator.geolocation) {
+                showEnvironmentUnavailable(!window.isSecureContext
+                    ? insecureLocationContextMessage()
+                    : 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง');
+                return;
+            }
+            document.getElementById('location-text').textContent = 'กำลังอัปเดตตำแหน่งและข้อมูลอากาศล่าสุด';
+            setEnvironmentSourceText('กำลังอัปเดตข้อมูลอากาศจาก Open-Meteo', 'กำลังขอตำแหน่งใหม่จากอุปกรณ์ก่อนเรียกข้อมูลอากาศ จึงอาจใช้เวลาสักครู่');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    saveFreshBrowserLocation(position);
+                    fetchLiveWeatherData(currentLat, currentLng, currentLocationMeta);
+                },
+                (error) => showEnvironmentUnavailable(locationErrorMessage(error)),
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function approximateLocationLabel(data) {
+            const address = data?.address || {};
+            // Reverse geocoding is only a nearby-area label. It is deliberately
+            // not presented as an exact address because device GPS and mapping
+            // boundaries can disagree at subdistrict level.
+            const area = address.suburb || address.quarter || address.neighbourhood || address.village || address.hamlet || address.subdistrict || '';
+            const city = address.municipality || address.town || address.city || address.city_district || address.district || address.county || '';
+            const province = address.state || address.province || '';
+            return [area, city, province].filter(Boolean).filter((value, index, parts) => parts.indexOf(value) === index).join(' · ');
+        }
+
+        async function fetchApproximateLocationName(lat, lng) {
+            const roundedLat = roundedCoordinate(lat);
+            const roundedLng = roundedCoordinate(lng);
+            const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`);
+            if (!response.ok) throw new Error('Location service unavailable');
+            return approximateLocationLabel(await response.json());
+        }
+
+        async function fetchWithTimeout(url, timeoutMs = 12000) {
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                return await fetch(url, { signal: controller.signal });
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
+        }
+
+        function weatherCodeLabel(code) {
+            const labels = {
+                0: 'ท้องฟ้าโปร่ง', 1: 'มีเมฆเล็กน้อย', 2: 'มีเมฆเป็นบางส่วน', 3: 'เมฆมาก',
+                45: 'มีหมอก', 48: 'มีหมอกน้ำค้างแข็ง', 51: 'ฝนปรอยเล็กน้อย', 53: 'ฝนปรอย',
+                55: 'ฝนปรอยหนัก', 56: 'ฝนเยือกแข็งเล็กน้อย', 57: 'ฝนเยือกแข็งหนัก', 61: 'ฝนเล็กน้อย',
+                63: 'ฝนปานกลาง', 65: 'ฝนหนัก', 66: 'ฝนเยือกแข็ง', 67: 'ฝนเยือกแข็งหนัก',
+                71: 'หิมะเล็กน้อย', 73: 'หิมะปานกลาง', 75: 'หิมะหนัก', 77: 'เกล็ดหิมะ',
+                80: 'ฝนซู่เล็กน้อย', 81: 'ฝนซู่ปานกลาง', 82: 'ฝนซู่หนัก', 85: 'หิมะซู่เล็กน้อย',
+                86: 'หิมะซู่หนัก', 95: 'พายุฝนฟ้าคะนอง', 96: 'พายุฝนฟ้าคะนองและลูกเห็บ', 99: 'พายุฝนฟ้าคะนองและลูกเห็บหนัก'
+            };
+            return labels[Number(code)] || 'ไม่ทราบสภาพท้องฟ้า';
+        }
+
+        function formatEnvironmentUpdatedAt(timestamp) {
+            return new Intl.DateTimeFormat('th-TH', {
+                hour: '2-digit',
+                minute: '2-digit',
+            }).format(new Date(timestamp || Date.now()));
+        }
+
+        function formatProviderCurrentTime(currentTime, timezone) {
+            if (!currentTime) return 'ไม่ระบุเวลา';
+            const readableTime = String(currentTime).replace('T', ' ');
+            return timezone ? `${readableTime} (${timezone})` : readableTime;
+        }
+
+        function formatGpsAccuracy(accuracyMeters) {
+            return Number.isFinite(accuracyMeters) ? `ความแม่นยำ GPS ประมาณ ±${Math.round(accuracyMeters)} ม.` : 'ความแม่นยำ GPS ไม่ระบุ';
+        }
+
+        async function fetchLiveWeatherData(lat, lng, locationMeta = {}) {
+            try {
+                const roundedLat = roundedCoordinate(lat);
+                const roundedLng = roundedCoordinate(lng);
+                const [weatherRes, airRes, locationName] = await Promise.all([
+                    fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code&timezone=auto`),
+                    fetchWithTimeout(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLng}&current=us_aqi&timezone=auto`),
+                    fetchApproximateLocationName(lat, lng).catch(() => '')
+                ]);
+                if (!weatherRes.ok || !airRes.ok) throw new Error('Weather service unavailable');
+                const weatherData = await weatherRes.json();
+                const airData = await airRes.json();
+
+                const uvVal = Math.round(Number(weatherData.current?.uv_index));
+                const rawTempVal = Number(weatherData.current?.temperature_2m);
+                const tempVal = Math.round(rawTempVal * 10) / 10;
+                const humVal = Math.round(Number(weatherData.current?.relative_humidity_2m));
+                const aqiVal = Math.round(Number(airData.current?.us_aqi));
+                if (![uvVal, tempVal, humVal, aqiVal].every(Number.isFinite)) throw new Error('Invalid weather data');
+
+                const weatherDescription = weatherCodeLabel(weatherData.current?.weather_code);
+                const gpsCapturedAt = formatEnvironmentUpdatedAt(locationMeta.capturedAt);
+                const weatherObservedAt = formatProviderCurrentTime(weatherData.current?.time, weatherData.timezone_abbreviation || weatherData.timezone);
+                const airObservedAt = formatProviderCurrentTime(airData.current?.time, airData.timezone_abbreviation || airData.timezone);
+                currentLocationMeta.approximateName = locationName;
+                document.getElementById('location-text').textContent = locationName
+                    ? `พื้นที่ใกล้เคียงจากตำแหน่งล่าสุด: ${locationName}`
+                    : 'ข้อมูลอากาศตามตำแหน่งล่าสุดของคุณ';
+                setEnvironmentSourceText(
+                    `แหล่งข้อมูล: Open-Meteo current conditions · อากาศ ${weatherObservedAt} · AQI ${airObservedAt}`,
+                    `อุณหภูมิแสดง ${tempVal.toFixed(1)}°C จากกริดพยากรณ์ ไม่ใช่ค่าเซนเซอร์ในโทรศัพท์ พิกัดถูกขอใหม่เวลา ${gpsCapturedAt} และส่งแบบปัดเป็นทศนิยม 4 ตำแหน่ง (${formatGpsAccuracy(locationMeta.accuracyMeters)}) ค่าอาจต่างจากแอปโทรศัพท์ หากใช้ผู้ให้บริการ จุดวัด/กริดพยากรณ์ หรือเวลาอัปเดตคนละแหล่ง`,
+                );
+                updateCardsUI(uvVal, tempVal, humVal, aqiVal, weatherDescription, locationName);
+            } catch (err) {
+                showEnvironmentUnavailable(navigator.onLine
+                    ? 'เชื่อมต่อบริการข้อมูลอากาศไม่สำเร็จ โปรดลองอีกครั้ง'
+                    : 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต จึงยังโหลดข้อมูลอากาศตามตำแหน่งไม่ได้');
+            }
+        }
+
+        function showEnvironmentUnavailable(message) {
+            ['uv', 'temp', 'humidity', 'aqi'].forEach((key) => {
+                document.getElementById(`card-${key}-val`).textContent = '—';
+                document.getElementById(`card-${key}-status`).textContent = 'ไม่มีข้อมูล';
+            });
+            document.getElementById('location-text').textContent = message;
+            document.getElementById('env-summary-text').textContent = 'ไม่สามารถแสดงข้อมูลอากาศตามตำแหน่งได้ โปรดใช้คำแนะนำทั่วไปและหลีกเลี่ยงการตีความเป็นผลทางการแพทย์';
+            setEnvironmentSourceText(
+                'ยังไม่มีข้อมูลอากาศปัจจุบันจากแหล่งข้อมูลภายนอก',
+                navigator.onLine
+                    ? 'โปรดตรวจสิทธิ์ Location และลองอัปเดตอีกครั้ง ระบบจะไม่ใช้ชื่อพื้นที่หรือข้อมูลอากาศเก่ามาแสดงแทน'
+                    : 'ออฟไลน์อยู่ จึงไม่สามารถเรียกตำแหน่งย้อนกลับ แผนที่ หรือข้อมูลอากาศใหม่ได้ แต่หน้าเว็บส่วนอื่นยังใช้งานได้',
+            );
+        }
+
+        function updateCardsUI(uv, temp, hum, aqi, weatherDescription = '', locationName = '') {
+            let uvStatus = "ต่ำ", uvClass = "bg-emerald-50 text-emerald-600 border-emerald-100", uvBadgeClass = "bg-emerald-100 text-emerald-700", uvDesc = "รังสี UV ปลอดภัย";
+            if (uv >= 3 && uv <= 5) { uvStatus = "ปานกลาง"; uvClass = "bg-yellow-50 text-yellow-600 border-yellow-100"; uvBadgeClass = "bg-yellow-100 text-yellow-700"; uvDesc = "เริ่มมีรังสี UV ควรทากันแดดเมื่อต้องออกแจ้ง"; }
+            else if (uv >= 6 && uv <= 7) { uvStatus = "สูง"; uvClass = "bg-orange-50 text-orange-600 border-orange-100"; uvBadgeClass = "bg-orange-100 text-orange-700"; uvDesc = "รังสี UV สูง ควรทาครีมกันแดด SPF 50+ และสวมหมวก"; }
+            else if (uv >= 8) { uvStatus = "สูงมาก"; uvClass = "bg-rose-50 text-rose-600 border-rose-100"; uvBadgeClass = "bg-rose-100 text-rose-700"; uvDesc = "รังสี UV สูงมาก เสี่ยงต่อผิวไหม้แดด ควรหลีกเลี่ยงแดดจัด"; }
+
+            document.getElementById('card-uv-val').textContent = uv;
+            const cardUvStatus = document.getElementById('card-uv-status');
+            cardUvStatus.textContent = uvStatus;
+            cardUvStatus.className = `inline-block px-2.5 py-0.5 text-xs font-bold rounded-full border ${uvClass}`;
+
+            let tempStatus = "สบาย", tempClass = "bg-emerald-50 text-emerald-600 border-emerald-100", tempBadgeClass = "bg-emerald-100 text-emerald-700", tempDesc = "อุณหภูมิสบายตัว";
+            if (temp > 32) { tempStatus = "ร้อน"; tempClass = "bg-orange-50 text-orange-600 border-orange-100"; tempBadgeClass = "bg-orange-100 text-orange-700"; tempDesc = "อากาศร้อน เช็ดเหงื่อป้องกันอุดตัน"; }
+            else if (temp < 22) { tempStatus = "เย็น"; tempClass = "bg-blue-50 text-blue-600 border-blue-100"; tempBadgeClass = "bg-blue-100 text-blue-700"; tempDesc = "อากาศเย็น เติมความชุ่มชื้นผิว"; }
+
+            const tempDisplay = Number(temp).toFixed(1);
+            document.getElementById('card-temp-val').textContent = `${tempDisplay}°C`;
+            const cardTempStatus = document.getElementById('card-temp-status');
+            cardTempStatus.textContent = tempStatus;
+            cardTempStatus.className = `inline-block px-2.5 py-0.5 text-xs font-bold rounded-full border ${tempClass}`;
+
+            let humStatus = "ปกติ", humClass = "bg-emerald-50 text-emerald-600 border-emerald-100", humBadgeClass = "bg-emerald-100 text-emerald-700", humDesc = "ความชื้นสมดุล";
+            if (hum > 70) { humStatus = "ค่อนข้างสูง"; humClass = "bg-blue-50 text-blue-600 border-blue-100"; humBadgeClass = "bg-blue-100 text-blue-700"; humDesc = "ความชื้นสูง ควรอยู่ในที่ระบายอากาศดี"; }
+            else if (hum < 40) { humStatus = "แห้ง"; humClass = "bg-amber-50 text-amber-600 border-amber-100"; humBadgeClass = "bg-amber-100 text-amber-700"; humDesc = "อากาศแห้ง ควรเพิ่มความชุ่มชื้น"; }
+
+            document.getElementById('card-humidity-val').textContent = `${hum}%`;
+            const cardHumStatus = document.getElementById('card-humidity-status');
+            cardHumStatus.textContent = humStatus;
+            cardHumStatus.className = `inline-block px-2.5 py-0.5 text-xs font-bold rounded-full border ${humClass}`;
+
+            let aqiStatus = "ดีมาก", aqiClass = "bg-emerald-50 text-emerald-600 border-emerald-100", aqiBadgeClass = "bg-emerald-100 text-emerald-700", aqiDesc = "อากาศสะอาด";
+            if (aqi > 50 && aqi <= 100) { aqiStatus = "ปานกลาง"; aqiClass = "bg-yellow-50 text-yellow-600 border-yellow-100"; aqiBadgeClass = "bg-yellow-100 text-yellow-700"; aqiDesc = "มีฝุ่นสะสมปานกลาง ล้างหน้าหลังเข้าบ้าน"; }
+            else if (aqi > 100) { aqiStatus = "มีผลกระทบ"; aqiClass = "bg-rose-50 text-rose-600 border-rose-100"; aqiBadgeClass = "bg-rose-100 text-rose-700"; aqiDesc = "ฝุ่นละอองสูง สวมหน้ากากและล้างหน้าให้สะอาด"; }
+
+            document.getElementById('card-aqi-val').textContent = aqi;
+            const cardAqiStatus = document.getElementById('card-aqi-status');
+            cardAqiStatus.textContent = aqiStatus;
+            cardAqiStatus.className = `inline-block px-2.5 py-0.5 text-xs font-bold rounded-full border ${aqiClass}`;
+
+            const currentHour = new Date().getHours();
+            const isDaytime = currentHour >= 6 && currentHour < 18;
+
+            const timeBadge = document.getElementById('time-period-badge');
+            const timeText = document.getElementById('time-period-text');
+
+            if (isDaytime) {
+                timeBadge.className = "px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40";
+                timeText.textContent = "☀️ ช่วงเวลากลางวัน (Daytime)";
+            } else {
+                timeBadge.className = "px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/40";
+                timeText.textContent = "🌙 ช่วงเวลากลางคืน (Nighttime)";
+            }
+
+            const timePeriodLabel = isDaytime ? "กลางวัน" : "กลางคืน";
+            const areaText = locationName ? `สำหรับ ${locationName} ` : '';
+            const weatherText = weatherDescription ? `${weatherDescription}, ` : '';
+            document.getElementById('env-summary-text').textContent = `${areaText}สภาพอากาศโดยประมาณจากแหล่งข้อมูลปัจจุบัน (${timePeriodLabel}): ${weatherText}อุณหภูมิ ${tempDisplay}°C, ค่า UV อยู่ที่ ${uv} (${uvStatus}) และความชื้น ${hum}% (${humStatus}) สรุปคำแนะนำดูแลผิวทั่วไปดังนี้`;
+
+            if (isDaytime) {
+                document.getElementById('rec-1').textContent = uv >= 3 ? 'ทาครีมกันแดด SPF 30-50+ เป็นประจำก่อนออกแดด' : 'ทาครีมกันแดดเนื้อบางเบาเพื่อปกป้องผิว';
+                document.getElementById('rec-2').textContent = temp > 30 ? 'สวมเสื้อผ้าแขนยาวระบายอากาศดี ป้องกันความร้อน' : 'สวมเสื้อผ้าปกคลุมผิวอย่างเหมาะสม';
+                document.getElementById('rec-3').textContent = 'หลีกเลี่ยงแดดจัดและเตรียมหมวกหรือร่มกัน UV';
+                document.getElementById('rec-4').textContent = 'จิบน้ำสะอาดอย่างน้อย 8 แก้ว เติมความชุ่มชื้นตลอดวัน';
+            } else {
+                document.getElementById('rec-1').textContent = 'ทำความสะอาดผิวหน้า (Double Cleansing) ล้างคราบฝุ่นละออง';
+                document.getElementById('rec-2').textContent = hum < 50 ? 'ทา Night Cream หรือมอยส์เจอไรเซอร์เติมความชุ่มชื้น' : 'ทาบำรุงผิวสูตรบางเบา ไม่ให้อุดตันรูขุมขน';
+                document.getElementById('rec-3').textContent = 'เปิดเครื่องฟอกอากาศและปิดหน้าต่างลดฝุ่นละอองสะสม';
+                document.getElementById('rec-4').textContent = 'ดื่มน้ำ 1 แก้วก่อนนอน เพื่อฟื้นฟูเกราะป้องกันผิวตลอดคืน';
+            }
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            liveEnvData.uv = { val: uv, status: uvStatus, title: "UV Index (ดัชนีรังสีอุลตราไวโอเลต)", badge: uvStatus, badgeClass: uvBadgeClass, iconBg: "bg-amber-100 text-amber-600", icon: "sun", desc: uvDesc };
+            liveEnvData.temp = { val: `${tempDisplay}°C`, status: tempStatus, title: "อุณหภูมิอากาศโดยประมาณ (Temperature)", badge: tempStatus, badgeClass: tempBadgeClass, iconBg: "bg-orange-100 text-orange-600", icon: "thermometer", desc: `${tempDesc} ค่านี้มาจากกริดข้อมูลอากาศ จึงอาจไม่ตรงกับแอปหรือสถานีวัดอื่น` };
+            liveEnvData.humidity = { val: `${hum}%`, status: humStatus, title: "ความชื้นสัมพัทธ์ (Humidity)", badge: humStatus, badgeClass: humBadgeClass, iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: humDesc };
+            liveEnvData.aqi = { val: aqi, status: aqiStatus, title: "ดัชนีคุณภาพอากาศ (AQI)", badge: aqiStatus, badgeClass: aqiBadgeClass, iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: aqiDesc };
+        }
+
+        // 🏥 ระบบค้นหาสถานพยาบาลและหมุดตำแหน่งโดยประมาณของผู้ใช้ 🏥
+        function clearMapLocationConsent() {
+            // Map consent is deliberately scoped to the currently open modal.
+            // A previously acquired browser position may remain in memory for
+            // the separate weather feature, but it must never be added to a
+            // map/search URL without a fresh, explicit map opt-in.
+            mapLocationConsent = false;
+            mapGoogleMapsLocationConsent = false;
+            document.getElementById('mapLocationConsentCheck').checked = false;
+            document.getElementById('googleMapLocationConsentCheck').checked = false;
+            document.getElementById('mapLocationButton').textContent = 'แสดงตำแหน่งปัจจุบันโดยประมาณบนแผนที่';
+        }
+
+        function mayShareLocationWithGoogleMaps() {
+            return mapLocationConsent
+                && mapGoogleMapsLocationConsent
+                && document.getElementById('googleMapLocationConsentCheck')?.checked === true
+                && Number.isFinite(currentLat)
+                && Number.isFinite(currentLng);
+        }
+
+        function openMapModal(category = 'dermatologist') {
+            clearMapLocationConsent();
+            setMapLocationStatus('เลือกคำค้นหาได้โดยไม่ใช้ตำแหน่ง หรือยืนยันด้านล่างเพื่อแสดงหมุดตำแหน่งล่าสุดของคุณ');
+            filterMapSearch(category);
+            showAccessibleModal('mapModal', '#customSearchInput');
+        }
+
+        function filterMapSearch(category) {
+            let queryText = "คลินิกโรคผิวหนัง";
+            const btnDerm = document.getElementById('mapBtnDerm');
+            const btnHosp = document.getElementById('mapBtnHosp');
+            const btnPharm = document.getElementById('mapBtnPharm');
+
+            btnDerm.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all";
+            btnHosp.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all";
+            btnPharm.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all";
+
+            if (category === 'dermatologist') {
+                queryText = "คลินิกโรคผิวหนัง หมอผิวหนัง";
+                btnDerm.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white shadow-sm flex items-center gap-1.5 transition-all";
+            } else if (category === 'hospital') {
+                queryText = "แผนกผิวหนัง ศูนย์โรคผิวหนัง โรงพยาบาล";
+                btnHosp.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white shadow-sm flex items-center gap-1.5 transition-all";
+            } else if (category === 'pharmacy') {
+                queryText = "ร้านขายยา ยาทาผิวหนัง";
+                btnPharm.className = "px-3.5 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white shadow-sm flex items-center gap-1.5 transition-all";
+            }
+
+            executeSearchWithQuery(queryText);
+        }
+
+        function executeCustomSearch() {
+            const searchInput = document.getElementById('customSearchInput').value.trim();
+            if (searchInput !== '') {
+                executeSearchWithQuery(searchInput + " โรคผิวหนัง คลินิก โรงพยาบาล");
+            }
+        }
+
+        function handleSearchKeyPress(event) {
+            if (event.key === 'Enter') {
+                executeCustomSearch();
+            }
+        }
+
+        function buildOpenStreetMapEmbedUrl(lat, lng) {
+            const markerLat = roundedCoordinate(lat);
+            const markerLng = roundedCoordinate(lng);
+            const span = 0.012;
+            const bbox = [markerLng - span, markerLat - span, markerLng + span, markerLat + span]
+                .map((coordinate) => coordinate.toFixed(4))
+                .join('%2C');
+            return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${markerLat.toFixed(4)}%2C${markerLng.toFixed(4)}`;
+        }
+
+        function showCurrentLocationMarker() {
+            const markerLat = roundedCoordinate(currentLat);
+            const markerLng = roundedCoordinate(currentLng);
+            const nearbyName = currentLocationMeta.approximateName;
+            const nearbyLabel = nearbyName ? `พื้นที่ใกล้เคียง: ${nearbyName}` : 'ตำแหน่งโดยประมาณจากอุปกรณ์';
+            document.getElementById('coords-text').textContent = `หมุดตำแหน่งปัจจุบันโดยประมาณ — ${nearbyLabel}`;
+            loadMapFrame(buildOpenStreetMapEmbedUrl(markerLat, markerLng));
+            const externalButton = document.getElementById('btnExternalNav');
+            const externalButtonText = document.getElementById('btnExternalNavText');
+            if (mayShareLocationWithGoogleMaps()) {
+                externalButton.href = `https://www.google.com/maps/search/?api=1&query=${markerLat.toFixed(4)}%2C${markerLng.toFixed(4)}`;
+                externalButtonText.textContent = 'เปิดตำแหน่งใน Google Maps';
+            } else {
+                externalButton.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lastMapQuery)}`;
+                externalButtonText.textContent = 'ค้นหาใน Google Maps';
+                setMapLocationStatus(`แสดงหมุดผ่าน OpenStreetMap แล้ว (${formatGpsAccuracy(currentLocationMeta.accuracyMeters)}) Google Maps ยังไม่ได้รับพิกัดของคุณ`);
+            }
+        }
+
+        function executeSearchWithQuery(queryText) {
+            lastMapQuery = queryText;
+            const hasMapLocation = mapLocationConsent && Number.isFinite(currentLat) && Number.isFinite(currentLng);
+            const shareWithGoogle = mayShareLocationWithGoogleMaps();
+            const locationStatus = shareWithGoogle
+                ? ' — Google Maps จัดกึ่งกลางผลค้นหาตามพิกัดโดยประมาณที่คุณยินยอม'
+                : hasMapLocation
+                    ? ' — มีหมุด OpenStreetMap โดยประมาณ แต่ Google Maps ค้นหาโดยไม่ใช้ตำแหน่ง'
+                    : ' — ค้นหาโดยไม่ใช้ตำแหน่งของคุณ';
+            document.getElementById('coords-text').textContent = `ค้นหาคำสำคัญ: ${queryText}${locationStatus}`;
+
+            if (!navigator.onLine) {
+                showMapFrameFallback('ออฟไลน์อยู่ จึงยังโหลดแผนที่หรือผลค้นหาสถานพยาบาลไม่ได้');
+                document.getElementById('btnExternalNav').href = '#';
+                return;
+            }
+
+            const locationQuery = shareWithGoogle ? `&ll=${roundedCoordinate(currentLat)},${roundedCoordinate(currentLng)}&z=13` : '';
+            const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(queryText)}${locationQuery}&output=embed`;
+            loadMapFrame(mapUrl);
+            document.getElementById('btnExternalNav').href = shareWithGoogle
+                ? `https://www.google.com/maps/search/${encodeURIComponent(queryText)}/@${roundedCoordinate(currentLat)},${roundedCoordinate(currentLng)},14z`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryText)}`;
+            document.getElementById('btnExternalNavText').textContent = 'ค้นหาใน Google Maps';
+        }
+
+        function useCurrentLocationForMap() {
+            if (!window.isSecureContext) {
+                const message = insecureLocationContextMessage();
+                document.getElementById('coords-text').textContent = message;
+                setMapLocationStatus(message, true);
+                return;
+            }
+            if (!navigator.onLine) {
+                const message = 'ออฟไลน์อยู่ จึงไม่สามารถเรียกแผนที่ปัจจุบันได้ โปรดเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่';
+                document.getElementById('coords-text').textContent = message;
+                showMapFrameFallback(message);
+                setMapLocationStatus(message, true);
+                return;
+            }
+            if (!navigator.geolocation) {
+                const message = 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง จึงค้นหาโดยไม่ใช้ตำแหน่ง';
+                document.getElementById('coords-text').textContent = message;
+                setMapLocationStatus(message, true);
+                return;
+            }
+            if (!document.getElementById('mapLocationConsentCheck').checked) {
+                setMapLocationStatus('โปรดยืนยันความยินยอมด้านบนก่อนขอตำแหน่งจากเบราว์เซอร์', true);
+                return;
+            }
+
+            // Capture the Google-specific choice before the browser GPS prompt.
+            // It prevents a coordinate obtained for OpenStreetMap from being
+            // sent to Google merely because the checkbox is ticked later.
+            const wantsGoogleMapsLocation = document.getElementById('googleMapLocationConsentCheck').checked === true;
+
+            document.getElementById('coords-text').textContent = 'กำลังขอตำแหน่งล่าสุดจากอุปกรณ์';
+            setMapLocationStatus('กำลังขอตำแหน่งใหม่ โดยไม่ใช้พิกัดที่ค้างอยู่ในหน้าเว็บ');
+            // A map request is a separate consent action. Always ask for a fresh
+            // browser position instead of reusing an earlier weather/map reading.
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    saveFreshBrowserLocation(position);
+                    mapLocationConsent = true;
+                    mapGoogleMapsLocationConsent = wantsGoogleMapsLocation;
+                    document.getElementById('mapLocationButton').textContent = 'อัปเดตหมุดตำแหน่งปัจจุบันอีกครั้ง';
+                    currentLocationMeta.approximateName = await fetchApproximateLocationName(currentLat, currentLng).catch(() => '');
+                    showCurrentLocationMarker();
+                    if (mayShareLocationWithGoogleMaps()) {
+                        setMapLocationStatus(`แสดงหมุดพิกัดโดยประมาณแล้ว (${formatGpsAccuracy(currentLocationMeta.accuracyMeters)}) และอนุญาตให้ Google Maps ใช้พิกัดสำหรับค้นหา`);
+                    }
+                },
+                (error) => {
+                    const message = `${locationErrorMessage(error)} — จึงค้นหาโดยไม่ใช้ตำแหน่ง`;
+                    document.getElementById('coords-text').textContent = message;
+                    setMapLocationStatus(message, true);
+                },
+                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+            );
+        }
+
+        function closeMapModal() {
+            clearMapLocationConsent();
+            // Stop an embedded third-party map once the dialog is dismissed so
+            // it cannot retain a location-bearing URL in this page session.
+            const frame = document.getElementById('googleMapIframe');
+            if (frame) frame.src = '';
+            hideAccessibleModal('mapModal');
+        }
+
+        function openEnvDetailModal(type) {
+            const data = liveEnvData[type];
+            if (!data) return;
+            document.getElementById('envModalTitle').textContent = data.title;
+            document.getElementById('envModalValue').textContent = `${data.val} (${data.status})`;
+            const badge = document.getElementById('envModalBadge');
+            badge.textContent = data.badge;
+            badge.className = `inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1 ${data.badgeClass}`;
+            const iconDiv = document.getElementById('envModalIcon');
+            iconDiv.className = `p-3 rounded-2xl ${data.iconBg}`;
+            iconDiv.innerHTML = `<i data-lucide="${data.icon}" class="w-6 h-6"></i>`;
+            document.getElementById('envModalDesc').textContent = data.desc;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            showAccessibleModal('envDetailModal', '[data-modal-close]');
+        }
+        function closeEnvDetailModal() { hideAccessibleModal('envDetailModal'); }
+
+        function switchForm(type) {
+            const formLogin = document.getElementById('formLogin');
+            const formRegister = document.getElementById('formRegister');
+            const btnTabLogin = document.getElementById('btnTabLogin');
+            const btnTabRegister = document.getElementById('btnTabRegister');
+
+            if (type === 'login') {
+                formLogin.classList.remove('hidden');
+                formRegister.classList.add('hidden');
+                btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm";
+                btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
+            } else {
+                formLogin.classList.add('hidden');
+                formRegister.classList.remove('hidden');
+                btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
+                btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-teal-600 shadow-sm";
+            }
+        }
+
+    </script>
+</body>
+</html>
