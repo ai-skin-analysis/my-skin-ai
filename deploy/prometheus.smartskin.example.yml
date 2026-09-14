@@ -1,0 +1,15 @@
+# Run this collector only on the protected production host or an authenticated
+# private monitoring network. Caddy's admin/metrics port must remain loopback.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - prometheus.alerts.smartskin.example.yml
+
+scrape_configs:
+  - job_name: smart-skin-caddy
+    scheme: http
+    static_configs:
+      - targets:
+          - 127.0.0.1:2019

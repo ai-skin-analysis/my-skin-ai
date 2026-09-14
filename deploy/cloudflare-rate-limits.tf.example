@@ -1,0 +1,129 @@
+# Optional zone-level Cloudflare WAF rate limits for Smart Skin AI.
+#
+# Keep this file in a separate private infrastructure repository with a
+# protected remote Terraform state backend. Never commit CLOUDFLARE_API_TOKEN,
+# state files, user data, or production domains here. Review WAF plan support
+# and existing `http_ratelimit` rulesets before applying: a zone has one entry
+# point ruleset per phase, so importing/merging existing rules is required.
+
+terraform {
+  required_version = ">= 1.6"
+
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = ">= 5.0, < 6.0"
+    }
+  }
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for the production public domain."
+  type        = string
+}
+
+resource "cloudflare_ruleset" "smart_skin_edge_rate_limits" {
+  zone_id     = var.cloudflare_zone_id
+  name        = "Smart Skin AI public edge rate limits"
+  description = "Privacy-safe abuse controls for account and upload endpoints"
+  kind        = "zone"
+  phase       = "http_ratelimit"
+
+  rules = [
+    {
+      ref         = "smart_skin_login_per_ip"
+      description = "Limit password and MFA sign-in attempts per source IP"
+      expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/login\" \"/login/mfa\"})"
+      action      = "block"
+      action_parameters = {
+        response = {
+          status_code  = 429
+          content       = "Too many sign-in attempts. Please wait and try again."
+          content_type  = "text/plain"
+        }
+      }
+      ratelimit = {
+        characteristics     = ["cf.colo.id", "ip.src"]
+        period              = 60
+        requests_per_period = 10
+        mitigation_timeout  = 600
+      }
+    },
+    {
+      ref         = "smart_skin_account_email_per_ip"
+      description = "Limit registration and security-email requests per source IP"
+      expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/register\" \"/password/forgot\" \"/email/verification/resend\"})"
+      action      = "block"
+      action_parameters = {
+        response = {
+          status_code = 429
+          content = "Too many account requests. Please try again later."
+          content_type = "text/plain"
+        }
+      }
+      ratelimit = {
+        characteristics     = ["cf.colo.id", "ip.src"]
+        period              = 3600
+        requests_per_period = 5
+        mitigation_timeout  = 3600
+      }
+    },
+    {
+      ref         = "smart_skin_upload_per_ip"
+      description = "Limit image-screening form submissions per source IP"
+      expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/dashboard\" \"/scan\"})"
+      action      = "block"
+      action_parameters = {
+        response = {
+          status_code = 429
+          content = "Too many image submissions. Please wait before trying again."
+          content_type = "text/plain"
+        }
+      }
+      ratelimit = {
+        characteristics     = ["cf.colo.id", "ip.src"]
+        period              = 600
+        requests_per_period = 15
+        mitigation_timeout  = 600
+      }
+    },
+    {
+      ref         = "smart_skin_feedback_per_ip"
+      description = "Limit feedback submissions per source IP"
+      expression  = "(http.request.method eq \"POST\" and http.request.uri.path eq \"/send_feedback\")"
+      action      = "block"
+      action_parameters = {
+        response = {
+          status_code = 429
+          content = "Too many feedback submissions. Please try again later."
+          content_type = "text/plain"
+        }
+      }
+      ratelimit = {
+        characteristics     = ["cf.colo.id", "ip.src"]
+        period              = 3600
+        requests_per_period = 10
+        mitigation_timeout  = 3600
+      }
+    },
+    {
+      ref         = "smart_skin_all_requests_safety_valve"
+      description = "Broad per-IP safety valve for unexpected request spikes across all endpoints"
+      expression  = "true"
+      action      = "block"
+      action_parameters = {
+        response = {
+          status_code = 429
+          content = "Too many requests. Please wait and try again."
+          content_type = "text/plain"
+        }
+      }
+      ratelimit = {
+        characteristics     = ["cf.colo.id", "ip.src"]
+        period              = 60
+        requests_per_period = 360
+        mitigation_timeout  = 60
+      }
+    }
+  ]
+}

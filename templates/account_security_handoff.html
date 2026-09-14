@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} | Smart Skin AI</title>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }</style>
+</head>
+<body class="min-h-screen bg-slate-950 px-4 py-10 text-slate-900 sm:flex sm:items-center sm:justify-center">
+    <main class="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-7 shadow-2xl sm:p-9" aria-live="polite">
+        <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-xl text-teal-700">🔐</span>
+        <h1 class="mt-5 text-2xl font-extrabold tracking-tight">{{ page_title }}</h1>
+        <p id="handoffStatus" class="mt-3 text-sm leading-relaxed text-slate-600">{{ status_message }}</p>
+        <noscript>
+            <p class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+                กรุณาเปิดใช้งาน JavaScript แล้วเปิดลิงก์จากอีเมลอีกครั้ง เพื่อไม่ให้รหัสลับในลิงก์ถูกส่งผ่าน URL
+            </p>
+        </noscript>
+    </main>
+    <script nonce="{{ csp_nonce }}">
+    (() => {
+        const status = document.getElementById('handoffStatus');
+        const verifier = window.location.hash.slice(1);
+        // Remove the fragment immediately. It is not sent in HTTP requests,
+        // but this also keeps it out of browser history and copied URLs.
+        window.history.replaceState(null, document.title, window.location.pathname);
+        if (!verifier) {
+            status.textContent = 'ไม่พบข้อมูลยืนยันในลิงก์นี้ กำลังกลับไปยังหน้าที่ปลอดภัย';
+            window.setTimeout(() => window.location.replace({{ fallback_url|tojson }}), 1200);
+            return;
+        }
+        fetch({{ claim_url|tojson }}, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': {{ csrf_token()|tojson }},
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ token: verifier })
+        }).then(async (response) => {
+            if (!response.ok) throw new Error('invalid-link');
+            const payload = await response.json();
+            if (!payload.redirect_url) throw new Error('missing-redirect');
+            window.location.replace(payload.redirect_url);
+        }).catch(() => {
+            status.textContent = 'ลิงก์ไม่ถูกต้อง หมดอายุ หรือถูกใช้ไปแล้ว กำลังกลับไปยังหน้าที่ปลอดภัย';
+            window.setTimeout(() => window.location.replace({{ fallback_url|tojson }}), 1400);
+        });
+    })();
+    </script>
+</body>
+</html>

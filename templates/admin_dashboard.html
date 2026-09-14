@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise AI Clinical Dashboard - ระบบวิเคราะห์และจำแนกโรคผิวหนังด้วย Deep Learning</title>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Anuphan:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script nonce="{{ csp_nonce }}" src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --font-sans: 'Plus Jakarta Sans', 'Anuphan', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        body { 
+            font-family: var(--font-sans); 
+            background-color: #061b31; 
+            color: #0F172A;
+        }
+        
+        .enterprise-bg {
+            background-color: #061b31;
+        }
+
+        .enterprise-engineering-art {
+            object-position: center top;
+            opacity: .58;
+            filter: saturate(1.06) contrast(1.05);
+        }
+
+        .enterprise-engineering-wash {
+            background:
+                linear-gradient(90deg, rgba(2, 19, 35, .36) 0%, rgba(3, 23, 41, .15) 49%, rgba(2, 19, 35, .38) 100%),
+                linear-gradient(180deg, rgba(2, 17, 32, .12) 0%, rgba(2, 17, 32, .40) 100%);
+        }
+
+        .glass-panel-pro {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 1px 3px 0 rgba(15, 23, 42, 0.03);
+        }
+
+        .glass-panel-accent {
+            background: linear-gradient(135deg, rgba(20, 184, 166, 0.04) 0%, rgba(255, 255, 255, 0.98) 100%);
+            border: 1px solid rgba(45, 212, 191, 0.3);
+        }
+
+        .metric-hover-card {
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .metric-hover-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(13, 148, 136, 0.4);
+            box-shadow: 0 15px 35px -10px rgba(13, 148, 136, 0.12);
+        }
+
+        .pulse-live {
+            box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.6);
+            animation: pulse-teal 2s infinite;
+        }
+        @keyframes pulse-teal {
+            0% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.6); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 148, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0); }
+        }
+
+        .gis-radar-bg {
+            background-color: #0A0F1D;
+            background-image: 
+                radial-gradient(rgba(14, 165, 233, 0.3) 1px, transparent 0),
+                linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 24px 24px, 48px 48px, 48px 48px;
+        }
+
+        @keyframes radarSweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .radar-sweeper {
+            animation: radarSweep 4s linear infinite;
+            transform-origin: center center;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .pulse-live, .radar-sweeper, .animate-ping, .animate-pulse, .animate-spin {
+                animation: none !important;
+            }
+            *, *::before, *::after {
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
+            }
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #F1F5F9; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #0D9488; }
+    </style>
+</head>
+<body class="enterprise-bg min-h-screen antialiased pb-16 selection:bg-teal-500 selection:text-white relative overflow-x-hidden">
+
+    <!-- Decorative engineering and clinical background; it contains no user or screening data. -->
+    <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <img class="enterprise-engineering-art absolute inset-0 h-full w-full object-cover" src="{{ url_for('static', filename='assets/admin-computer-engineering-bg-v1.png') }}" alt="">
+        <div class="enterprise-engineering-wash absolute inset-0"></div>
+    </div>
+
+    <!-- Top Navigation Command Bar -->
+    <header class="sticky top-0 z-40 bg-[#090E17] border-b border-slate-800 shadow-xl">
+        <div class="max-w-7xl mx-auto min-h-20 px-4 py-3 sm:px-6 lg:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            
+            <!-- System Brand Identification -->
+            <div class="flex min-w-0 items-center space-x-4">
+                <div class="relative">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-600 via-cyan-600 to-teal-400 flex items-center justify-center shadow-md shadow-teal-500/20 flex-shrink-0">
+                        <i data-lucide="cpu" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#090E17] flex items-center justify-center">
+                        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                    </span>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center space-x-2.5">
+                        <h1 class="break-words text-base sm:text-lg font-black text-white tracking-tight">
+                            SMART SKIN <span class="text-teal-400 font-bold">AI ADMIN DASHBOARD</span>
+                        </h1>
+                    </div>
+                    <p class="text-xs text-slate-400 font-medium mt-0.5">ระบบควบคุมปัญญาประดิษฐ์และจำแนกโรคผิวหนังอัจฉริยะ</p>
+                </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+                <a id="adminScanInterfaceButton" href="{{ url_for('dashboard') }}" class="inline-flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-teal-300 hover:text-white text-xs font-semibold px-3 py-2.5 pr-4 rounded-xl border border-slate-700 transition-all shadow-sm group" aria-label="เปิดหน้าสแกนภาพผิวหนัง">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-lg border border-teal-400/30 bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-sm shadow-teal-500/20">
+                        <i data-lucide="scan" class="w-4 h-4 group-hover:rotate-90 transition-transform"></i>
+                    </span>
+                    <span class="hidden sm:inline font-mono">SCAN_INTERFACE</span>
+                </a>
+                
+                <button id="adminLogoutButton" type="button" onclick="openLogoutModal()" class="inline-flex items-center space-x-2 bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white text-xs font-bold px-3 py-2.5 pr-4 rounded-xl border border-rose-800/50 transition-all shadow-sm" aria-label="ออกจากระบบ">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300/20 bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-sm shadow-rose-950/30">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </span>
+                    <span class="hidden sm:inline">ออกจากระบบ</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8 relative z-10">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <section id="adminFlashMessages" aria-live="polite" class="space-y-3">
+            {% for category, message in messages %}
+            <div class="rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm {% if category == 'error' %}border-rose-200 bg-rose-50 text-rose-800{% elif category == 'warning' %}border-amber-200 bg-amber-50 text-amber-900{% else %}border-emerald-200 bg-emerald-50 text-emerald-800{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Executive Control Banner -->
+        <div class="glass-panel-pro glass-panel-accent p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+            <div class="absolute -right-12 -bottom-12 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="space-y-1 relative z-10">
+                <div class="flex items-center space-x-2">
+                    <span class="px-2.5 py-1 text-[10px] font-mono font-bold bg-teal-100 text-teal-800 rounded-md border border-teal-200 uppercase tracking-widest">
+                        SUPERUSER COMMAND CENTER [LIVE DATABASE ENGINE]
+                    </span>
+                </div>
+                <h2 class="text-xl sm:text-2xl font-black text-white drop-shadow-lg flex items-center gap-2 pt-1">
+                    ศูนย์ควบคุมระบบคัดกรองภาพรอยโรคผิวหนัง
+                </h2>
+            </div>
+
+            <div class="flex items-center gap-3 bg-white border border-teal-200 px-4 py-3 rounded-2xl text-xs font-semibold text-teal-800 self-start md:self-auto shadow-sm relative z-10">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-live"></span>
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-slate-400 uppercase font-mono tracking-wider">STATUS: {% if scan_logs and scan_logs|length > 0 %}LATEST SCREENING AVAILABLE{% else %}NO SCREENING LOGS{% endif %}</span>
+                    <span class="font-mono font-bold text-slate-900">
+                        {% if scan_logs and scan_logs|length > 0 %}
+                            ผู้ใช้งานทั่วไปล่าสุด: {{ scan_logs[0].user_name }} | ผลสแกน: {{ scan_logs[0].result_disease }}
+                        {% else %}
+                            ยังไม่มีผู้ใช้งานทั่วไปสแกนในระบบขณะนี้
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Administrator authentication security: no passwords or TOTP seeds are rendered here. -->
+        <section id="adminMfaSecurityPanel" class="glass-panel-pro rounded-3xl border border-teal-100 bg-white p-6 sm:p-7">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex gap-3.5">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border {% if admin_mfa_enabled %}border-emerald-200 bg-emerald-50 text-emerald-700{% else %}border-amber-200 bg-amber-50 text-amber-700{% endif %}">
+                        <i data-lucide="shield-check" class="h-6 w-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-teal-700">Administrator account security</p>
+                        <h3 class="mt-1 text-base font-extrabold text-slate-900">การยืนยันตัวตนสองชั้น (MFA)</h3>
+                        {% if admin_mfa_enabled %}
+                        <p class="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">เปิดใช้งานแล้ว{% if admin_mfa_enabled_at %} เมื่อ {{ admin_mfa_enabled_at }}{% endif %} บัญชีนี้ต้องใช้รหัสจากแอป Authenticator ทุกครั้งที่เข้าสู่ระบบ รหัสผ่านและรหัส MFA จะไม่แสดงในแดชบอร์ด</p>
+                        {% elif admin_mfa_enrollment_available %}
+                        <p class="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">ยังไม่ได้เปิดใช้ แอดมินเดิมยังเข้าได้ตามปกติจนกว่าจะเลือกตั้งค่าเอง แนะนำให้เปิดใช้ก่อนเผยแพร่ระบบสู่สาธารณะ</p>
+                        {% else %}
+                        <p class="mt-1 max-w-2xl text-xs leading-relaxed text-amber-800">ยังตั้งค่าไม่ได้จนกว่าจะกำหนดคีย์เข้ารหัส MFA ที่คงที่ เพื่อป้องกันการล็อกบัญชีหลังรีสตาร์ตระบบ</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if admin_mfa_enabled %}
+                <span class="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>MFA ENABLED</span>
+                {% elif admin_mfa_enrollment_available %}
+                <a id="adminMfaEnrollButton" href="{{ url_for('admin_mfa_enroll') }}" class="inline-flex shrink-0 items-center gap-2 self-start rounded-xl bg-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700"><i data-lucide="shield-plus" class="h-4 w-4"></i>เริ่มตั้งค่า MFA</a>
+                {% else %}
+                <span id="adminMfaUnavailable" title="กำหนด SMART_SKIN_MFA_ENCRYPTION_KEY หรือ FLASK_SECRET_KEY ที่คงที่ก่อน" class="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-800"><i data-lucide="lock-keyhole" class="h-4 w-4"></i>กำหนดคีย์ MFA ก่อน</span>
+                {% endif %}
+            </div>
+
+            {% if admin_mfa_enabled %}
+            <div class="mt-5 grid gap-4 xl:grid-cols-2">
+                <details class="rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
+                    <summary class="cursor-pointer text-xs font-extrabold text-rose-800">ปิด MFA สำหรับบัญชีของฉัน</summary>
+                    <p class="mt-2 text-[11px] leading-relaxed text-rose-800">ต้องยืนยันด้วยรหัสผ่านปัจจุบันและรหัส TOTP ใหม่ รหัสที่ใช้เข้าสู่ระบบไปแล้วจะใช้ซ้ำไม่ได้</p>
+                    <form action="{{ url_for('admin_mfa_disable') }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <label class="text-[11px] font-bold text-slate-700">รหัสผ่านปัจจุบัน<input name="current_password" type="password" autocomplete="current-password" required class="mt-1.5 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"></label>
+                        <label class="text-[11px] font-bold text-slate-700">รหัส Authenticator 6 หลัก<input name="totp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required class="mt-1.5 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"></label>
+                        <button name="disable_mfa_confirmation" value="DISABLE" type="submit" class="sm:col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-rose-700"><i data-lucide="shield-off" class="h-4 w-4"></i>ยืนยันปิด MFA</button>
+                    </form>
+                </details>
+
+                <details class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                    <summary class="cursor-pointer text-xs font-extrabold text-amber-900">กู้คืน MFA ของแอดมินคนอื่น (กรณีสูญเสียอุปกรณ์)</summary>
+                    <p class="mt-2 text-[11px] leading-relaxed text-amber-900">ใช้ได้เฉพาะแอดมินคนอื่นที่เปิด MFA แล้ว ต้องพิมพ์อีเมลเป้าหมาย พร้อมยืนยันรหัสผ่านและ TOTP ของผู้ดำเนินการ ระบบจะบังคับให้บัญชีเป้าหมายออกจากทุกเซสชันและบันทึก audit log</p>
+                    <form action="{{ url_for('admin_mfa_recover') }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <label class="text-[11px] font-bold text-slate-700 sm:col-span-2">อีเมลแอดมินเป้าหมาย<input name="target_admin_email" type="email" autocomplete="off" required class="mt-1.5 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"></label>
+                        <label class="text-[11px] font-bold text-slate-700">รหัสผ่านของคุณ<input name="current_password" type="password" autocomplete="current-password" required class="mt-1.5 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"></label>
+                        <label class="text-[11px] font-bold text-slate-700">รหัส Authenticator 6 หลัก<input name="totp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required class="mt-1.5 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"></label>
+                        <button name="mfa_recovery_confirmation" value="RECOVER" type="submit" class="sm:col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-amber-700"><i data-lucide="life-buoy" class="h-4 w-4"></i>ยืนยันกู้คืน MFA</button>
+                    </form>
+                </details>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- 🌐 System overview -->
+        <div class="glass-panel-pro rounded-3xl p-6 sm:p-8 space-y-6 border border-slate-200 shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Header Title -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 pb-5 relative z-10">
+                <div class="flex items-center space-x-3.5">
+                    <div class="p-3 bg-gradient-to-tr from-teal-600 to-cyan-500 text-white rounded-2xl border border-teal-400/40 shadow-md shadow-teal-500/20">
+                        <i data-lucide="activity" class="w-6 h-6 animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            SMART SKIN AI: CLINICAL DERMA-INTELLIGENCE & CLASSIFICATION MATRIX
+                            <span class="text-[10px] bg-teal-100 text-teal-800 font-bold px-2.5 py-0.5 rounded-full border border-teal-200 font-mono">LIVE DATABASE SYNC</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">สถิติผู้ใช้และผลจำแนกดึงจากฐานข้อมูล รวมถึง Nearby Environment Radar ที่ผู้ใช้เลือกยินยอมส่ง</p>
+                    </div>
+                </div>
+                
+                <!-- DATABASE SECURE SYNC -->
+                <div class="flex items-center space-x-2 font-mono">
+                    <span class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 text-teal-300 border border-slate-700 flex items-center gap-2 shadow-sm">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>DATABASE SECURE SYNC: ACTIVE</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Grid Layout -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch relative z-10">
+                
+                <!-- Voluntary nearby environmental context (left) -->
+                <div class="lg:col-span-5 gis-radar-bg rounded-2xl border border-slate-800 relative overflow-hidden flex flex-col justify-between p-4 shadow-xl min-h-[420px]">
+                    <div class="flex justify-between items-center text-[10px] font-mono text-cyan-400 border-b border-slate-700/80 pb-2">
+                        <span id="adminNearbyEnvironmentRadar" class="flex items-center gap-1.5 font-bold"><i data-lucide="radar" class="w-3.5 h-3.5 text-cyan-300"></i> Nearby Environment Radar · User-Consented Data</span>
+                        <span class="bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800 font-mono">{{ stats.nearby_context_count }} ACTIVE</span>
+                    </div>
+
+                    <div class="my-3 flex-1 space-y-2 overflow-y-auto pr-1">
+                        {% for context in nearby_context_reports %}
+                        <article class="rounded-xl border border-cyan-500/30 bg-slate-900/95 p-3 text-[11px] text-slate-200 shadow-sm">
+                            <div class="flex items-start justify-between gap-2">
+                                <div><p class="font-bold text-cyan-300">{{ context.user_name }}</p><p class="font-mono text-[10px] text-slate-400">{{ context.user_email }}</p></div>
+                                <span class="rounded-full bg-cyan-950 px-2 py-1 text-[10px] font-bold text-cyan-200">{{ context.context_level }}</span>
+                            </div>
+                            <p class="mt-2 leading-relaxed text-slate-300">{{ context.context_summary }}</p>
+                            <p class="mt-2 font-mono text-[10px] text-slate-400">grid ≈ {{ '%.2f'|format(context.latitude_approx) }}, {{ '%.2f'|format(context.longitude_approx) }} · PM2.5 {{ '%.1f'|format(context.pm25) }} · UV {{ '%.1f'|format(context.uv_index) }}</p>
+                        </article>
+                        {% else %}
+                        <div class="flex h-full min-h-48 flex-col items-center justify-center text-center text-slate-400">
+                            <i data-lucide="map-pin-off" class="h-10 w-10 text-slate-600"></i>
+                            <p class="mt-3 text-xs font-semibold">ยังไม่มีผู้ใช้ยินยอมส่งบริบทพื้นที่</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <p class="rounded-xl border border-slate-700 bg-slate-900/90 p-3 text-[10px] leading-relaxed text-slate-400">เก็บเฉพาะพิกัดโดยประมาณและข้อมูลอากาศล่าสุดตามความยินยอม ไม่ใช่แผนที่เฝ้าระวังโรค และไม่ใช้ตัดสินการรักษา</p>
+                </div>
+
+                <!-- Dermatology Telemetry & Analytics (ขวา) -->
+                <div class="lg:col-span-7 space-y-4 flex flex-col justify-between">
+                    
+                    <!-- Bio-Telemetry Metrics -->
+                    <div class="bg-slate-900 text-white p-4 rounded-2xl shadow-lg border border-slate-800 space-y-2.5">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-xs font-bold text-teal-400 flex items-center gap-1.5">
+                                <i data-lucide="shield-check" class="w-4 h-4 text-teal-400"></i>
+                                วิเคราะห์สถิติจริงจากประวัติการใช้งาน (ผู้ใช้ทั่วไป)
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-teal-950 text-teal-300 border border-teal-800 font-mono">DATABASE SNAPSHOT</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-center p-2 bg-slate-950 rounded-xl border border-slate-800">
+                            <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                <span class="text-[9px] text-slate-400 block font-semibold">ผลสแกนล่าสุด</span>
+                                <span class="text-xs font-extrabold text-teal-400 font-mono truncate block">{% if scan_logs and scan_logs|length > 0 %}{{ scan_logs[0].result_disease }}{% else %}ยังไม่มีข้อมูล{% endif %}</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                <span class="text-[9px] text-slate-400 block font-semibold">ความมั่นใจล่าสุด</span>
+                                <span class="text-xs font-extrabold text-cyan-400 font-mono">{% if scan_logs and scan_logs|length > 0 %}{{ scan_logs[0].confidence }}{% else %}0.0%{% endif %}</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                                <span class="text-[9px] text-slate-400 block font-semibold">ข้อเสนอแนะรวม</span>
+                                <span class="text-xs font-extrabold text-emerald-400 font-mono">{{ stats.feedbacks_count }} ข้อความ</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ข้อจำกัดด้านข้อมูลตำแหน่งและความเป็นส่วนตัว -->
+                    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 rounded-2xl shadow-sm border border-slate-700/80 space-y-2">
+                        <div class="flex items-center gap-2 text-xs font-bold text-cyan-300">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
+                            ข้อมูลตำแหน่งเป็น opt-in และเก็บแบบหยาบเท่านั้น
+                        </div>
+                        <p class="text-[11px] text-slate-300">ผู้ใช้เลือกส่งเองจากหน้าเรดาร์ ระบบบันทึกเพียง grid โดยประมาณ, ค่าอากาศ และเวลาหมดอายุ ไม่บันทึกประวัติเส้นทางหรือระบุความเสี่ยงโรคจากตำแหน่ง</p>
+                    </div>
+
+                    <!-- Surveillance Table -->
+                    <div class="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 space-y-2.5 shadow-lg">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-xs font-extrabold text-white flex items-center gap-1.5">
+                                <i data-lucide="database" class="w-4 h-4 text-cyan-400"></i>
+                                รายการสแกนจริงจากผู้ใช้ทั่วไป (ข้อมูลเดียวกับ Timeline ผู้ใช้)
+                            </span>
+                            <span class="text-[9px] font-bold text-cyan-400 font-mono">SYNCED</span>
+                        </div>
+                        <div class="overflow-x-auto max-h-48">
+                            <table class="w-full text-left text-[11px]">
+                                <thead>
+                                    <tr class="text-slate-400 border-b border-slate-800 text-[10px] font-mono">
+                                        <th class="pb-1.5">ผู้ใช้งานทั่วไป</th>
+                                        <th class="pb-1.5">ผลจำแนกจากโมเดล</th>
+                                        <th class="pb-1.5">ความมั่นใจ</th>
+                                        <th class="pb-1.5">เวลา</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800/60 font-medium text-slate-300">
+                                    {% for log in scan_logs %}
+                                    <tr>
+                                        <td class="py-1.5 font-bold text-white">{{ log.user_name }}</td>
+                                        <td class="py-1.5 text-cyan-300 font-bold">{{ log.result_disease }}</td>
+                                        <td class="py-1.5 text-emerald-400 font-mono">{{ log.confidence }}</td>
+                                        <td class="py-1.5 text-slate-400 font-mono text-[10px]">{{ log.created_at }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-slate-500 font-mono">ยังไม่มีประวัติการสแกนจริงในฐานข้อมูล</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📊 Professional KPI Performance Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="glass-panel-pro p-6 rounded-3xl metric-hover-card relative overflow-hidden group">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">APPROVED USERS</span>
+                    <div class="p-3 bg-teal-50 rounded-2xl text-teal-700 border border-teal-200 group-hover:bg-teal-100 transition-colors">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-baseline justify-between">
+                    <span class="text-3xl sm:text-4xl font-extrabold text-slate-900 font-mono tracking-tight">{{ stats.approved_users }}</span>
+                    <span class="text-xs font-semibold text-slate-500">ผู้ใช้ทั่วไป</span>
+                </div>
+                <div class="mt-3 flex items-center text-[11px] font-medium text-emerald-600 gap-1.5">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                    <span>อนุมัติแล้ว (ไม่รวมแอดมิน)</span>
+                </div>
+            </div>
+
+            <div class="glass-panel-pro p-6 rounded-3xl metric-hover-card relative overflow-hidden group">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">PENDING APPROVAL</span>
+                    <div class="p-3 bg-amber-50 rounded-2xl text-amber-700 border border-amber-200 group-hover:bg-amber-100 transition-colors">
+                        <i data-lucide="user-plus" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-baseline justify-between">
+                    <span class="text-3xl sm:text-4xl font-extrabold text-amber-600 font-mono tracking-tight">{{ stats.pending_users }}</span>
+                    <span class="text-xs font-semibold text-slate-500">รออนุมัติ</span>
+                </div>
+                <div class="mt-3 flex items-center text-[11px] font-medium text-amber-600 gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 animate-spin"></i>
+                    <span>ผู้ใช้ทั่วไปรออนุมัติ</span>
+                </div>
+            </div>
+
+            <div class="glass-panel-pro p-6 rounded-3xl metric-hover-card relative overflow-hidden group">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">AI SCREENING LOGS</span>
+                    <div class="p-3 bg-cyan-50 rounded-2xl text-cyan-700 border border-cyan-200 group-hover:bg-cyan-100 transition-colors">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-baseline justify-between">
+                    <span class="text-3xl sm:text-4xl font-extrabold text-slate-900 font-mono tracking-tight">{{ stats.total_scans }}</span>
+                    <span class="text-xs font-semibold text-slate-500">สแกนจริง</span>
+                </div>
+                <div class="mt-3 flex items-center text-[11px] font-medium text-cyan-700 gap-1.5">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i>
+                    <span>บันทึกจากหน้า Scan</span>
+                </div>
+            </div>
+
+            <div class="glass-panel-pro p-6 rounded-3xl metric-hover-card relative overflow-hidden group">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-mono font-bold text-slate-500 uppercase tracking-wider">AI ENGINE STATUS</span>
+                    <div class="p-3 {% if stats.model_status == 'พร้อมใช้งาน' %}bg-emerald-50 text-emerald-700 border-teal-200 group-hover:bg-emerald-100{% else %}bg-rose-50 text-rose-700 border-rose-200 group-hover:bg-rose-100{% endif %} rounded-2xl border transition-colors">
+                        <i data-lucide="cpu" class="w-5 h-5"></i>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold {% if stats.model_status == 'พร้อมใช้งาน' %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-rose-50 text-rose-700 border border-rose-200{% endif %}">
+                        <span class="w-2 h-2 rounded-full {% if stats.model_status == 'พร้อมใช้งาน' %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></span>
+                        {{ stats.model_status }}
+                    </span>
+                </div>
+                <p class="mt-3 text-[11px] font-mono text-slate-500 truncate" title="Model status is checked when the server starts">
+                    ตรวจสอบสถานะเมื่อเริ่มระบบ
+                </p>
+            </div>
+        </div>
+
+        <!-- 👥 Section 1: Enterprise User Management Table -->
+        <div class="glass-panel-pro rounded-3xl overflow-hidden p-6 sm:p-8 space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+                <div class="flex items-center space-x-3.5">
+                    <div class="p-3 bg-teal-50 text-teal-700 rounded-2xl border border-teal-200">
+                        <i data-lucide="user-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">ระบบอนุมัติและจัดการสิทธิ์ผู้ใช้งานทั่วไป (User Management)</h3>
+                        <p class="text-xs text-slate-500">รายชื่อสมาชิกทั่วไปในฐานข้อมูลระบบ</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-700">
+                    <thead class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+                        <tr>
+                            <th class="p-4 rounded-l-xl">USER ID</th>
+                            <th class="p-4">ชื่อ-นามสกุลผู้ใช้</th>
+                            <th class="p-4">อีเมลบัญชีผู้ใช้</th>
+                            <th class="p-4">เข้าสู่ระบบล่าสุด</th>
+                            <th class="p-4">สถานะสิทธิ์</th>
+                            <th class="p-4 text-right rounded-r-xl">การควบคุมคำสั่ง</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-medium">
+                        {% for user in users %}
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="p-4 font-mono font-bold text-teal-700">#{{ user.id }}</td>
+                            <td class="p-4 font-bold text-slate-900">{{ user.name }}</td>
+                            <td class="p-4 text-slate-600 font-mono">{{ user.email }}</td>
+                            <td class="p-4 text-slate-500 font-mono text-[11px]">{{ user.last_login or 'ยังไม่มีบันทึกการเข้าใช้' }}</td>
+                            <td class="p-4">
+                                {% if user.is_approved == 1 %}
+                                <span class="px-3 py-1 text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 rounded-full border border-emerald-200">APPROVED</span>
+                                {% else %}
+                                <span class="px-3 py-1 text-[10px] font-mono font-bold text-amber-700 bg-amber-50 rounded-full border border-amber-200 animate-pulse">PENDING</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4 text-right space-x-2 whitespace-nowrap">
+                                {% if user.is_approved == 0 %}
+                                <form action="{{ url_for('approve_user', user_id=user.id) }}" method="POST" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-all shadow-sm text-xs">
+                                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                        <span>ยืนยันอนุมัติ</span>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                {% if password_reset_email_configured %}
+                                <form action="{{ url_for('admin_send_password_reset', user_id=user.id) }}" method="POST" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl transition-all border border-sky-200 text-xs">
+                                        <i data-lucide="mail-key" class="w-3.5 h-3.5"></i>
+                                        <span>ส่งลิงก์ตั้งรหัสใหม่</span>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span title="ต้องกำหนด SMTP และ URL สาธารณะก่อน" class="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-50 text-slate-400 font-bold rounded-xl border border-slate-200 text-xs cursor-not-allowed">
+                                    <i data-lucide="mail-x" class="w-3.5 h-3.5"></i>
+                                    <span>รีเซ็ตรหัสผ่าน</span>
+                                </span>
+                                {% endif %}
+                                <button type="button" data-delete-url="{{ url_for('delete_user', user_id=user.id) }}" data-user-name="{{ user.name }}" data-user-email="{{ user.email }}" onclick="openAdminUserDeletionModal(this)" class="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl transition-all border border-rose-200 text-xs">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    <span>ลบบัญชี</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center p-8 text-slate-400 font-mono">NO_USER_RECORDS_FOUND</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 📸 Section 2: Screening Logs Panel (Table View) -->
+        <div class="glass-panel-pro rounded-3xl overflow-hidden p-6 sm:p-8 space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+                <div class="flex items-center space-x-3.5">
+                    <div class="p-3 bg-cyan-50 text-cyan-700 rounded-2xl border border-cyan-200">
+                        <i data-lucide="table" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">ประวัติการสแกนภาพผิวหนัง (Screening Logs)</h3>
+                        <p class="text-xs text-slate-500">แสดงภาพที่ผู้ใช้ยินยอมส่งและผลจำแนกจากโมเดลผ่านหน้า Scan</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-700">
+                    <thead class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+                        <tr>
+                            <th class="p-4 rounded-l-xl">วัน เวลา ปี ประทับตรา</th>
+                            <th class="p-4">ข้อมูลผู้ใช้งานทั่วไป (NAME / EMAIL)</th>
+                            <th class="p-4">ภาพสแกนรอยโรคจริง</th>
+                            <th class="p-4">ผลจำแนกจากโมเดล</th>
+                            <th class="p-4 text-right rounded-r-xl">โมเดล</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-medium">
+                        {% for log in scan_logs %}
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="p-4 font-mono text-teal-700 font-bold whitespace-nowrap">
+                                📅 {{ log.created_at }}
+                            </td>
+                            <td class="p-4">
+                                <span class="block font-bold text-slate-900">{{ log.user_name }}</span>
+                                <span class="block text-[11px] font-mono text-slate-500 mt-0.5">{{ log.user_email }}</span>
+                            </td>
+                            <td class="p-4">
+                                <a href="{{ url_for('scan_image', filename=log.image_path) }}" target="_blank" class="inline-block group">
+                                    <img src="{{ url_for('scan_image', filename=log.image_path) }}" class="w-12 h-12 rounded-xl object-cover border border-slate-200 group-hover:border-teal-500 group-hover:scale-105 transition-all shadow-sm" alt="ภาพที่ส่งเพื่อสแกน">
+                                </a>
+                            </td>
+                            <td class="p-4 font-bold text-slate-800">
+                                {{ log.result_disease }}
+                                {% if log.decision_status == 'out_of_scope' %}<span class="mt-1 block text-[10px] font-bold text-amber-700">นอกขอบเขตโมเดล/ไม่ใกล้เคียงพอ</span>{% elif log.is_uncertain %}<span class="mt-1 block text-[10px] font-bold text-amber-700">ผลคัดกรองไม่ชัดเจน</span>{% endif %}
+                            </td>
+                            <td class="p-4 text-right font-mono font-bold text-teal-700">{{ log.model_version or 'legacy-6-class' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center p-8 text-slate-400 font-mono">NO_SCREENING_LOGS_FOUND (ยังไม่มีการอัปโหลดภาพสแกน)</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 🆕 Section 3: Skin Timeline Panel -->
+        <div class="glass-panel-pro rounded-3xl overflow-hidden p-6 sm:p-8 space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+                <div class="flex items-center space-x-3.5">
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-200">
+                        <i data-lucide="git-commit" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">ไทม์ไลน์ภาพรวมการสแกนผิวหนังของผู้ใช้ทั่วไป</h3>
+                        <p class="text-xs text-slate-500">ข้อมูลเดียวกับที่ผู้ใช้เห็นในปุ่ม Skin Timeline โดยบันทึกเข้าฐานข้อมูลเมื่อส่งภาพสแกน</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 px-2">
+                {% if scan_logs %}
+                <div class="relative border-l border-slate-200 ml-3 sm:ml-6 space-y-8 pb-4">
+                    {% for log in scan_logs %}
+                    <div class="relative pl-6 sm:pl-8 group">
+                        <div class="absolute -left-[5.5px] top-4 w-3 h-3 rounded-full bg-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.4)] ring-4 ring-white group-hover:scale-125 transition-transform"></div>
+                        <div class="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-sm hover:border-cyan-400 transition-all flex flex-col sm:flex-row gap-5">
+                            <div class="w-full sm:w-32 h-32 shrink-0 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative">
+                                <a href="{{ url_for('scan_image', filename=log.image_path) }}" target="_blank" class="block w-full h-full">
+                                    <img src="{{ url_for('scan_image', filename=log.image_path) }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="ภาพที่ส่งเพื่อสแกน">
+                                </a>
+                            </div>
+                            <div class="flex-1 flex flex-col justify-center">
+                                <div class="flex justify-between items-start gap-2">
+                                    <div>
+                                        <h4 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                            <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i>
+                                            {{ log.user_name }}
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-mono bg-slate-100 text-teal-700 border border-slate-200 tracking-wider">USER</span>
+                                        </h4>
+                                        <div class="text-[11px] text-slate-500 font-mono mt-1 ml-5">{{ log.user_email }}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold font-mono rounded-lg">
+                                            <i data-lucide="check-circle" class="w-3 h-3"></i> {{ log.confidence }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="mt-4 border-t border-slate-100 pt-3">
+                                    <div class="text-sm font-extrabold text-cyan-700">{{ log.result_disease }}</div>
+                                    <div class="flex flex-wrap items-center gap-4 mt-2 text-[10px] font-mono text-slate-500">
+                                        <span class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                            <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i> {{ log.created_at }}
+                                        </span>
+                                        <span class="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                            <i data-lucide="cpu" class="w-3.5 h-3.5 text-slate-400"></i> AI Processed
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="p-8 text-center min-h-[160px] flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+                    <div class="max-w-sm space-y-3">
+                        <div class="w-14 h-14 bg-white text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 shadow-sm">
+                            <i data-lucide="history" class="w-7 h-7"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-700">ยังไม่มีประวัติการสแกนผิวหนัง</h4>
+                        <p class="text-xs text-slate-400 font-mono">NO_SCREENING_LOGS_FOUND</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ⚙️ Section 4: Technical Specs & Neural Distribution -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 glass-panel-pro p-6 sm:p-8 rounded-3xl space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 bg-slate-100 text-teal-700 rounded-xl border border-slate-200">
+                            <i data-lucide="sliders" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900 tracking-tight">ข้อมูลเชิงเทคนิคของโมเดล (AI Model Specs)</h3>
+                            <p class="text-xs text-slate-500">สถานะการทำงานและข้อมูลที่มีการวัดจริงจากระบบ</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                        <div class="text-[10px] font-mono font-bold text-slate-400">VALIDATION METRIC</div>
+                        <div class="text-2xl font-black font-mono text-slate-900 mt-1">
+                            Not measured
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-medium mt-1">ต้องใช้ชุดทดสอบที่ผ่านการตรวจสอบ</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                        <div class="text-[10px] font-mono font-bold text-slate-400">INFERENCE SPEED</div>
+                        <div class="text-2xl font-black font-mono text-slate-900 mt-1">
+                            Not measured
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-medium mt-1">ยังไม่ได้เก็บ telemetry</div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                        <div class="text-[10px] font-mono font-bold text-slate-400">GPU VRAM USED</div>
+                        <div class="text-2xl font-black font-mono text-slate-900 mt-1">
+                            Not measured
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-medium mt-1">ไม่แสดงค่าประมาณ</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel-pro p-6 sm:p-8 rounded-3xl space-y-4 bg-white text-slate-900 border border-slate-200 shadow-xl">
+                <div class="flex items-center space-x-3 border-b border-slate-100 pb-4">
+                    <div class="p-2.5 bg-teal-50 text-teal-700 rounded-2xl border border-teal-200">
+                        <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 tracking-tight">การตรวจจำแนกแยกกลุ่มโรค</h3>
+                        <p class="text-xs text-slate-500">สัดส่วนจากผลจำแนกที่บันทึกไว้ในระบบ</p>
+                    </div>
+                </div>
+                <div class="space-y-4 text-xs font-semibold">
+                    {% if disease_distribution %}
+                    {% for item in disease_distribution %}
+                    <div>
+                        <div class="flex justify-between mb-1.5"><span class="text-slate-700 truncate pr-3">{{ item.label }}</span><span class="text-teal-700 font-mono font-bold whitespace-nowrap">{{ item.count }} ({{ item.percent }}%)</span></div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200"><div class="bg-teal-500 h-full rounded-full" style="width: {{ item.percent }}%"></div></div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="p-6 text-center text-slate-400 font-mono text-xs">
+                        ยังไม่มีข้อมูลสแกนในระบบ
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 💬 User messages and privacy-rights requests -->
+        <div class="glass-panel-pro rounded-3xl overflow-hidden">
+            <div class="p-6 bg-white/50 border-b border-slate-200 flex items-center space-x-3.5">
+                <div class="p-3 bg-teal-50 text-teal-700 rounded-2xl border border-teal-200">
+                    <i data-lucide="message-square" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">ข้อความจากผู้ใช้และคำขอข้อมูลส่วนบุคคล</h3>
+                    <p class="text-xs text-slate-500">ข้อความเกี่ยวกับการใช้งานและการใช้สิทธิ์ข้อมูลส่วนบุคคลที่ผู้ใช้ส่งถึงทีมผู้ดูแล</p>
+                </div>
+            </div>
+            <div class="p-6">
+                {% if feedbacks %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-700">
+                        <thead class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold uppercase tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-4 rounded-l-xl">วันเวลา</th><th class="p-4">ผู้ส่ง</th><th class="p-4">อีเมล</th><th class="p-4">เรื่อง</th><th class="p-4 rounded-r-xl">ข้อความ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 font-medium">
+                            {% for fb in feedbacks %}
+                            <tr class="hover:bg-slate-50/80 transition-colors">
+                                <td class="p-4 font-mono text-slate-500 whitespace-nowrap">{{ fb.created_at }}</td>
+                                <td class="p-4 font-bold text-slate-900">{{ fb.user_name }}</td>
+                                <td class="p-4 text-teal-700 font-mono">{{ fb.user_email }}</td>
+                                <td class="p-4"><span class="inline-flex rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold text-teal-700 ring-1 ring-inset ring-teal-200">{{ feedback_topic_labels.get(fb.topic or 'general', feedback_topic_labels['general']) }}</span></td>
+                                <td class="p-4 text-slate-700 leading-relaxed">{{ fb.message }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-8 text-center min-h-[160px] flex flex-col items-center justify-center">
+                    <div class="max-w-sm space-y-3">
+                        <div class="w-14 h-14 bg-white text-slate-400 rounded-2xl flex items-center justify-center mx-auto border border-slate-200 shadow-sm">
+                            <i data-lucide="inbox" class="w-7 h-7"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-700">ยังไม่มีข้อเสนอแนะส่งเข้ามาในขณะนี้</h4>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Admin user deletion confirmation -->
+    <div id="adminUserDeletionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="adminUserDeletionTitle" aria-hidden="true" data-accessible-modal="true">
+        <div class="w-full max-w-md rounded-3xl border border-rose-100 bg-white p-6 shadow-2xl sm:p-7">
+            <div class="flex items-start gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-200"><i data-lucide="triangle-alert" class="h-5 w-5"></i></span>
+                <div>
+                    <h2 id="adminUserDeletionTitle" class="text-base font-extrabold text-slate-900">ยืนยันการลบบัญชีผู้ใช้</h2>
+                    <p class="mt-1 text-xs leading-relaxed text-slate-600">การลบจะนำบัญชี ภาพสแกน ประวัติ และข้อเสนอแนะที่เกี่ยวข้องออกอย่างถาวร และไม่สามารถกู้คืนได้</p>
+                </div>
+            </div>
+            <div class="mt-5 rounded-2xl border border-rose-100 bg-rose-50/70 p-4 text-xs">
+                <p id="adminUserDeletionName" class="font-extrabold text-rose-950"></p>
+                <p id="adminUserDeletionEmail" class="mt-1 font-mono text-[11px] text-rose-800"></p>
+            </div>
+            <form id="adminUserDeletionForm" method="POST" class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="button" onclick="closeAdminUserDeletionModal()" data-modal-close class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50">ยกเลิก</button>
+                <button type="submit" name="admin_delete_confirmation" value="DELETE" class="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700">ยืนยันการลบ</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle" aria-describedby="logoutModalDescription" aria-hidden="true" data-accessible-modal="true">
+        <div class="glass-panel-pro w-full max-w-sm p-6 rounded-3xl mx-4 transform scale-95 transition-transform duration-300 text-center space-y-4 shadow-xl border border-slate-200 bg-white" id="logoutModalContent">
+            <div class="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200">
+                <i data-lucide="power" class="w-7 h-7"></i>
+            </div>
+            <div>
+                <h3 id="logoutModalTitle" class="text-lg font-extrabold text-slate-900">ยืนยันการออกจากระบบ</h3>
+                <p id="logoutModalDescription" class="text-xs text-slate-500 mt-1">คุณต้องการจบเซสชันการบริหารจัดการระบบนี้ใช่หรือไม่?</p>
+            </div>
+            <div class="flex items-center justify-center gap-3 pt-2">
+                <button type="button" onclick="closeLogoutModal()" data-modal-close class="w-1/2 py-2.5 px-4 rounded-xl text-slate-700 bg-slate-100 hover:bg-slate-200 font-semibold text-xs transition-all border border-slate-200">ยกเลิก</button>
+                <form action="{{ url_for('logout') }}" method="POST" class="w-1/2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="w-full py-2.5 px-4 rounded-xl text-white bg-rose-600 hover:bg-rose-500 font-bold text-xs transition-all shadow-sm text-center">ตกลง</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Execution Initialization -->
+    <script nonce="{{ csp_nonce }}">
+        lucide.createIcons();
+
+        const adminModalFocusRestore = new Map();
+
+        function getAdminFocusableElements(container) {
+            return [...container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                .filter((element) => !element.closest('[hidden], .hidden'));
+        }
+
+        function getOpenAdminModal() {
+            return [...document.querySelectorAll('[data-accessible-modal="true"]')]
+                .filter((modal) => !modal.classList.contains('hidden'))
+                .at(-1) || null;
+        }
+
+        function syncAdminModalPageState() {
+            const hasOpenModal = Boolean(getOpenAdminModal());
+            document.documentElement.classList.toggle('overflow-hidden', hasOpenModal);
+            document.body.classList.toggle('overflow-hidden', hasOpenModal);
+        }
+
+        function openAdminAccessibleModal(modalId, initialFocusSelector = '') {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            if (modal.classList.contains('hidden')) {
+                adminModalFocusRestore.set(modalId, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.setAttribute('aria-hidden', 'false');
+            syncAdminModalPageState();
+            window.setTimeout(() => {
+                const focusable = getAdminFocusableElements(modal);
+                const target = (initialFocusSelector && modal.querySelector(initialFocusSelector)) || focusable[0];
+                if (target instanceof HTMLElement) target.focus();
+            }, 0);
+        }
+
+        function closeAdminAccessibleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            modal.setAttribute('aria-hidden', 'true');
+            syncAdminModalPageState();
+            const trigger = adminModalFocusRestore.get(modalId);
+            adminModalFocusRestore.delete(modalId);
+            if (trigger instanceof HTMLElement && trigger.isConnected) {
+                window.setTimeout(() => trigger.focus(), 0);
+            }
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const modal = getOpenAdminModal();
+            if (!modal) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                const closeButton = modal.querySelector('[data-modal-close]');
+                if (closeButton instanceof HTMLElement) closeButton.click();
+                else closeAdminAccessibleModal(modal.id);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = getAdminFocusableElements(modal);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+
+        function openLogoutModal() {
+            const modal = document.getElementById('logoutModal');
+            const content = document.getElementById('logoutModalContent');
+            openAdminAccessibleModal('logoutModal', '[data-modal-close]');
+            window.setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeLogoutModal() {
+            const modal = document.getElementById('logoutModal');
+            const content = document.getElementById('logoutModalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            window.setTimeout(() => closeAdminAccessibleModal('logoutModal'), 300);
+        }
+
+        function openAdminUserDeletionModal(button) {
+            document.getElementById('adminUserDeletionForm').action = button.dataset.deleteUrl;
+            document.getElementById('adminUserDeletionName').textContent = button.dataset.userName;
+            document.getElementById('adminUserDeletionEmail').textContent = button.dataset.userEmail;
+            openAdminAccessibleModal('adminUserDeletionModal', '[data-modal-close]');
+        }
+
+        function closeAdminUserDeletionModal() {
+            closeAdminAccessibleModal('adminUserDeletionModal');
+            document.getElementById('adminUserDeletionForm').removeAttribute('action');
+        }
+    </script>
+</body>
+</html>

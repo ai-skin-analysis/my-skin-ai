@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งค่า MFA ผู้ดูแลระบบ | Smart Skin AI</title>
+    <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-slate-950 px-4 py-10 font-[Anuphan] text-slate-900">
+    <main class="mx-auto w-full max-w-2xl">
+        <section class="overflow-hidden rounded-3xl border border-slate-700 bg-white shadow-2xl shadow-black/30">
+            <div class="bg-gradient-to-r from-teal-700 to-cyan-700 px-7 py-8 text-white">
+                <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-teal-100">Administrator security</p>
+                <h1 class="mt-2 text-2xl font-extrabold">ตั้งค่าการยืนยันตัวตนสองชั้น</h1>
+                <p class="mt-2 text-sm leading-relaxed text-teal-50">ใช้แอป Authenticator ที่รองรับ TOTP เพื่อป้องกันบัญชีผู้ดูแล แม้รหัสผ่านรั่วไหล</p>
+            </div>
+            <div class="space-y-6 p-7">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                <div class="rounded-xl border {% if category == 'error' %}border-rose-200 bg-rose-50 text-rose-800{% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %} px-4 py-3 text-xs leading-relaxed">{{ message }}</div>
+                {% endfor %}
+                {% endwith %}
+
+                {% if enrollment_secret %}
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-950">
+                    <p class="font-extrabold">เก็บคีย์นี้เป็นความลับ</p>
+                    <p class="mt-1">เพิ่มคีย์ลงในแอป Authenticator ของคุณ แล้วกรอกรหัส 6 หลักเพื่อยืนยัน คีย์จะถูกเก็บแบบเข้ารหัสและจะไม่แสดงในแดชบอร์ดหลังเปิดใช้ MFA</p>
+                </div>
+                <ol class="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+                    <li>เปิดแอป Authenticator แล้วเลือกเพิ่มบัญชีแบบคีย์ตั้งค่า (setup key)</li>
+                    <li>ตั้งชื่อบัญชีว่า <strong>Smart Skin AI</strong> และวางคีย์ด้านล่าง</li>
+                    <li>เลือกชนิดรหัสแบบ Time-based, SHA-1, 6 หลัก และช่วงเวลา 30 วินาที</li>
+                    <li>กรอกรหัสล่าสุดจากแอปเพื่อเปิดใช้ MFA</li>
+                </ol>
+                <div>
+                    <label for="totpSecret" class="block text-xs font-bold text-slate-700">คีย์ตั้งค่า TOTP</label>
+                    <input id="totpSecret" type="text" value="{{ enrollment_secret }}" readonly spellcheck="false" class="mt-2 w-full rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 font-mono text-sm font-bold tracking-[0.08em] text-teal-900 outline-none">
+                </div>
+                <details class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <summary class="cursor-pointer text-xs font-bold text-slate-700">แสดง provisioning URI สำหรับแอปที่รองรับ</summary>
+                    <textarea readonly class="mt-3 min-h-24 w-full resize-y rounded-lg border border-slate-200 bg-white p-3 font-mono text-[10px] leading-relaxed text-slate-700">{{ provisioning_uri }}</textarea>
+                </details>
+                <form action="{{ url_for('admin_mfa_enroll_confirm') }}" method="POST" class="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/60 p-5">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label for="totpCode" class="block text-xs font-bold text-slate-700">รหัสล่าสุดจาก Authenticator</label>
+                        <input id="totpCode" name="totp_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" autofocus required class="mt-2 w-full rounded-xl border border-teal-200 bg-white px-4 py-3 text-center font-mono text-xl font-bold tracking-[0.45em] outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <button type="submit" class="w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-teal-700">ยืนยันและเปิดใช้ MFA</button>
+                </form>
+                <form action="{{ url_for('admin_mfa_enroll_cancel') }}" method="POST" class="text-center">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-xs font-bold text-slate-500 transition hover:text-rose-700">ยกเลิกและลบคีย์ที่รอตั้งค่า</button>
+                </form>
+                {% else %}
+                <div class="rounded-2xl border border-teal-100 bg-teal-50/60 p-4 text-xs leading-relaxed text-teal-900">
+                    การเริ่มตั้งค่าต้องยืนยันรหัสผ่านปัจจุบันก่อน ระบบจะสร้างคีย์ชั่วคราวที่เข้ารหัสและหมดอายุภายใน 10 นาที
+                </div>
+                <form action="{{ url_for('admin_mfa_enroll') }}" method="POST" class="space-y-5">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label for="currentPassword" class="block text-xs font-bold text-slate-700">รหัสผ่านปัจจุบันของผู้ดูแล</label>
+                        <input id="currentPassword" name="current_password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100">
+                    </div>
+                    <button type="submit" class="w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-teal-700">สร้างคีย์สำหรับตั้งค่า</button>
+                </form>
+                {% endif %}
+                <a href="{{ url_for('admin_dashboard') }}" class="block text-center text-xs font-bold text-slate-500 transition hover:text-slate-800">กลับไปแดชบอร์ดผู้ดูแล</a>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

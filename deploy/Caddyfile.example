@@ -1,0 +1,133 @@
+# Smart Skin AI public reverse-proxy example.
+#
+# Replace both example host names and configure Caddy's certificate-contact
+# address before use. Waitress listens only on 127.0.0.1:8080, so this proxy
+# is the only public route to the application. Keep this file and Caddy itself
+# under the control of the production service owner.
+
+{
+    # Set CADDY_ACME_EMAIL in the protected Caddy service environment to an
+    # operations mailbox. Do not put application, SMTP, or database secrets
+    # in this file.
+    email {$CADDY_ACME_EMAIL}
+
+    # Keep the Caddy administration API and Prometheus metrics endpoint on
+    # loopback.  Do not publish :2019 through a firewall, load balancer, or
+    # public DNS record.  A local monitoring collector may scrape
+    # http://127.0.0.1:2019/metrics; see deploy/OBSERVABILITY_RUNBOOK.md.
+    admin 127.0.0.1:2019
+    metrics
+}
+
+hucksmartskinai.com {
+    encode zstd gzip
+
+    # The application enforces 8 MiB. This limits multipart overhead before it
+    # reaches Waitress.
+    request_body {
+        max_size 10MB
+    }
+
+    # Flask supplies its nonce-based CSP and context-specific Permissions-
+    # Policy (public-information mode disables camera access). These proxy
+    # headers protect proxy-generated responses without overriding that mode.
+    header {
+        -Server
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    @unsupported_methods method CONNECT TRACE TRACK
+    respond @unsupported_methods "Method not allowed" 405
+
+    # /readyz can reveal whether private dependencies are usable. Probe it
+    # only from the loopback Waitress listener or a separately authenticated
+    # internal path; it is not an Internet-facing endpoint. /healthz remains
+    # a minimal public liveness endpoint for an external synthetic monitor.
+    @public_readiness path /readyz
+    respond @public_readiness "Not found" 404
+
+    # Password-reset and email-verification URLs contain short-lived bearer
+    # credentials in their path.  Uploaded image filenames are also private.
+    # Do not write either category to proxy access logs.  The application keeps
+    # purpose-limited audit events without recording credentials.
+    @bearer_credential_path path_regexp bearer_credential_path ^/(?:password/reset|email/verify)/[^/?#]+$
+    @private_artifact_path path /scan-images/* /account/profile-avatar
+    log_skip @bearer_credential_path
+    log_skip @private_artifact_path
+
+    # Keep proxy logs out of the project and restrict their ACL separately.
+    # Never configure request-body logging for health-data traffic.
+    log {
+        output file C:\ProgramData\SmartSkinAI\logs\caddy-access.json {
+            roll_size 25MiB
+            roll_keep 14
+            roll_keep_for 336h
+        }
+        # Minimise personal data before it reaches the access-log sink.  Caddy
+        # already redacts credential headers by default; these filters make the
+        # intended policy explicit and remove analytics-only fields that are not
+        # needed for incident triage.  A WAF/SIEM that needs full source IPs
+        # must be separately access-controlled and documented in the privacy
+        # record of processing.
+        format filter {
+            request>headers>Cookie delete
+            request>headers>Authorization delete
+            request>headers>Proxy-Authorization delete
+            request>headers>Referer delete
+            request>headers>User-Agent delete
+            request>headers>X-Forwarded-For delete
+            request>remote_ip ip_mask 24 48
+            request>client_ip ip_mask 24 48
+            request>uri query {
+                delete code
+                delete email
+                delete lat
+                delete latitude
+                delete location
+                delete lon
+                delete longitude
+                delete state
+                delete token
+            }
+            wrap json
+        }
+    }
+
+    reverse_proxy 127.0.0.1:8080 {
+        # Strip client-controlled forwarding headers before writing the one
+        # trusted proxy hop expected by SMART_SKIN_TRUSTED_PROXY_HOPS=1.
+        header_up -X-Forwarded-For
+        header_up -X-Forwarded-Proto
+        header_up -X-Forwarded-Host
+        header_up -X-Forwarded-Port
+        header_up -X-Real-IP
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Port {server_port}
+        header_up X-Real-IP {remote_host}
+
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 60s
+            read_timeout 60s
+            write_timeout 60s
+        }
+
+        # /healthz is a fixed, session-free liveness response. It proves the
+        # WSGI process can answer but deliberately does not describe model,
+        # storage, SMTP, or account state. Use /readyz only from a protected
+        # monitoring path when dependency readiness needs checking.
+        health_uri /healthz
+        health_headers {
+            Host hucksmartskinai.com
+        }
+        health_interval 30s
+        health_timeout 5s
+        fail_duration 30s
+        max_fails 3
+    }
+}
