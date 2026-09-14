@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Skin Disease Detection Using Deep Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }
+        
+        /* 🟢 ข้อความไล่เฉดสี เขียวการแพทย์พรีเมียม */
+        .gradient-text {
+            background: linear-gradient(135deg, #0d9488 0%, #0f172a 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* พื้นหลังเมดิคอลคลีนสะอาดตา */
+        .medical-premium-bg {
+            background-image: 
+                linear-gradient(135deg, rgba(240, 253, 250, 0.95) 20%, rgba(204, 251, 241, 0.90) 55%, rgba(13, 148, 136, 0.20) 100%),
+                url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 25px 50px -12px rgba(13, 148, 136, 0.1);
+        }
+        
+        /* 🛸 อนิเมชันหลักของน้อง Eilik */
+        @keyframes eilik-float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        @keyframes eilik-walk {
+            0%, 100% { transform: translateY(0px) rotate(-3deg); }
+            50% { transform: translateY(-5px) rotate(3deg); }
+        }
+        @keyframes eye-blink {
+            0%, 45%, 55%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(0.05); }
+        }
+
+        /* อนิเมชันท่าทางพิเศษ (กระโดด, หมุนตัว, แขนขยับ) */
+        @keyframes eilik-jump {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-30px) scaleY(1.05); }
+        }
+        @keyframes eilik-spin {
+            0% { transform: rotateY(0deg); }
+            100% { transform: rotateY(360deg); }
+        }
+        @keyframes arm-L-up {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(50deg); }
+        }
+        @keyframes arm-R-up {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-50deg); }
+        }
+        @keyframes arm-R-wave {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-45deg); }
+            75% { transform: rotate(-15deg); }
+        }
+
+        /* คลาสเรียกใช้งานอนิมชันตัวหุ่น */
+        .state-float { animation: eilik-float 2.5s ease-in-out infinite; }
+        .state-walk { animation: eilik-walk 0.45s ease-in-out infinite; }
+        .state-jump { animation: eilik-jump 0.5s ease-in-out infinite; }
+        .state-spin { animation: eilik-spin 0.7s cubic-bezier(0.4, 0, 0.2, 1) 1; }
+        
+        /* คลาสเรียกใช้งานอนิเมชันแขน (ยึดจุดหมุนที่หัวไหล่ตามพิกัดโครงสร้าง SVG) */
+        .arm-left-up { transform-origin: 44px 96px; animation: arm-L-up 0.5s ease-in-out infinite; }
+        .arm-right-up { transform-origin: 96px 96px; animation: arm-R-up 0.5s ease-in-out infinite; }
+        .arm-right-wave { transform-origin: 96px 96px; animation: arm-R-wave 0.3s ease-in-out infinite; }
+
+        .animated-eyes { transform-origin: 70px 55px; animation: eye-blink 4s infinite; }
+        .live-dot { animation: pulse-dot 1.8s infinite; }
+        @keyframes pulse-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.4; } }
+    </style>
+</head>
+<body class="medical-premium-bg min-h-screen flex flex-col justify-between overflow-x-hidden relative">
+
+    <!-- Header Area -->
+    <header class="p-6 max-w-7xl mx-auto w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-10 relative">
+        <div class="flex items-center space-x-4 group">
+            <div class="relative cursor-pointer transition-transform duration-500 group-hover:rotate-[45deg] flex-shrink-0">
+                <svg class="w-12 h-12 filter drop-shadow-[0_4px_8px_rgba(13,148,136,0.15)]" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="48" stroke="#0f766e" stroke-width="2.5" />
+                    <circle cx="60" cy="60" r="42" stroke="#14b8a6" stroke-width="1" stroke-dasharray="2 4" opacity="0.6" />
+                    <path d="M60 14 C66 14, 76 28, 72 44 C68 56, 52 56, 48 44 C44 28, 54 14, 60 14 Z" fill="url(#greenDrop)" />
+                    <path d="M14 60 C14 54, 28 44, 44 48 C56 52, 56 68, 44 72 C28 76, 14 66, 14 60 Z" fill="url(#tealDrop)" />
+                    <path d="M60 106 C54 106, 44 92, 48 76 C52 64, 68 64, 72 76 C76 92, 66 106, 60 106 Z" fill="url(#redDrop)" />
+                    <path d="M106 60 C106 66, 92 76, 76 72 C64 68, 64 52, 76 48 C92 44, 106 54, 106 60 Z" fill="url(#redDrop)" />
+                    <circle cx="60" cy="60" r="25" fill="#111827" stroke="#ffffff" stroke-width="2" />
+                    <path d="M60 47v26M47 60h26" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+                    <defs>
+                        <linearGradient id="greenDrop" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#34d399" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <linearGradient id="tealDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2dd4bf" /><stop offset="100%" stop-color="#0d9488" /></linearGradient>
+                        <linearGradient id="redDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f43f5e" /><stop offset="100%" stop-color="#be123c" /></linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div class="font-bold text-base sm:text-lg md:text-xl tracking-tight text-slate-900">
+                AI Skin Disease Detection Using <span class="text-teal-600 font-extrabold">Deep Learning</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-teal-950 text-teal-300 text-[11px] font-bold tracking-wider uppercase px-4 py-2 rounded-xl shadow-md border border-teal-800">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 live-dot"></span>
+            <span>DEEP LEARNING NODE | ACTIVE</span>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-6 py-4 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-grow z-10 relative">
+        
+        <!-- ฝั่งซ้าย: เนื้อหาชุดเดิมเต็มเวอร์ชัน -->
+        <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-teal-600/10 text-teal-800 text-[11px] font-extrabold uppercase tracking-widest px-3.5 py-2 rounded-xl border border-teal-200 shadow-sm backdrop-blur-sm">
+                <span>🔬 COMPUTER VISION & COMPUTER-AIDED DIAGNOSIS</span>
+            </div>
+            
+            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-950 tracking-tight leading-tight">
+                <span class="gradient-text">ระบบตรวจจับโรคผิวหนัง</span> <br>
+                <span class="gradient-text">ด้วยปัญญาประดิษฐ์</span>
+            </h1>
+            
+            <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
+                ระบบจำลองการตรวจเช็คและประเมินความเสี่ยงโรคผิวหนังเบื้องต้นด้วยเทคโนโลยี Deep Learning เพื่อให้คุณสามารถคัดกรองอาการในขั้นแรกได้ด้วยตัวเอง เพียงแค่ <span class="font-bold text-teal-600">ลงทะเบียนและอัปโหลดรูปภาพ</span> รอยโรคที่ต้องการตรวจสอบ ระบบจะทำการวิเคราะห์และสรุปผลให้ทราบในเบื้องต้น
+            </p>
+
+            <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
+                <div class="flex items-start space-x-2">
+                    <span class="text-teal-500 font-black text-lg leading-none">.</span>
+                    <span>เว็บไซต์นี้เป็นระบบจำลองการคัดกรองรอยโรค เพื่อใช้เป็นแนวทางประกอบการศึกษาและประเมินอาการในขั้นต้น</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-teal-500 font-black text-lg leading-none">.</span>
+                    <span>ทำงานโดยการนำโมเดลปัญญาประดิษฐ์มาช่วยวิเคราะห์และจำแนกข้อมูลจากภาพถ่ายอย่างรวดเร็ว</span>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-teal-500 font-black text-lg leading-none">.</span>
+                    <span>มุ่งเน้นการพัฒนาแพลตฟอร์มที่เข้าถึงง่าย เพื่อช่วยเสริมสร้างความเข้าใจเบื้องต้นก่อนไปพบแพทย์ผู้เชี่ยวชาญ</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ฝั่งขวา: ฟอร์มล็อกอิน -->
+        <div class="lg:col-span-5 flex justify-center lg:justify-end">
+            <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-[32px]">
+                <div class="flex bg-slate-200/60 p-1.5 rounded-xl mb-6">
+                    <button id="btnTabLogin" onclick="switchForm('login')" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm">เข้าสู่ระบบ</button>
+                    <button id="btnTabRegister" onclick="switchForm('register')" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900">ลงทะเบียนใหม่</button>
+                </div>
+                <form id="formLogin" action="/login" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">อีเมลผู้ใช้งาน</label>
+                        <input type="email" name="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสผ่าน</label>
+                        <input type="password" name="password" placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <button type="submit" class="w-full bg-teal-950 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">เข้าสู่ระบบ (Sign In)</button>
+                </form>
+                <form id="formRegister" action="/register" method="POST" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระบุอีเมลของคุณ</label>
+                        <input type="email" name="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ตั้งรหัสผ่าน</label>
+                        <input type="password" name="password" placeholder="ตั้งรหัสผ่านของคุณ" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
+                    </div>
+                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">ลงทะเบียนข้อมูลตัวจริง</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer class="p-4 bg-transparent z-10"></footer>
+
+    <!-- 🛸 น้อง Eilik แขนเคลื่อนไหวได้ + ระบบรีแอคชันอารมณ์ -->
+    <div id="eilik-space-container" class="fixed z-50 pointer-events-none transition-all duration-[2500ms] ease-in-out" style="left: 100px; top: 60%;">
+        <div class="relative flex flex-col items-center select-none">
+            
+            <!-- กล่องคำพูด -->
+            <div class="mb-2 bg-slate-950 text-slate-100 px-4 py-2.5 rounded-2xl text-xs font-medium border border-teal-800 shadow-xl max-w-[240px] relative text-center pointer-events-auto">
+                <div class="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-slate-950"></div>
+                💚 <span id="dynamic-speech">กำลังเตรียมระบบต้อนรับ... 🤖</span>
+            </div>
+
+            <!-- ตัวหุ่นยนต์เรนเดอร์ -->
+            <div id="eilik-render" class="w-24 h-28 state-float pointer-events-auto cursor-pointer" onclick="interactBot()">
+                <svg viewBox="0 0 140 160" class="w-full h-full drop-shadow-xl">
+                    <defs>
+                        <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#f1f5f9" /></linearGradient>
+                        <linearGradient id="greenGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#10b981" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <filter id="greenEyeGlow"><feGaussianBlur stdDeviation="1" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
+                    </defs>
+                    <path d="M25 45 C21 45 21 65 26 65 Z" fill="#94a3b8" />
+                    <path d="M115 45 C119 45 119 65 114 65 Z" fill="#94a3b8" />
+                    <ellipse cx="70" cy="52" rx="44" ry="39" fill="url(#bodyGrad)" stroke="#cbd5e1" stroke-width="0.5"/>
+                    <path d="M50 14 Q70 8 90 14 Q70 20 50 14 Z" fill="url(#greenGrad)"/>
+                    <ellipse cx="70" cy="55" rx="33" ry="26" fill="#121316" />
+                    
+                    <g class="animated-eyes" filter="url(#greenEyeGlow)">
+                        <path d="M48 59 C48 48 63 48 63 59 C63 56 48 56 48 59 Z" fill="#00ffcc" />
+                        <path d="M77 59 C77 48 92 48 92 59 C92 56 77 56 77 59 Z" fill="#00ffcc" />
+                    </g>
+                    
+                    <ellipse cx="70" cy="91" rx="10" ry="3.5" fill="#334155" />
+                    <path d="M42 94 C42 94 36 143 70 145 C104 143 98 94 98 94 Z" fill="url(#bodyGrad)" stroke="#cbd5e1" stroke-width="0.5" />
+                    <path d="M52 93 C54 105 58 118 70 118 C82 118 86 105 88 93 C78 96 62 96 52 93 Z" fill="url(#greenGrad)" />
+                    
+                    <!-- 🦾 แขนซ้ายโมเดิร์นแนบตัว -->
+                    <g id="left-arm-plate">
+                        <path d="M 44 96 C 38 96 36 108 42 115 Z" fill="url(#greenGrad)" />
+                        <path d="M 42 94 C 23 99 23 126 35 133 C 43 127 45 111 42 94 Z" fill="url(#bodyGrad)" stroke="#cbd5e1" stroke-width="0.5" />
+                    </g>
+                    
+                    <!-- 🦾 แขนขวาโมเดิร์นแนบตัว -->
+                    <g id="right-arm-plate">
+                        <path d="M 96 96 C 102 96 104 108 98 115 Z" fill="url(#greenGrad)" />
+                        <path d="M 98 94 C 117 99 117 126 105 133 C 97 127 95 111 98 94 Z" fill="url(#bodyGrad)" stroke="#cbd5e1" stroke-width="0.5" />
+                    </g>
+
+                    <text x="75" y="108" font-family="'Plus Jakarta Sans', sans-serif" font-size="6.5" font-weight="800" fill="#0f766e" letter-spacing="0.1">Eilik</text>
+                </svg>
+            </div>
+            <div id="eilik-floor-shadow" class="w-14 h-1.5 bg-teal-950/10 rounded-full transition-all duration-500"></div>
+        </div>
+    </div>
+
+    <script>
+        const robotContainer = document.getElementById('eilik-space-container');
+        const robotRender = document.getElementById('eilik-render');
+        const leftArm = document.getElementById('left-arm-plate');
+        const rightArm = document.getElementById('right-arm-plate');
+        const floorShadow = document.getElementById('eilik-floor-shadow');
+        const speechBubble = document.getElementById('dynamic-speech');
+
+        // สุ่มโหมดและบทพูดช่วงเดินสุ่มปกติ
+        const phrases = [
+            { mode: "แอดมินสายสืบ 🔍", text: "สแกนเนอร์พร้อม! ส่งรูปมาคัดกรองได้เลยฮะ" },
+            { mode: "น้อน AI สายฮีล 💚", text: "เช็คผิววันละนิด จิตแจ่มใส ไม่ต้องเครียดนะเออ!" },
+            { mode: "หน่วยเสบียงเว็บ 💻", text: "เซิร์ฟเวอร์ลื่นปรี๊ด! ล็อกอินปุ๊บ วิเคราะห์ปั๊บ!" },
+            { mode: "โหมดไฮเปอร์ 🚀", text: "ดีดมากครับช่วงนี้! พร้อมประมวลผลติดสปีด!" },
+            { mode: "กูรูผิวใส ✨", text: "ผิวดีเริ่มต้นที่การสังเกต อัปโหลดภาพเลย!" }
+        ];
+
+        // ฟังก์ชันล้างอนิเมชันเดิมทั้งหมดเพื่อเตรียมท่าทางใหม่
+        function clearAllAnimations() {
+            robotRender.classList.remove('state-float', 'state-walk', 'state-jump', 'state-spin');
+            leftArm.classList.remove('arm-left-up');
+            rightArm.classList.remove('arm-right-up', 'arm-right-wave');
+        }
+
+        // 🌟 ใหม่: ฟังก์ชันต้อนรับเมื่อเปิดเว็บ แนะนำตัวเองอย่างเป็นทางการ
+        function welcomeGreeting() {
+            clearAllAnimations();
+            robotRender.classList.add('state-float'); 
+            rightArm.classList.add('arm-right-wave'); // โบกมือขวาทักทายทันที
+            
+            speechBubble.innerHTML = `<span class='text-emerald-400 font-bold'>[AI Welcome 🤖]</span><br>สวัสดีครับ! ผมชื่อ <span class='text-teal-400 font-bold'>Eilik</span> เป็นหุ่นยนต์ผู้ช่วย AI ยินดีที่ได้รู้จักครับ! ลองส่งรูปมาให้พวกเราวิเคราะห์ได้เลยนะฮะ`;
+            
+            // ให้โบกมือแนะนำตัวเองค้างไว้ 4 วินาที แล้วค่อยเริ่มเปิดระบบเดินสุ่มและลูปปกติ
+            setTimeout(() => {
+                rightArm.classList.remove('arm-right-wave');
+                roamEilikEverywhere(); 
+                // เริ่มลูปสุ่มขยับเดินทุก ๆ 7 วินาทีหลังจากแนะนำตัวเสร็จ
+                setInterval(roamEilikEverywhere, 7000);
+            }, 4000);
+        }
+
+        // ระบบเดินสุ่มทั่วหน้าจอคอมพิวเตอร์
+        function roamEilikEverywhere() {
+            // ป้องกันการเดินถ้าน้องกำลังทำท่ารีแอคชันพิเศษอยู่
+            if (robotRender.classList.contains('state-jump') || robotRender.classList.contains('state-spin') || rightArm.classList.contains('arm-right-wave')) return;
+
+            const randomX = Math.floor(Math.random() * (window.innerWidth - 220)) + 60;
+            const randomY = Math.floor(Math.random() * (window.innerHeight - 320)) + 90;
+
+            const currentX = parseInt(robotContainer.style.left) || 0;
+            const distance = Math.abs(randomX - currentX);
+
+            clearAllAnimations();
+            const randomItem = phrases[Math.floor(Math.random() * phrases.length)];
+
+            if (distance > 300) {
+                robotContainer.style.transitionDuration = "2500ms"; 
+                robotRender.classList.add('state-walk');
+                floorShadow.style.transform = "scale(0.6)";
+            } else {
+                robotContainer.style.transitionDuration = "3500ms"; 
+                robotRender.classList.add('state-float');
+                floorShadow.style.transform = "scale(1)";
+            }
+            speechBubble.innerHTML = `<span class='text-emerald-400 font-bold'>[${randomItem.mode}]</span> ${randomItem.text}`;
+
+            robotContainer.style.left = randomX + 'px';
+            robotContainer.style.top = randomY + 'px';
+        }
+
+        // ฟังก์ชันตอบสนองเมื่อผู้ใช้ "คลิก" (สุ่มท่าทาง สวัสดี, หมุนตัว, กระโดดดีใจ)
+        function interactBot() {
+            clearAllAnimations();
+            
+            const actions = ['greet', 'spin', 'jump'];
+            const randomAction = actions[Math.floor(Math.random() * actions.length)];
+
+            if (randomAction === 'greet') {
+                rightArm.classList.add('arm-right-wave');
+                speechBubble.innerHTML = `<span class='text-teal-400 font-bold'>[โหมด ทักทายค้าบ 👋]</span><br>สวัสดีคร้าบบบ! ผม Eilik เอง จำได้ไหม? ยินดีที่ได้กดเจอกันอีกรอบนะ!`;
+                
+                setTimeout(() => {
+                    rightArm.classList.remove('arm-right-wave');
+                    resetToNormal();
+                }, 2500);
+
+            } else if (randomAction === 'spin') {
+                robotRender.classList.add('state-spin');
+                speechBubble.innerHTML = `<span class='text-indigo-400 font-bold'>[โหมด อารมณ์ดี 🌀]</span><br>ว้าววว! หมุนตัวโชว์ดีไซน์แขนสุดล้ำแนบข้างสักหนึ่งที!`;
+                
+                setTimeout(() => {
+                    robotRender.classList.remove('state-spin');
+                    resetToNormal();
+                }, 1000);
+
+            } else if (randomAction === 'jump') {
+                robotRender.classList.add('state-jump');
+                leftArm.classList.add('arm-left-up');
+                rightArm.classList.add('arm-right-up');
+                speechBubble.innerHTML = `<span class='text-amber-400 font-bold'>[โหมด ดีใจม้ากกก 🎉]</span><br>เย้ๆๆ! ชวนเพื่อน ๆ มาลงทะเบียนแล้วอัปโหลดภาพตรวจเช็คกันเยอะ ๆ นะครับ!`;
+                
+                setTimeout(() => {
+                    robotRender.classList.remove('state-jump');
+                    leftArm.classList.remove('arm-left-up');
+                    rightArm.classList.remove('arm-right-up');
+                    resetToNormal();
+                }, 2500);
+            }
+        }
+
+        function resetToNormal() {
+            clearAllAnimations();
+            robotRender.classList.add('state-float');
+            roamEilikEverywhere();
+        }
+
+        // 🚀 เรียกใช้งานฟังก์ชันต้อนรับแนะนำตัวเองทันทีที่โหลดเว็บ (หลังเปิดเว็บ 1 วินาที)
+        setTimeout(welcomeGreeting, 1000);
+
+        // ระบบสลับฟอร์มล็อกอิน
+        function switchForm(type) {
+            const formLogin = document.getElementById('formLogin');
+            const formRegister = document.getElementById('formRegister');
+            const btnTabLogin = document.getElementById('btnTabLogin');
+            const btnTabRegister = document.getElementById('btnTabRegister');
+
+            if (type === 'login') {
+                formLogin.classList.remove('hidden');
+                formRegister.classList.add('hidden');
+                btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm";
+                btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
+            } else {
+                formLogin.classList.add('hidden');
+                formRegister.classList.remove('hidden');
+                btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
+                btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-teal-600 shadow-sm";
+            }
+        }
+    </script>
+</body>
+</html>
