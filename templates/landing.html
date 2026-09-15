@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Based Skin Disease Analysis and Classification Using Deep Learning</title>
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
     <meta name="theme-color" content="#0f766e">
-    <meta name="mobile-web-app-capable" content="yes">
     <!-- Keep the information and account page readable even while optional CDN styling is slow or unavailable. -->
     <script nonce="{{ csp_nonce }}" src="https://cdn.tailwindcss.com" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
@@ -535,14 +533,6 @@
 
     <!-- Script ควบคุมระบบทั้งหมด -->
     <script nonce="{{ csp_nonce }}">
-        if ('serviceWorker' in navigator && window.isSecureContext) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(() => {
-                    // The online page remains usable if the browser does not support offline mode.
-                });
-            });
-        }
-
         // Keep modal behavior consistent for keyboard and screen-reader users.
         // The page never stores a previous focus target beyond this browser tab.
         const modalFocusRestore = new Map();
