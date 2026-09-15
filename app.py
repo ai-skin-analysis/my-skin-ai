@@ -2006,8 +2006,8 @@ def apply_security_headers(response):
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive'
     # Dynamic pages may contain a session-bound CSRF token, account state, or
-    # health data.  Keep them out of the browser HTTP cache; the service worker
-    # separately caches only its strict public-shell allowlist.
+    # health data. Keep them out of the browser HTTP cache. The remaining
+    # service-worker route exists only to retire old offline caches safely.
     if not request.path.startswith('/static/') and request.endpoint != 'service_worker':
         response.headers['Cache-Control'] = 'no-store, max-age=0'
         response.headers['Pragma'] = 'no-cache'
@@ -2971,8 +2971,8 @@ def resend_email_verification():
 @app.route('/service-worker.js')
 def service_worker():
     response = send_from_directory(app.static_folder, 'service-worker.js', mimetype='application/javascript')
-    # Browsers must check this file on each visit so an offline update is
-    # applied quickly, while the worker itself controls its own asset cache.
+    # Browsers must check this cleanup worker on each visit so installations
+    # from the retired offline mode promptly remove their old cache.
     response.headers['Cache-Control'] = 'no-cache, max-age=0, must-revalidate'
     return response
 
