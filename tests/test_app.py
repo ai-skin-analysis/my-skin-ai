@@ -16,7 +16,9 @@ import app as application
 
 class StubModel:
     def predict(self, image_array, verbose=0):
-        return np.array([[0.05, 0.05, 0.70, 0.05, 0.10, 0.05]], dtype='float32')
+        # Basal cell carcinoma is one of the legacy outputs that remains
+        # inside the current mobile-photo target catalog.
+        return np.array([[0.05, 0.70, 0.05, 0.05, 0.10, 0.05]], dtype='float32')
 
 
 class OutOfScopeStubModel:
@@ -156,8 +158,8 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertIn('state-float', page)
         self.assertNotIn('สถานะการคัดกรอง', page)
         self.assertNotIn('อนุมัติครบถ้วน', page)
-        self.assertIn('manifest.webmanifest', page)
-        self.assertIn("service-worker.js", page)
+        self.assertNotIn('manifest.webmanifest', page)
+        self.assertNotIn("service-worker.js", page)
         self.assertIn('name="terms_consent"', page)
         self.assertNotIn('illic-stage', page)
         self.assertNotIn('illicFloatingCompanion', page)
@@ -260,42 +262,29 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertIn('การเปิดแผนที่จะขอความยินยอมแยก', privacy_page)
         self.assertIn('พิกัดจริงใช้ชั่วคราวในเบราว์เซอร์เพื่อปัดค่า', privacy_page)
 
-    def test_offline_pwa_assets_are_served_without_caching_private_pages(self):
+    def test_retired_offline_worker_only_clears_prior_public_caches(self):
         service_worker = self.client.get('/service-worker.js')
         try:
             self.assertEqual(service_worker.status_code, 200)
             self.assertIn('application/javascript', service_worker.headers['Content-Type'])
             self.assertIn('no-cache', service_worker.headers['Cache-Control'])
             worker_source = service_worker.get_data(as_text=True)
-            self.assertIn("smart-skin-public-shell-v4", worker_source)
-            self.assertIn("const PUBLIC_SHELL_ASSETS", worker_source)
-            self.assertIn("const PUBLIC_SHELL_ASSET_PATHS", worker_source)
-            self.assertIn("function isPublicShellAsset", worker_source)
-            self.assertIn("if (isPublicShellAsset(url.pathname))", worker_source)
-            self.assertIn("A generic /static/ rule is", worker_source)
-            self.assertIn("request.mode === 'navigate'", worker_source)
+            self.assertIn("caches.delete(key)", worker_source)
+            self.assertIn("self.registration.unregister()", worker_source)
+            self.assertNotIn("PUBLIC_SHELL_ASSETS", worker_source)
             self.assertNotIn("cache.put(request", worker_source)
-            self.assertNotIn("url.pathname.startsWith('/static/')", worker_source)
         finally:
             service_worker.close()
 
         manifest = self.client.get('/static/manifest.webmanifest')
         try:
-            self.assertEqual(manifest.status_code, 200)
-            self.assertEqual(manifest.get_json()['start_url'], '/')
-            self.assertEqual(manifest.get_json()['id'], '/')
-            self.assertEqual(manifest.get_json()['lang'], 'th')
-            self.assertEqual(manifest.get_json()['description'], 'ข้อมูลประกอบการดูแลผิวหนังอย่างรับผิดชอบ')
+            self.assertEqual(manifest.status_code, 404)
         finally:
             manifest.close()
 
         offline_page = self.client.get('/static/offline.html')
         try:
-            self.assertEqual(offline_page.status_code, 200)
-            self.assertIn('ไม่เก็บภาพ ผลคัดกรอง หรือพิกัดไว้ในเบราว์เซอร์', offline_page.get_data(as_text=True))
-            self.assertIn('หน้าแจ้งสถานะแบบสาธารณะ', offline_page.get_data(as_text=True))
-            self.assertIn('role="status"', offline_page.get_data(as_text=True))
-            self.assertNotIn('<form', offline_page.get_data(as_text=True).lower())
+            self.assertEqual(offline_page.status_code, 404)
         finally:
             offline_page.close()
 
@@ -889,7 +878,10 @@ class TestSmartSkinApp(unittest.TestCase):
         self.assertTrue(scan[3])
         self.assertEqual(scan[4], application.PRIVACY_NOTICE_VERSION)
         self.assertTrue(scan[5])
-        self.assertEqual(json.loads(scan[6])[0]['label'], 'Benign keratosis')
+        self.assertEqual(
+            json.loads(scan[6])[0]['label'],
+            application.display_name_for_label('Basal cell carcinoma'),
+        )
         self.assertEqual(scan[7], 0)
         self.assertEqual(scan[8], 'supported')
         self.assertEqual(scan[9], 'legacy-6-class')
@@ -977,7 +969,7 @@ class TestSmartSkinApp(unittest.TestCase):
         explanation_model = tf.keras.Model(inputs, classifier(pooled))
         classifier.set_weights([
             np.array([[0.010, 0.000, -0.004, 0.002, 0.001, -0.002], [0.003, 0.007, -0.001, 0.000, 0.002, -0.003]], dtype='float32'),
-            np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype='float32'),
+            np.array([0.0, 2.0, 0.0, 0.0, 0.0, 0.0], dtype='float32'),
         ])
         application.model = explanation_model
         user_id = self.create_user()
@@ -1286,6 +1278,8 @@ class TestSmartSkinApp(unittest.TestCase):
     def test_production_dashboard_shows_the_release_gate_instead_of_upload_form(self):
         user_id = self.create_user()
         self.sign_in_session(user_id)
+        with self.client.session_transaction() as session:
+            session['terms_version'] = application.TERMS_VERSION
         previous_environment = application.IS_PRODUCTION
         previous_testing = application.app.config['TESTING']
         try:
@@ -1294,7 +1288,7 @@ class TestSmartSkinApp(unittest.TestCase):
             response = self.client.get('/dashboard')
             page = response.get_data(as_text=True)
             self.assertEqual(response.status_code, 200)
-            self.assertIn('ระบบคัดกรองยังไม่เปิดใช้กับข้อมูลสุขภาพ', page)
+            self.assertIn('บริการข้อมูลจากภาพยังไม่เปิดใช้กับข้อมูลสุขภาพ', page)
             self.assertNotIn('id="scanForm"', page)
         finally:
             application.IS_PRODUCTION = previous_environment

@@ -39,7 +39,7 @@ class TestIndependentEvaluationEvidence(unittest.TestCase):
             'class_ids': list(self.class_ids),
             'class_names': list(self.class_names),
             'dataset_manifest': provenance('approved-training-set'),
-            'model_input_domain': 'multi_domain',
+            'model_input_domain': 'clinical',
             'artifact_sha256': artifact_sha256,
             'abstention_threshold': 0.60,
             'margin_threshold': 0.12,
@@ -47,8 +47,6 @@ class TestIndependentEvaluationEvidence(unittest.TestCase):
         }
 
     def valid_evaluation(self, metadata, metadata_sha256='b' * 64):
-        clinical_ids = [class_id for class_id in self.class_ids if self.catalog[class_id]['group'] == 'clinical']
-        dermoscopic_ids = [class_id for class_id in self.class_ids if self.catalog[class_id]['group'] == 'lesion']
         return {
             'schema_version': 1,
             'evaluation_id': 'independent-eval-2026-01',
@@ -73,14 +71,9 @@ class TestIndependentEvaluationEvidence(unittest.TestCase):
             'per_class_metrics': {class_id: metric() for class_id in self.class_ids},
             'by_input_domain': {
                 'clinical': {
-                    'image_count': 132,
-                    'class_ids': clinical_ids,
-                    'per_class_metrics': {class_id: metric() for class_id in clinical_ids},
-                },
-                'dermoscopic': {
-                    'image_count': 18,
-                    'class_ids': dermoscopic_ids,
-                    'per_class_metrics': {class_id: metric() for class_id in dermoscopic_ids},
+                    'image_count': 150,
+                    'class_ids': list(self.class_ids),
+                    'per_class_metrics': {class_id: metric() for class_id in self.class_ids},
                 },
             },
             'calibration_and_ood': {
