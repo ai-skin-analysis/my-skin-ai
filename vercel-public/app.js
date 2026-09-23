@@ -829,7 +829,7 @@
                 : { email, password };
             setAccountBusy(form, true);
             try {
-                const result = await accountRequest(`/api/auth/${isRegister ? 'register' : 'login'}`, body);
+                const result = await accountRequest(`/api/account/${isRegister ? 'register' : 'login'}`, body);
                 form.reset();
                 showAccountSession(result.user);
                 setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
@@ -842,7 +842,7 @@
 
         async function restoreAccountSession() {
             try {
-                const result = await accountRequest('/api/auth/me');
+                const result = await accountRequest('/api/account/me');
                 if (result.user) showAccountSession(result.user);
             } catch (error) {
                 if (/กำลังตั้งค่า/.test(error.message || '')) setAccountStatus(error.message, 'warning');
@@ -856,7 +856,7 @@
                 button.textContent = 'กำลังออกจากระบบ…';
             }
             try {
-                await accountRequest('/api/auth/logout', {});
+                await accountRequest('/api/account/logout', {});
                 showAccountForms();
                 setAccountStatus('ออกจากระบบเรียบร้อยแล้ว', 'info');
             } catch (error) {
