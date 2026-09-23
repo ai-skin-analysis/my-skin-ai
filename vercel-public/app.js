@@ -190,7 +190,6 @@
             document.getElementById('formLogin')?.addEventListener('submit', submitAccountForm);
             document.getElementById('formRegister')?.addEventListener('submit', submitAccountForm);
             document.getElementById('logoutButton')?.addEventListener('click', logoutAccount);
-            setupLocalImageCapture();
             restoreAccountSession();
         });
 
