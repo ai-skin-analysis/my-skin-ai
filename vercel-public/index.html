@@ -109,7 +109,7 @@
         </div>
         <div class="flex items-center space-x-2 bg-teal-950 text-teal-300 text-[11px] font-bold tracking-wider uppercase px-4 py-2 rounded-xl shadow-md border border-teal-800" role="status">
             <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-            <span>PUBLIC INFORMATION MODE</span>
+            <span>PUBLIC INFORMATION · ACCOUNT BETA</span>
         </div>
     </header>
 
@@ -128,7 +128,7 @@
                 </h1>
             </div>
             <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
-                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">ไม่มีการสมัครสมาชิก เข้าสู่ระบบ หรือรับภาพเพื่อวิเคราะห์ในขณะนี้</span> และเนื้อหาไม่ใช้แทนการวินิจฉัยของแพทย์
+                Smart Skin AI เปิดข้อมูลสาธารณะและระบบบัญชีทดลองสำหรับผู้ใช้ทั่วไป <span class="font-bold text-teal-600">ขณะนี้ยังไม่รับภาพเพื่อวิเคราะห์</span> และเนื้อหาไม่ใช้แทนการวินิจฉัยของแพทย์
             </p>
             <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
                 <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>ข้อมูลหน้านี้มีไว้ประกอบการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล</span></div>
@@ -137,7 +137,7 @@
             </div>
         </div>
 
-        <!-- รูปแบบแผงบัญชีกลับมาแสดงเหมือนหน้าเดิม แต่ยังไม่เชื่อมระบบบัญชี -->
+        <!-- แผงบัญชีสาธารณะ: ใช้เฉพาะบัญชีผู้ใช้ ยังไม่เปิดรับภาพสุขภาพ -->
         <div class="lg:col-span-5 flex justify-center lg:justify-end">
             <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-[32px]">
                 <div class="flex bg-slate-200/60 p-1.5 rounded-xl mb-6" role="tablist" aria-label="ตัวเลือกบัญชีผู้ใช้">
@@ -145,41 +145,50 @@
                     <button id="btnTabRegister" type="button" onclick="switchForm('register')" role="tab" aria-controls="formRegister" aria-selected="false" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900">ลงทะเบียนใหม่</button>
                 </div>
 
-                <form id="formLogin" class="space-y-4" aria-describedby="accountStatus" onsubmit="return showAccountPreviewNotice(event)">
+                <form id="formLogin" class="space-y-4" aria-describedby="accountStatus">
                     <div>
                         <label for="loginEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">อีเมลผู้ใช้งาน</label>
-                        <input id="loginEmail" type="email" readonly autocomplete="off" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="อีเมลผู้ใช้งาน — ยังไม่เปิดรับข้อมูล">
+                        <input id="loginEmail" type="email" name="email" maxlength="254" autocomplete="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
                     </div>
                     <div>
                         <label for="loginPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสผ่าน</label>
-                        <input id="loginPassword" type="password" readonly autocomplete="off" placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="รหัสผ่าน — ยังไม่เปิดรับข้อมูล">
+                        <input id="loginPassword" type="password" name="password" autocomplete="current-password" placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
                     </div>
-                    <button type="submit" class="w-full bg-teal-950 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">เข้าสู่ระบบ (Sign In)</button>
+                    <button id="loginSubmit" type="submit" class="w-full bg-teal-950 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">เข้าสู่ระบบ (Sign In)</button>
                 </form>
 
-                <form id="formRegister" class="space-y-4 hidden" aria-describedby="accountStatus" onsubmit="return showAccountPreviewNotice(event)">
+                <form id="formRegister" class="space-y-4 hidden" aria-describedby="accountStatus">
                     <div>
                         <label for="registerName" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อของคุณ</label>
-                        <input id="registerName" type="text" readonly autocomplete="off" placeholder="ชื่อ-นามสกุล" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="ชื่อของคุณ — ยังไม่เปิดรับข้อมูล">
+                        <input id="registerName" type="text" name="name" maxlength="100" autocomplete="name" placeholder="ชื่อ-นามสกุล" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
                     </div>
                     <div>
                         <label for="registerEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระบุอีเมลของคุณ</label>
-                        <input id="registerEmail" type="email" readonly autocomplete="off" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="อีเมลของคุณ — ยังไม่เปิดรับข้อมูล">
+                        <input id="registerEmail" type="email" name="email" maxlength="254" autocomplete="email" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
                     </div>
                     <div>
                         <label for="registerPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ตั้งรหัสผ่าน</label>
-                        <input id="registerPassword" type="password" readonly autocomplete="off" placeholder="อย่างน้อย 12 ตัวอักษร" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="ตั้งรหัสผ่าน — ยังไม่เปิดรับข้อมูล">
+                        <input id="registerPassword" type="password" name="password" minlength="12" autocomplete="new-password" placeholder="อย่างน้อย 12 ตัวอักษร" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white" required>
                     </div>
-                    <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-[11px] leading-relaxed text-slate-600">
-                        <input type="checkbox" disabled class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-[11px] leading-relaxed text-slate-600 cursor-pointer">
+                        <input id="registerTerms" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500" required>
                         <span>ฉันอ่านและยอมรับข้อกำหนดการใช้งานและประกาศความเป็นส่วนตัวฉบับปัจจุบัน</span>
                     </label>
-                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">ส่งข้อมูลเพื่อรออนุมัติ</button>
+                    <button id="registerSubmit" type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">ลงทะเบียนและเริ่มใช้งาน</button>
                     <p class="text-[11px] text-slate-400 text-center font-medium">* รหัสผ่านต้องยาวอย่างน้อย 12 ตัวอักษรและมีทั้งตัวอักษรกับตัวเลข</p>
                 </form>
 
-                <p id="accountStatus" class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs leading-relaxed text-amber-900" aria-live="polite">
-                    แสดงรูปแบบหน้าเดิมแล้ว แต่บัญชีผู้ใช้ยังไม่เปิดรับข้อมูลบนเว็บไซต์สาธารณะนี้ และจะไม่มีการส่งหรือจัดเก็บข้อมูลที่กรอก
+                <div id="accountSessionPanel" class="hidden text-center space-y-4" aria-live="polite">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"><i data-lucide="circle-check-big" class="h-7 w-7"></i></div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-900">เข้าสู่ระบบแล้ว</h2>
+                        <p id="accountSessionName" class="mt-2 text-sm leading-relaxed text-slate-600"></p>
+                    </div>
+                    <button id="logoutButton" type="button" class="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">ออกจากระบบ</button>
+                </div>
+
+                <p id="accountStatus" class="mt-5 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-center text-xs leading-relaxed text-teal-900" aria-live="polite" tabindex="-1">
+                    ระบบบัญชีเปิดทดลองใช้งานสาธารณะแล้ว ขณะนี้ยังไม่เปิดอัปโหลดภาพหรือระบบวิเคราะห์
                 </p>
             </div>
         </div>

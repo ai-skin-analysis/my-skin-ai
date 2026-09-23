@@ -185,8 +185,10 @@
             // are not dependable under every static-host security policy.
             document.getElementById('btnTabLogin')?.addEventListener('click', () => switchForm('login'));
             document.getElementById('btnTabRegister')?.addEventListener('click', () => switchForm('register'));
-            document.getElementById('formLogin')?.addEventListener('submit', showAccountPreviewNotice);
-            document.getElementById('formRegister')?.addEventListener('submit', showAccountPreviewNotice);
+            document.getElementById('formLogin')?.addEventListener('submit', submitAccountForm);
+            document.getElementById('formRegister')?.addEventListener('submit', submitAccountForm);
+            document.getElementById('logoutButton')?.addEventListener('click', logoutAccount);
+            restoreAccountSession();
         });
 
         function openEnvironmentLocationConsent() {
@@ -749,12 +751,120 @@
             }
         }
 
-        function showAccountPreviewNotice(event) {
-            if (event) event.preventDefault();
+        function setAccountStatus(message, tone = 'info') {
             const status = document.getElementById('accountStatus');
-            if (status) {
-                status.textContent = 'บัญชีผู้ใช้ยังไม่เปิดให้บริการบนเว็บไซต์สาธารณะนี้ จึงไม่มีการส่งหรือจัดเก็บอีเมล รหัสผ่าน หรือข้อมูลใด ๆ';
-                status.focus?.();
+            if (!status) return;
+            const styles = {
+                info: 'border-teal-200 bg-teal-50 text-teal-900',
+                success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+                error: 'border-rose-200 bg-rose-50 text-rose-900',
+                warning: 'border-amber-200 bg-amber-50 text-amber-900',
+            };
+            status.className = `mt-5 rounded-xl border px-4 py-3 text-center text-xs leading-relaxed ${styles[tone] || styles.info}`;
+            status.textContent = message;
+            status.focus();
+        }
+
+        function setAccountBusy(form, isBusy) {
+            const submit = form?.querySelector('button[type="submit"]');
+            if (!submit) return;
+            if (!submit.dataset.defaultLabel) submit.dataset.defaultLabel = submit.textContent;
+            submit.disabled = isBusy;
+            submit.classList.toggle('opacity-60', isBusy);
+            submit.classList.toggle('cursor-wait', isBusy);
+            submit.textContent = isBusy ? 'กำลังดำเนินการ…' : submit.dataset.defaultLabel;
+        }
+
+        function showAccountSession(user) {
+            const formLogin = document.getElementById('formLogin');
+            const formRegister = document.getElementById('formRegister');
+            const tabs = document.getElementById('btnTabLogin')?.parentElement;
+            const panel = document.getElementById('accountSessionPanel');
+            const name = document.getElementById('accountSessionName');
+            if (!formLogin || !formRegister || !tabs || !panel || !name) return;
+            formLogin.classList.add('hidden');
+            formRegister.classList.add('hidden');
+            tabs.classList.add('hidden');
+            name.textContent = `ยินดีต้อนรับ ${user.name} (${user.email})`;
+            panel.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function showAccountForms() {
+            const formLogin = document.getElementById('formLogin');
+            const panel = document.getElementById('accountSessionPanel');
+            const tabs = document.getElementById('btnTabLogin')?.parentElement;
+            panel?.classList.add('hidden');
+            tabs?.classList.remove('hidden');
+            formLogin?.reset();
+            document.getElementById('formRegister')?.reset();
+            switchForm('login');
+        }
+
+        async function accountRequest(path, body) {
+            const response = await fetch(path, {
+                method: body ? 'POST' : 'GET',
+                headers: body ? { 'Content-Type': 'application/json' } : undefined,
+                credentials: 'same-origin',
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || 'ไม่สามารถเชื่อมต่อระบบบัญชีได้ในขณะนี้');
+            return data;
+        }
+
+        async function submitAccountForm(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const isRegister = form.id === 'formRegister';
+            const email = form.querySelector('input[name="email"]')?.value || '';
+            const password = form.querySelector('input[name="password"]')?.value || '';
+            const body = isRegister
+                ? {
+                    name: document.getElementById('registerName')?.value || '',
+                    email,
+                    password,
+                    termsAccepted: Boolean(document.getElementById('registerTerms')?.checked),
+                }
+                : { email, password };
+            setAccountBusy(form, true);
+            try {
+                const result = await accountRequest(`/api/auth/${isRegister ? 'register' : 'login'}`, body);
+                form.reset();
+                showAccountSession(result.user);
+                setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
+            } catch (error) {
+                setAccountStatus(error.message || 'ไม่สามารถดำเนินการได้ในขณะนี้', 'error');
+            } finally {
+                setAccountBusy(form, false);
             }
-            return false;
+        }
+
+        async function restoreAccountSession() {
+            try {
+                const result = await accountRequest('/api/auth/me');
+                if (result.user) showAccountSession(result.user);
+            } catch (error) {
+                if (/กำลังตั้งค่า/.test(error.message || '')) setAccountStatus(error.message, 'warning');
+            }
+        }
+
+        async function logoutAccount() {
+            const button = document.getElementById('logoutButton');
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'กำลังออกจากระบบ…';
+            }
+            try {
+                await accountRequest('/api/auth/logout', {});
+                showAccountForms();
+                setAccountStatus('ออกจากระบบเรียบร้อยแล้ว', 'info');
+            } catch (error) {
+                setAccountStatus(error.message || 'ไม่สามารถออกจากระบบได้ในขณะนี้', 'error');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'ออกจากระบบ';
+                }
+            }
         }
