@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Based Skin Disease Analysis and Classification Using Deep Learning</title>
+    <meta name="theme-color" content="#0f766e">
+    <!-- Keep the information and account page readable even while optional CDN styling is slow or unavailable. -->
+    <script src="https://cdn.tailwindcss.com" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }
+        .gradient-text {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+            padding-top: 0.15em;
+            padding-bottom: 0.15em;
+            line-height: 1.25;
+        }
+        .medical-premium-bg {
+            background-image: 
+                linear-gradient(135deg, rgba(240, 253, 250, 0.95) 20%, rgba(204, 251, 241, 0.90) 55%, rgba(13, 148, 136, 0.20) 100%),
+                url('https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 25px 50px -12px rgba(13, 148, 136, 0.1);
+        }
+        .live-dot { animation: pulse-dot 1.8s infinite; }
+        @keyframes pulse-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.4; } }
+        @keyframes eilik-float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        @keyframes eilik-walk {
+            0%, 100% { transform: translateY(0) rotate(-3deg); }
+            50% { transform: translateY(-5px) rotate(3deg); }
+        }
+        @keyframes eilik-jump { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scaleY(1.05); } }
+        @keyframes eilik-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+        @keyframes eilik-eye-blink { 0%, 45%, 55%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.05); } }
+        @keyframes eilik-left-arm-up { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(50deg); } }
+        @keyframes eilik-right-arm-up { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-50deg); } }
+        @keyframes eilik-right-arm-wave { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-45deg); } 75% { transform: rotate(-15deg); } }
+        .eilik-state-float { animation: eilik-float 2.5s ease-in-out infinite; }
+        .eilik-state-walk { animation: eilik-walk .45s ease-in-out infinite; }
+        .eilik-state-jump { animation: eilik-jump .5s ease-in-out infinite; }
+        .eilik-state-spin { animation: eilik-spin .7s cubic-bezier(.4, 0, .2, 1) 1; }
+        .eilik-arm-left-up { transform-origin: 44px 96px; animation: eilik-left-arm-up .5s ease-in-out infinite; }
+        .eilik-arm-right-up { transform-origin: 96px 96px; animation: eilik-right-arm-up .5s ease-in-out infinite; }
+        .eilik-arm-right-wave { transform-origin: 96px 96px; animation: eilik-right-arm-wave .3s ease-in-out infinite; }
+        .eilik-animated-eyes { transform-origin: 70px 55px; animation: eilik-eye-blink 4s infinite; }
+        #eilik-space-container { max-width: min(240px, calc(100vw - 32px)); }
+        @media (max-width: 640px) { #eilik-space-container { transform: scale(.76); transform-origin: top left; } }
+        @media (prefers-reduced-motion: reduce) {
+            #eilik-space-container { transition: none !important; }
+            #eilik-render, .eilik-animated-eyes, #eilik-left-arm, #eilik-right-arm,
+            .live-dot, .animate-ping, .animate-pulse, .animate-spin { animation: none !important; }
+            *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body class="medical-premium-bg min-h-screen flex flex-col justify-between overflow-x-hidden relative">
+
+    <!-- Header Area -->
+    <header class="p-6 max-w-7xl mx-auto w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 z-10 relative">
+        <div class="flex items-center space-x-4 group">
+            <div class="relative cursor-pointer transition-transform duration-500 group-hover:rotate-[45deg] flex-shrink-0">
+                <svg class="w-12 h-12 filter drop-shadow-[0_4px_8px_rgba(13,148,136,0.15)]" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="48" stroke="#0f766e" stroke-width="2.5" />
+                    <circle cx="60" cy="60" r="42" stroke="#14b8a6" stroke-width="1" stroke-dasharray="2 4" opacity="0.6" />
+                    <path d="M60 14 C66 14, 76 28, 72 44 C68 56, 52 56, 48 44 C44 28, 54 14, 60 14 Z" fill="url(#greenDrop)" />
+                    <path d="M14 60 C14 54, 28 44, 44 48 C56 52, 56 68, 44 72 C28 76, 14 66, 14 60 Z" fill="url(#tealDrop)" />
+                    <path d="M60 106 C54 106, 44 92, 48 76 C52 64, 68 64, 72 76 C76 92, 66 106, 60 106 Z" fill="url(#redDrop)" />
+                    <path d="M106 60 C106 66, 92 76, 76 72 C64 68, 64 52, 76 48 C92 44, 106 54, 106 60 Z" fill="url(#redDrop)" />
+                    <circle cx="60" cy="60" r="25" fill="#111827" stroke="#ffffff" stroke-width="2" />
+                    <path d="M60 47v26M47 60h26" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+                    <defs>
+                        <linearGradient id="greenDrop" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#34d399" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <linearGradient id="tealDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2dd4bf" /><stop offset="100%" stop-color="#0d9488" /></linearGradient>
+                        <linearGradient id="redDrop" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#f43f5e" /><stop offset="100%" stop-color="#be123c" /></linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div class="font-bold text-xs sm:text-sm md:text-base tracking-wider text-slate-900 uppercase leading-relaxed">
+                AI-Based Skin Disease Analysis and Classification Using <span class="text-teal-600 font-extrabold italic">Deep Learning</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 bg-teal-950 text-teal-300 text-[11px] font-bold tracking-wider uppercase px-4 py-2 rounded-xl shadow-md border border-teal-800" role="status">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>PUBLIC INFORMATION MODE</span>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-6 py-4 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center flex-grow z-10 relative">
+        <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-teal-600/10 text-teal-800 text-[11px] font-extrabold uppercase tracking-widest px-3.5 py-2 rounded-xl border border-teal-200 shadow-sm backdrop-blur-sm">
+                <span>ℹ️ RESPONSIBLE SKIN HEALTH INFORMATION</span>
+            </div>
+            <div class="max-w-xl">
+                <h1 class="text-2xl sm:text-3xl lg:text-[2.25rem] font-extrabold text-slate-900 tracking-normal leading-normal">
+                    <span class="block text-slate-900 drop-shadow-sm sm:whitespace-nowrap">ระบบวิเคราะห์และจำแนกรอยโรคผิวหนังด้วย</span>
+                    <div class="w-full text-center mt-1.5">
+                        <span class="gradient-text font-black text-3xl sm:text-4xl lg:text-[2.6rem]">ปัญญาประดิษฐ์</span>
+                    </div>
+                </h1>
+            </div>
+            <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
+                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">ไม่มีการสมัครสมาชิก เข้าสู่ระบบ หรือรับภาพเพื่อวิเคราะห์ในขณะนี้</span> และเนื้อหาไม่ใช้แทนการวินิจฉัยของแพทย์
+            </p>
+            <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>ข้อมูลหน้านี้มีไว้ประกอบการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล</span></div>
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>ตำแหน่งเป็นข้อมูลเลือกใช้ และจะถูกขออนุญาตก่อนเรียกข้อมูลอากาศหรือแผนที่</span></div>
+                <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>หากกังวลเกี่ยวกับอาการผิวหนัง ควรปรึกษาแพทย์หรือผู้เชี่ยวชาญ</span></div>
+            </div>
+        </div>
+
+        <!-- บริการบัญชีจะไม่แสดงในโหมดข้อมูลสาธารณะ -->
+        <div class="lg:col-span-5 flex justify-center lg:justify-end">
+            <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-[32px]">
+                <div class="space-y-5 text-center" aria-live="polite">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><i data-lucide="info" class="h-7 w-7"></i></div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-900">โหมดข้อมูลสาธารณะ</h2>
+                        <p class="mt-2 text-sm leading-relaxed text-slate-600">ขณะนี้ระบบเปิดเผยเฉพาะข้อมูลการดูแลผิวทั่วไปและข้อมูลอากาศตามการยินยอมของคุณ</p>
+                    </div>
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-xs leading-relaxed text-amber-900">
+                        การสร้างบัญชี การเข้าสู่ระบบ และบริการรับภาพถูกปิดไว้ จนกว่าจะผ่านการทดสอบความพร้อมและเปิดให้บริการอย่างเป็นทางการ
+                    </div>
+                    <p class="text-xs leading-relaxed text-slate-500">หากมีอาการน่ากังวล เช่น แผลไม่หาย เลือดออก ปวดมาก หรือผื่นลามเร็ว โปรดติดต่อสถานพยาบาลโดยเร็ว</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Environment-Aware Section -->
+    <section class="max-w-7xl mx-auto px-6 py-8 w-full z-10 relative">
+        <div class="bg-white/85 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden w-full">
+            <div class="absolute -top-24 -right-24 w-60 h-60 bg-teal-400/10 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                <div class="flex items-center space-x-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-teal-500 to-teal-700 text-white flex items-center justify-center shadow-md shadow-teal-500/20 border border-teal-400/30">
+                        <i data-lucide="cloud-sun" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            Environment-Aware
+                            <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold bg-teal-950 text-teal-300 border border-teal-800 shadow-sm">
+                                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                <span>OPTIONAL LOCATION DATA</span>
+                            </span>
+                        </h2>
+                        <p class="text-xs text-slate-500">ข้อมูลอากาศประกอบการดูแลผิว ไม่ใช้วินิจฉัยหรือประเมินโรค</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2 self-start sm:self-auto">
+                    <button onclick="useCurrentLocationForEnvironment()" class="flex items-center space-x-2 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 px-4 py-2.5 rounded-xl border border-teal-600 shadow-md shadow-teal-700/20 transition-all group cursor-pointer">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-teal-200"></i>
+                        <span id="location-text">ใช้ตำแหน่งล่าสุดของฉัน</span>
+                    </button>
+                    <button onclick="openMapModal('dermatologist')" class="flex items-center space-x-2 text-xs font-bold text-teal-800 bg-white hover:bg-teal-50 px-4 py-2.5 rounded-xl border border-teal-200 shadow-sm transition-all group cursor-pointer">
+                        <i data-lucide="search" class="w-4 h-4 text-teal-700"></i>
+                        <span>ค้นหาสถานพยาบาล</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid 4 การ์ดสภาพอากาศหลัก -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 py-6">
+                <!-- UV Index -->
+                <div onclick="openEnvDetailModal('uv')" class="bg-white/70 hover:bg-amber-50/80 border border-slate-100 hover:border-amber-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="sun" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">UV INDEX</span>
+                    <span id="card-uv-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-uv-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- Temperature -->
+                <div onclick="openEnvDetailModal('temp')" class="bg-white/70 hover:bg-orange-50/80 border border-slate-100 hover:border-orange-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="thermometer" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">อุณหภูมิ</span>
+                    <span id="card-temp-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-temp-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- Humidity -->
+                <div onclick="openEnvDetailModal('humidity')" class="bg-white/70 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="droplets" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">ความชื้น</span>
+                    <span id="card-humidity-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-humidity-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+
+                <!-- AQI -->
+                <div onclick="openEnvDetailModal('aqi')" class="bg-white/70 hover:bg-emerald-50/80 border border-slate-100 hover:border-emerald-300 transition-all rounded-2xl p-4 text-center space-y-2 group shadow-sm cursor-pointer transform hover:-translate-y-1">
+                    <div class="w-10 h-10 mx-auto rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i data-lucide="wind" class="w-5 h-5"></i>
+                    </div>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">AQI</span>
+                    <span id="card-aqi-val" class="block text-2xl font-extrabold text-slate-900">...</span>
+                     <span id="card-aqi-status" class="inline-block px-2.5 py-0.5 text-xs font-bold rounded-full">รออนุญาตตำแหน่ง</span>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-100 bg-slate-50/85 px-4 py-3 text-xs leading-relaxed text-slate-600" aria-live="polite">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <i data-lucide="radio" class="h-3.5 w-3.5 text-teal-700"></i>
+                    <span id="environment-source-text" class="font-semibold text-slate-700">รอการอนุญาตตำแหน่งเพื่อเรียกข้อมูลอากาศปัจจุบัน</span>
+                    <button id="environmentRefreshButton" type="button" onclick="refreshEnvironmentData()" class="rounded-lg border border-teal-200 bg-white px-2.5 py-1 text-[11px] font-bold text-teal-700 transition hover:bg-teal-50 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-describedby="environment-source-note">อัปเดตข้อมูล</button>
+                </div>
+                <p id="environment-source-note" class="mt-1 text-[11px] text-slate-600">อุณหภูมิแสดงเป็นค่าประมาณจาก Open-Meteo ไม่ใช่ค่าจากเซนเซอร์โทรศัพท์หรือสถานีเดียวกัน จึงอาจต่างกันได้</p>
+            </div>
+
+            <!-- คำแนะนำดูแลผิวตามสภาวะอากาศ -->
+            <div class="bg-slate-900 text-white rounded-2xl p-5 space-y-4 relative overflow-hidden shadow-inner border border-slate-800">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-2 text-teal-400 font-bold text-xs">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <span>คำแนะนำดูแลผิวตามสภาวะอากาศขณะนี้</span>
+                    </div>
+                    <span id="time-period-badge" class="px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 bg-slate-800 border border-slate-700">
+                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                        <span id="time-period-text">กำลังตรวจสอบเวลา...</span>
+                    </span>
+                </div>
+                
+                <p id="env-summary-text" class="text-xs text-slate-300 leading-relaxed">
+                    เลือกใช้ตำแหน่งเพื่อดูข้อมูลอากาศจากบริการภายนอก ข้อมูลนี้เป็นเพียงคำแนะนำดูแลผิวทั่วไป
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-1-el" data-lucide="shield-check" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-1">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-2-el" data-lucide="sparkles" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-2">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div id="rec-icon-3-box" class="p-2 bg-amber-500/20 text-amber-400 rounded-lg shrink-0 border border-amber-500/30">
+                            <i id="rec-icon-3-el" data-lucide="wind" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-3">เปิดเครื่องฟอกอากาศและปิดหน้าต่างลดฝุ่นสะสม</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
+                        <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
+                            <i id="rec-icon-4-el" data-lucide="glass-water" class="w-4 h-4"></i>
+                        </div>
+                        <span id="rec-4">กำลังประมวลผลคำแนะนำ...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- น้องอิลลิคเวอร์ชันเดิม: เดินสำรวจ ทักทาย และโต้ตอบได้ -->
+    <aside id="eilik-space-container" class="fixed z-40 pointer-events-none transition-all duration-[2500ms] ease-in-out" style="left: 100px; top: 60%;" aria-label="น้องอิลลิค ผู้ช่วย AI">
+        <div class="relative flex flex-col items-center select-none">
+            <div class="mb-2 max-w-[240px] rounded-2xl border border-teal-800 bg-slate-950 px-4 py-2.5 text-center text-xs font-medium text-slate-100 shadow-xl">
+                <div class="absolute bottom-[-6px] left-1/2 h-0 w-0 -translate-x-1/2 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-slate-950"></div>
+                💚 <span id="eilik-speech">กำลังเตรียมระบบต้อนรับ...</span>
+            </div>
+            <button id="eilik-render" type="button" class="eilik-state-float pointer-events-auto h-28 w-24 cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-4 focus-visible:ring-teal-400/70" aria-label="โต้ตอบกับน้องอิลลิค">
+                <svg viewBox="0 0 140 160" class="h-full w-full drop-shadow-xl" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="eilikBodyGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#f1f5f9" /></linearGradient>
+                        <linearGradient id="eilikGreenGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#10b981" /><stop offset="100%" stop-color="#059669" /></linearGradient>
+                        <filter id="eilikEyeGlow"><feGaussianBlur stdDeviation="1" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
+                    </defs>
+                    <path d="M25 45 C21 45 21 65 26 65 Z" fill="#94a3b8" />
+                    <path d="M115 45 C119 45 119 65 114 65 Z" fill="#94a3b8" />
+                    <ellipse cx="70" cy="52" rx="44" ry="39" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    <path d="M50 14 Q70 8 90 14 Q70 20 50 14 Z" fill="url(#eilikGreenGradient)" />
+                    <ellipse cx="70" cy="55" rx="33" ry="26" fill="#121316" />
+                    <g class="eilik-animated-eyes" filter="url(#eilikEyeGlow)">
+                        <path d="M48 59 C48 48 63 48 63 59 C63 56 48 56 48 59 Z" fill="#00ffcc" />
+                        <path d="M77 59 C77 48 92 48 92 59 C92 56 77 56 77 59 Z" fill="#00ffcc" />
+                    </g>
+                    <ellipse cx="70" cy="91" rx="10" ry="3.5" fill="#334155" />
+                    <path d="M42 94 C42 94 36 143 70 145 C104 143 98 94 98 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    <path d="M52 93 C54 105 58 118 70 118 C82 118 86 105 88 93 C78 96 62 96 52 93 Z" fill="url(#eilikGreenGradient)" />
+                    <g id="eilik-left-arm">
+                        <path d="M44 96 C38 96 36 108 42 115 Z" fill="url(#eilikGreenGradient)" />
+                        <path d="M42 94 C23 99 23 126 35 133 C43 127 45 111 42 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    </g>
+                    <g id="eilik-right-arm">
+                        <path d="M96 96 C102 96 104 108 98 115 Z" fill="url(#eilikGreenGradient)" />
+                        <path d="M98 94 C117 99 117 126 105 133 C97 127 95 111 98 94 Z" fill="url(#eilikBodyGradient)" stroke="#cbd5e1" stroke-width=".5" />
+                    </g>
+                    <text x="75" y="108" font-family="'Plus Jakarta Sans', sans-serif" font-size="6.5" font-weight="800" fill="#0f766e" letter-spacing=".1">Eilik</text>
+                </svg>
+            </button>
+            <div id="eilik-floor-shadow" class="h-1.5 w-14 rounded-full bg-teal-950/10 transition-all duration-500"></div>
+        </div>
+    </aside>
+
+    <!-- Explicit consent shown before asking the browser for a location. -->
+    <div id="environmentLocationConsentModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="environmentLocationConsentTitle" aria-describedby="environmentLocationConsentDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-7">
+            <div class="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div class="flex gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-200 bg-teal-50 text-teal-700"><i data-lucide="map-pin" class="h-5 w-5"></i></div>
+                    <div>
+                        <h3 id="environmentLocationConsentTitle" class="text-base font-extrabold text-slate-900">อนุญาตใช้ตำแหน่งสำหรับข้อมูลอากาศ</h3>
+                        <p id="environmentLocationConsentDescription" class="mt-1 text-xs leading-relaxed text-slate-600">ระบบจะยังไม่เข้าถึงตำแหน่งจนกว่าคุณจะยืนยันด้านล่าง แล้วจึงแสดงกล่องอนุญาตของเบราว์เซอร์</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeEnvironmentLocationConsent()" class="px-2 text-xl font-bold text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดหน้าต่างอนุญาตตำแหน่ง" data-modal-close>×</button>
+            </div>
+
+            <div class="rounded-2xl border border-teal-100 bg-teal-50/70 p-4 text-xs leading-relaxed text-teal-950">
+                <p class="font-bold">ข้อมูลที่ส่งเฉพาะหลังยินยอม</p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li>พิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่งไปยัง Open-Meteo เพื่ออุณหภูมิ ความชื้น UV และคุณภาพอากาศ</li>
+                    <li>พิกัดที่ปัดแล้วไปยัง OpenStreetMap Nominatim เพื่อแสดงชื่อเขต/จังหวัดโดยประมาณ</li>
+                </ul>
+                <p class="mt-2">พิกัดจริงใช้ชั่วคราวในเบราว์เซอร์เพื่อปัดพิกัดเท่านั้น และไม่ถูกบันทึกในหน้านี้ การเปิด Google Maps ต้องยินยอมแยกต่างหาก</p>
+            </div>
+
+            <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                <input id="environmentLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                <span class="text-xs leading-relaxed text-slate-700">ฉันเข้าใจว่าจะมีการส่งตำแหน่งโดยประมาณให้บริการภายนอกตามที่ระบุ เพื่อขอข้อมูลอากาศและชื่อพื้นที่สำหรับครั้งนี้</span>
+            </label>
+            <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900">หมายเหตุ: เบราว์เซอร์อนุญาต GPS ให้เว็บที่เปิดผ่าน HTTPS เท่านั้น หากเปิดจากลิงก์ IP แบบ HTTP ระบบจะแจ้งวิธีแก้ก่อนส่งข้อมูลใด ๆ</p>
+            <p id="environmentLocationConsentStatus" class="min-h-5 text-xs font-semibold text-rose-600" aria-live="polite"></p>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" onclick="closeEnvironmentLocationConsent()" class="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">ไม่ใช้ตำแหน่ง</button>
+                <button type="button" onclick="approveEnvironmentLocationConsent()" class="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-teal-800">ยืนยันและขอตำแหน่ง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🏥 Medical Dermatology Locator Modal (เพิ่มช่องค้นหาคำสำคัญ Search Box) 🏥 -->
+    <div id="mapModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-all duration-300 p-4" role="dialog" aria-modal="true" aria-labelledby="mapModalTitle" aria-describedby="coords-text" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-3xl space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100">
+                        <i data-lucide="cross" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 id="mapModalTitle" class="text-base font-bold text-slate-900">ค้นหาสถานพยาบาลโรคผิวหนัง (Live Medical Map)</h3>
+                        <p class="text-xs text-slate-500" id="coords-text">ค้นหาตามคำสำคัญ — ยังไม่ได้ใช้ตำแหน่งของคุณ</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeMapModal()" class="text-slate-500 hover:text-slate-700 font-bold text-xl px-2 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดแผนที่" data-modal-close>✕</button>
+            </div>
+
+            <!-- 🔍 ช่องค้นหาคำสำคัญ (Search Bar) เพิ่มใหม่ 🔍 -->
+            <div class="flex items-center gap-2">
+                <div class="relative flex-grow">
+                        <input type="text" id="customSearchInput" onkeypress="handleSearchKeyPress(event)" placeholder="พิมพ์ชื่อสถานที่, โรงพยาบาล, คลินิก หรืออำเภอ..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-xs bg-slate-50 font-medium" aria-label="ค้นหาสถานพยาบาล">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                </div>
+                <button onclick="executeCustomSearch()" class="px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1 shrink-0">
+                    <span>ค้นหา</span>
+                </button>
+            </div>
+
+            <!-- Quick Filter Tabs ค้นหาสถานพยาบาลย่อย -->
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button onclick="filterMapSearch('dermatologist')" id="mapBtnDerm" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-teal-700 text-white shadow-sm flex items-center gap-1.5 transition-all">
+                    <i data-lucide="stethoscope" class="w-3.5 h-3.5"></i> คลินิกหมอผิวหนัง
+                </button>
+                <button onclick="filterMapSearch('hospital')" id="mapBtnHosp" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all">
+                    <i data-lucide="building-2" class="w-3.5 h-3.5"></i> ศูนย์โรคผิวหนัง โรงพยาบาลใหญ่
+                </button>
+                <button onclick="filterMapSearch('pharmacy')" id="mapBtnPharm" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center gap-1.5 transition-all">
+                    <i data-lucide="pill" class="w-3.5 h-3.5"></i> ร้านขายยา (มียาทาผิวหนัง)
+                </button>
+            </div>
+
+            <!-- Map frame: the approximate device position is marked only after a separate opt-in. -->
+            <div class="w-full h-80 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+                <iframe id="googleMapIframe" class="w-full h-full border-0" title="แผนที่ค้นหาสถานพยาบาลและตำแหน่งโดยประมาณ" loading="lazy" referrerpolicy="no-referrer" allowfullscreen src=""></iframe>
+                <div id="mapFrameFallback" class="absolute inset-0 hidden items-center justify-center bg-slate-100 p-6 text-center" aria-live="polite">
+                    <div class="max-w-sm space-y-2 text-xs text-slate-600">
+                        <i data-lucide="map-off" class="mx-auto h-8 w-8 text-slate-400"></i>
+                        <p id="mapFrameFallbackText" class="font-semibold">ยังไม่สามารถแสดงแผนที่ได้</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                <div class="flex flex-col gap-1 text-xs text-slate-500 font-medium">
+                    <span>💡 ค้นหาสถานพยาบาลด้วยคำสำคัญได้โดยไม่แชร์ตำแหน่ง</span>
+                    <label class="mt-1 flex max-w-xl cursor-pointer items-start gap-2 rounded-xl border border-teal-100 bg-teal-50/70 p-2.5 text-left text-[11px] leading-relaxed text-teal-950">
+                        <input id="mapLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                        <span>ฉันยินยอมให้ระบบขอตำแหน่งล่าสุดจากเบราว์เซอร์ และส่งพิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่ง (ราว 10–20 เมตร) ไปยัง OpenStreetMap เพื่อแสดงหมุดตำแหน่งโดยประมาณในแผนที่</span>
+                    </label>
+                    <label class="flex max-w-xl cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-left text-[11px] leading-relaxed text-slate-700">
+                        <input id="googleMapLocationConsentCheck" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                        <span>ไม่บังคับ: ฉันยินยอมให้ส่งพิกัดที่ปัดแล้วไปยัง Google Maps เพื่อจัดกึ่งกลางผลค้นหาสถานพยาบาลใกล้ฉัน หากไม่เลือก Google Maps จะค้นหาโดยไม่ใช้ตำแหน่ง</span>
+                    </label>
+                    <button type="button" onclick="useCurrentLocationForMap()" id="mapLocationButton" class="w-fit font-bold text-teal-700 hover:text-teal-800 hover:underline">แสดงตำแหน่งปัจจุบันโดยประมาณบนแผนที่</button>
+                    <span id="mapLocationStatus" class="min-h-4 text-[11px] font-semibold text-slate-500" aria-live="polite"></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a id="btnExternalNav" href="#" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-rose-600 text-white font-bold text-xs rounded-xl hover:bg-rose-700 transition-all flex items-center gap-1.5 shadow-sm">
+                        <i data-lucide="navigation" class="w-3.5 h-3.5"></i><span id="btnExternalNavText">ค้นหาใน Google Maps</span>
+                    </a>
+                    <button onclick="closeMapModal()" class="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all">ปิดหน้าต่าง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="envDetailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden transition-all duration-300 p-4" role="dialog" aria-modal="true" aria-labelledby="envModalTitle" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div id="envModalIcon" class="p-3 rounded-2xl"></div>
+                    <div>
+                        <h3 id="envModalTitle" class="text-base font-bold text-slate-900"></h3>
+                        <span id="envModalBadge" class="inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full mt-1"></span>
+                    </div>
+                </div>
+                <button type="button" onclick="closeEnvDetailModal()" class="text-slate-500 hover:text-slate-700 font-bold text-xl px-2 focus:outline-none focus:ring-2 focus:ring-teal-500" aria-label="ปิดรายละเอียดข้อมูลอากาศ" data-modal-close>✕</button>
+            </div>
+            <div class="space-y-3">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">ค่าปัจจุบัน (Live API Data)</span>
+                    <span id="envModalValue" class="text-3xl font-extrabold text-slate-900"></span>
+                </div>
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">ผลกระทบต่อผิวหนัง & คำแนะนำ:</h4>
+                    <p id="envModalDesc" class="text-xs text-slate-600 leading-relaxed bg-teal-50/60 p-3.5 rounded-xl border border-teal-100"></p>
+                </div>
+            </div>
+            <div class="pt-2">
+                <button onclick="closeEnvDetailModal()" class="w-full py-3 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-all">เข้าใจแล้ว</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script ควบคุมระบบทั้งหมด -->
+    <script src="app.js" defer></script>
+</body>
+</html>
