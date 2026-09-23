@@ -933,6 +933,8 @@
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
+        let pendingAdminMfaChallenge = '';
+
         function showAccountForms() {
             const formLogin = document.getElementById('formLogin');
             const panel = document.getElementById('accountSessionPanel');
@@ -941,6 +943,13 @@
             tabs?.classList.remove('hidden');
             formLogin?.reset();
             document.getElementById('formRegister')?.reset();
+            pendingAdminMfaChallenge = '';
+            document.getElementById('loginMfaPanel')?.classList.add('hidden');
+            const loginSubmit = document.getElementById('loginSubmit');
+            if (loginSubmit) {
+                delete loginSubmit.dataset.defaultLabel;
+                loginSubmit.textContent = 'เข้าสู่ระบบ (Sign In)';
+            }
             switchForm('login');
         }
 
@@ -962,7 +971,10 @@
             const isRegister = form.id === 'formRegister';
             const email = form.querySelector('input[name="email"]')?.value || '';
             const password = form.querySelector('input[name="password"]')?.value || '';
-            const body = isRegister
+            const isMfaVerification = !isRegister && Boolean(pendingAdminMfaChallenge);
+            const body = isMfaVerification
+                ? { challengeId: pendingAdminMfaChallenge, code: document.getElementById('loginMfaCode')?.value || '' }
+                : isRegister
                 ? {
                     name: document.getElementById('registerName')?.value || '',
                     email,
@@ -972,10 +984,27 @@
                 : { email, password };
             setAccountBusy(form, true);
             try {
-                const result = await accountRequest(`/api/account/${isRegister ? 'register' : 'login'}`, body);
+                const endpoint = isMfaVerification ? '/api/admin/mfa/verify' : `/api/account/${isRegister ? 'register' : 'login'}`;
+                const result = await accountRequest(endpoint, body);
+                if (result.mfaRequired) {
+                    pendingAdminMfaChallenge = result.challengeId;
+                    document.getElementById('loginMfaPanel')?.classList.remove('hidden');
+                    const loginSubmit = document.getElementById('loginSubmit');
+                    if (loginSubmit) {
+                        loginSubmit.dataset.defaultLabel = 'ยืนยันรหัส MFA';
+                        loginSubmit.textContent = 'ยืนยันรหัส MFA';
+                    }
+                    document.getElementById('loginMfaCode')?.focus();
+                    setAccountStatus(result.message || 'กรุณากรอกรหัส 6 หลักจากแอปยืนยันตัวตน', 'info');
+                    return;
+                }
+                if (result.mfaEnrollmentRequired) {
+                    window.location.assign('/admin-mfa-enroll.html');
+                    return;
+                }
                 form.reset();
                 setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
-                window.location.assign('/dashboard.html');
+                window.location.assign(result.user?.role === 'admin' && result.user?.mfaVerified ? '/admin.html' : '/dashboard.html');
             } catch (error) {
                 setAccountStatus(error.message || 'ไม่สามารถดำเนินการได้ในขณะนี้', 'error');
             } finally {
@@ -986,6 +1015,11 @@
         async function restoreAccountSession() {
             try {
                 const result = await accountRequest('/api/account/me');
+                if (result.user?.role === 'admin') {
+                    if (!result.user.mfaEnrolled) window.location.replace('/admin-mfa-enroll.html');
+                    if (result.user.mfaVerified) window.location.replace('/admin.html');
+                    return;
+                }
                 if (result.user) window.location.replace('/dashboard.html');
             } catch (error) {
                 if (/กำลังตั้งค่า/.test(error.message || '')) setAccountStatus(error.message, 'warning');

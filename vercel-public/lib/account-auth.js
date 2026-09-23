@@ -11,7 +11,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RATE_WINDOWS = {
   register: { limit: 5, windowMs: 60 * 60 * 1000 },
   login: { limit: 10, windowMs: 15 * 60 * 1000 },
+  admin_mfa: { limit: 10, windowMs: 15 * 60 * 1000 },
 };
+// This bootstrap identifier is only used to retain the initial administrator
+// account requested for this deployment. A deployment secret can replace it
+// without changing code after the first admin is provisioned.
+const bootstrapAdminEmail = (process.env.SMART_SKIN_ADMIN_EMAIL || 'admin@hucksmartskinai.com').trim().toLowerCase();
 
 const requestBuckets = new Map();
 let schemaPromise;
@@ -154,11 +159,37 @@ export async function database() {
         email VARCHAR(254) NOT NULL UNIQUE,
         display_name VARCHAR(100) NOT NULL,
         password_hash TEXT NOT NULL,
+        role VARCHAR(16) NOT NULL DEFAULT 'user',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         last_login_at TIMESTAMPTZ
       )`;
+      await sql`ALTER TABLE smart_skin_users
+        ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'user'`;
+      // The account must exist already: this statement never creates an
+      // administrator or accepts a role supplied by the browser.
+      await sql`UPDATE smart_skin_users SET role = 'admin'
+        WHERE email = ${bootstrapAdminEmail} AND role = 'user'`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_users_created_at_idx
         ON smart_skin_users (created_at DESC)`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
+        user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        secret_ciphertext TEXT NOT NULL,
+        recovery_code_hashes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        enabled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa_enrollments (
+        id VARCHAR(80) PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        secret_ciphertext TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ
+      )`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa_challenges (
+        id VARCHAR(80) PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ
+      )`;
     })().catch((error) => {
       schemaPromise = undefined;
       throw error;
@@ -188,7 +219,7 @@ async function dummyPasswordHash() {
   return dummyPasswordHashPromise;
 }
 
-function authSecret() {
+export function authSecret() {
   const secret = process.env.AUTH_SESSION_SECRET;
   if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
     throw new PublicAccountError('ระบบบัญชีกำลังตั้งค่า กรุณาลองใหม่ภายหลัง', 503);
@@ -200,8 +231,8 @@ function signature(value) {
   return createHmac('sha256', authSecret()).update(value).digest('base64url');
 }
 
-export function issueSession(res, userId) {
-  const payload = Buffer.from(JSON.stringify({ sub: Number(userId), exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS })).toString('base64url');
+export function issueSession(res, userId, { mfaVerified = false } = {}) {
+  const payload = Buffer.from(JSON.stringify({ sub: Number(userId), mfa: Boolean(mfaVerified), exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS })).toString('base64url');
   const token = `v1.${payload}.${signature(`v1.${payload}`)}`;
   res.setHeader(
     'Set-Cookie',
@@ -222,7 +253,7 @@ function cookieValue(req, name) {
   return '';
 }
 
-export function sessionUserId(req) {
+export function sessionClaims(req) {
   const token = cookieValue(req, 'smart_skin_session');
   const [version, payload, providedSignature] = token.split('.');
   if (version !== 'v1' || !payload || !providedSignature) return null;
@@ -233,28 +264,34 @@ export function sessionUserId(req) {
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (!Number.isSafeInteger(data.sub) || data.sub < 1 || !Number.isSafeInteger(data.exp) || data.exp <= Math.floor(Date.now() / 1000)) return null;
-    return data.sub;
+    return { sub: data.sub, mfaVerified: data.mfa === true };
   } catch {
     return null;
   }
 }
 
+export function sessionUserId(req) {
+  return sessionClaims(req)?.sub || null;
+}
+
 export async function publicUserById(userId) {
   const sql = await database();
-  const rows = await sql`SELECT id, display_name, email FROM smart_skin_users WHERE id = ${userId}`;
+  const rows = await sql`SELECT users.id, users.display_name, users.email, users.role,
+    EXISTS(SELECT 1 FROM smart_skin_admin_mfa WHERE smart_skin_admin_mfa.user_id = users.id) AS mfa_enabled
+    FROM smart_skin_users AS users WHERE users.id = ${userId}`;
   const user = rows[0];
-  return user ? { id: Number(user.id), name: user.display_name, email: user.email } : null;
+  return user ? { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: user.mfa_enabled === true } : null;
 }
 
 export async function registerUser({ name, email, password }) {
   const sql = await database();
   const passwordHash = await hashPassword(password);
   try {
-    const rows = await sql`INSERT INTO smart_skin_users (display_name, email, password_hash)
+    const rows = await sql`INSERT INTO smart_skin_users (display_name, email, password_hash, role)
       VALUES (${name}, ${email}, ${passwordHash})
-      RETURNING id, display_name, email`;
+      RETURNING id, display_name, email, role`;
     const user = rows[0];
-    return { id: Number(user.id), name: user.display_name, email: user.email };
+    return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: false };
   } catch (error) {
     if (error && error.code === '23505') {
       throw new PublicAccountError('อีเมลนี้ถูกใช้งานแล้ว');
@@ -265,12 +302,14 @@ export async function registerUser({ name, email, password }) {
 
 export async function authenticateUser({ email, password }) {
   const sql = await database();
-  const rows = await sql`SELECT id, display_name, email, password_hash FROM smart_skin_users WHERE email = ${email}`;
+  const rows = await sql`SELECT users.id, users.display_name, users.email, users.password_hash, users.role,
+    EXISTS(SELECT 1 FROM smart_skin_admin_mfa WHERE smart_skin_admin_mfa.user_id = users.id) AS mfa_enabled
+    FROM smart_skin_users AS users WHERE users.email = ${email}`;
   const user = rows[0];
   const valid = await verifyPassword(password, user?.password_hash || await dummyPasswordHash());
   if (!user || !valid) return null;
   await sql`UPDATE smart_skin_users SET last_login_at = NOW() WHERE id = ${user.id}`;
-  return { id: Number(user.id), name: user.display_name, email: user.email };
+  return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: user.mfa_enabled === true };
 }
 
 export function publicError(res, error, operation) {

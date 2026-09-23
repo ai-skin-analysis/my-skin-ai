@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#090e17">
+  <title>ตั้งค่า MFA | Smart Skin AI</title>
+  <script src="https://cdn.tailwindcss.com" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Plus Jakarta Sans','Anuphan',sans-serif}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}</style>
+</head>
+<body class="min-h-screen bg-slate-950 px-5 py-10 text-slate-100">
+  <main class="mx-auto max-w-xl">
+    <a href="/" class="text-sm font-bold text-teal-300 transition hover:text-teal-100">← กลับหน้าหลัก</a>
+    <section class="mt-5 rounded-[2rem] border border-slate-700 bg-slate-900 p-7 shadow-2xl sm:p-10">
+      <span class="inline-flex rounded-2xl bg-teal-500/15 px-4 py-2 text-xs font-extrabold tracking-wider text-teal-200">ADMIN SECURITY</span>
+      <h1 class="mt-5 text-3xl font-extrabold tracking-tight">ตั้งค่า MFA</h1>
+      <p class="mt-3 text-sm leading-relaxed text-slate-300">ใช้แอป Google Authenticator, Microsoft Authenticator หรือแอปที่รองรับ TOTP เพื่อปกป้องบัญชีผู้ดูแลระบบ</p>
+
+      <div id="mfaStartPanel" class="mt-7">
+        <button id="startMfaButton" type="button" class="w-full rounded-xl bg-teal-600 px-5 py-4 font-bold text-white transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-400/50">เริ่มตั้งค่า MFA</button>
+      </div>
+
+      <form id="mfaConfirmForm" class="mt-7 hidden space-y-5" aria-describedby="mfaStatus">
+        <div class="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm leading-relaxed text-amber-100">
+          เก็บรหัสนี้ไว้เป็นความลับ ห้ามส่งให้ผู้อื่นหรือบันทึกในแชต
+        </div>
+        <ol class="space-y-3 text-sm leading-relaxed text-slate-300">
+          <li><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-teal-500/20 text-xs font-bold text-teal-200">1</span>เปิดแอป Authenticator แล้วเลือกเพิ่มบัญชีด้วยคีย์ตั้งค่า</li>
+          <li><span class="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-teal-500/20 text-xs font-bold text-teal-200">2</span>ตั้งชื่อบัญชีว่า <strong>Smart Skin AI</strong> และเลือกแบบอิงเวลา (Time-based)</li>
+        </ol>
+        <div class="rounded-xl border border-slate-700 bg-slate-950 p-4">
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-400">คีย์ตั้งค่า</p>
+          <div class="mt-2 flex items-center gap-2"><code id="mfaSecret" class="min-w-0 flex-1 break-all text-sm font-bold tracking-wider text-teal-200"></code><button id="copyMfaSecret" type="button" class="shrink-0 rounded-lg border border-teal-500/50 px-3 py-2 text-xs font-bold text-teal-200 transition hover:bg-teal-500/10">คัดลอก</button></div>
+        </div>
+        <div>
+          <label for="mfaCode" class="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-300">รหัส 6 หลักจากแอป</label>
+          <input id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required placeholder="000000" class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-4 text-center font-mono text-xl tracking-[0.4em] text-white focus:border-teal-400 focus:ring-2 focus:ring-teal-400">
+        </div>
+        <button id="confirmMfaButton" type="submit" class="w-full rounded-xl bg-teal-600 px-5 py-4 font-bold text-white transition hover:bg-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-400/50">ยืนยันและเข้าสู่แดชบอร์ด</button>
+      </form>
+      <p id="mfaStatus" class="mt-5 hidden rounded-xl px-4 py-3 text-sm" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="admin-mfa-enroll.js" defer></script>
+</body>
+</html>
