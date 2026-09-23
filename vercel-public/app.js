@@ -178,6 +178,8 @@
             humidity: { val: "0%", status: "กำลังโหลด...", title: "ความชื้นสัมพัทธ์ (Humidity)", badge: "", badgeClass: "", iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: "" },
             aqi: { val: "0", status: "กำลังโหลด...", title: "ดัชนีคุณภาพอากาศ (AQI)", badge: "", badgeClass: "", iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: "" }
         };
+        let localPreviewUrl = '';
+        let localCameraStream = null;
 
         document.addEventListener("DOMContentLoaded", () => {
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -188,8 +190,150 @@
             document.getElementById('formLogin')?.addEventListener('submit', submitAccountForm);
             document.getElementById('formRegister')?.addEventListener('submit', submitAccountForm);
             document.getElementById('logoutButton')?.addEventListener('click', logoutAccount);
+            setupLocalImageCapture();
             restoreAccountSession();
         });
+
+        function setupLocalImageCapture() {
+            document.getElementById('localImageInput')?.addEventListener('change', handleLocalImageSelection);
+            document.getElementById('openLocalCameraButton')?.addEventListener('click', openLocalCamera);
+            document.getElementById('clearLocalImageButton')?.addEventListener('click', clearLocalImagePreview);
+            document.getElementById('closeLocalCameraButton')?.addEventListener('click', closeLocalCamera);
+            document.getElementById('cancelLocalCameraButton')?.addEventListener('click', closeLocalCamera);
+            document.getElementById('takeLocalPhotoButton')?.addEventListener('click', takeLocalPhoto);
+            window.addEventListener('pagehide', stopLocalCameraTracks);
+        }
+
+        function setLocalImageStatus(message, tone = 'info') {
+            const status = document.getElementById('localImageStatus');
+            if (!status) return;
+            const tones = {
+                info: 'mt-3 text-xs leading-relaxed text-amber-950',
+                success: 'mt-3 text-xs leading-relaxed font-semibold text-teal-800',
+                error: 'mt-3 text-xs leading-relaxed font-semibold text-rose-700',
+            };
+            status.className = tones[tone] || tones.info;
+            status.textContent = message;
+        }
+
+        function formatLocalImageSize(bytes) {
+            if (!Number.isFinite(bytes) || bytes < 1024) return `${bytes || 0} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+
+        function validateLocalImage(file) {
+            const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+            if (!file || !allowedTypes.has(file.type)) {
+                setLocalImageStatus('กรุณาเลือกภาพ JPG, JPEG, PNG หรือ WEBP เท่านั้น', 'error');
+                return false;
+            }
+            if (!file.size || file.size > 8 * 1024 * 1024) {
+                setLocalImageStatus('ภาพต้องมีขนาดไม่เกิน 8 MB กรุณาเลือกไฟล์ที่เล็กลง', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        function presentLocalImage(file, sourceLabel) {
+            if (!validateLocalImage(file)) return;
+            if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+            localPreviewUrl = URL.createObjectURL(file);
+            const preview = document.getElementById('localImagePreview');
+            const placeholder = document.getElementById('imageCapturePlaceholder');
+            const panel = document.getElementById('localImagePreviewPanel');
+            const meta = document.getElementById('localImageFileMeta');
+            if (!preview || !placeholder || !panel || !meta) return;
+            preview.src = localPreviewUrl;
+            meta.textContent = `${sourceLabel}: ${file.name} · ${formatLocalImageSize(file.size)}`;
+            placeholder.classList.add('hidden');
+            panel.classList.remove('hidden');
+            setLocalImageStatus('ภาพพร้อมสำหรับดูตัวอย่างบนอุปกรณ์นี้เท่านั้น ภาพไม่ได้ถูกอัปโหลด จัดเก็บ หรือส่งให้ผู้ดูแลระบบ', 'success');
+        }
+
+        function handleLocalImageSelection(event) {
+            const file = event.target.files?.[0];
+            if (file) presentLocalImage(file, 'เลือกจากอุปกรณ์');
+        }
+
+        function clearLocalImagePreview() {
+            const input = document.getElementById('localImageInput');
+            const preview = document.getElementById('localImagePreview');
+            const placeholder = document.getElementById('imageCapturePlaceholder');
+            const panel = document.getElementById('localImagePreviewPanel');
+            if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+            localPreviewUrl = '';
+            if (input) input.value = '';
+            if (preview) preview.removeAttribute('src');
+            placeholder?.classList.remove('hidden');
+            panel?.classList.add('hidden');
+            setLocalImageStatus('ล้างภาพจากหน้าปัจจุบันแล้ว ไม่มีภาพถูกเก็บหรือส่งออกจากอุปกรณ์', 'info');
+        }
+
+        function stopLocalCameraTracks() {
+            if (localCameraStream) {
+                localCameraStream.getTracks().forEach((track) => track.stop());
+                localCameraStream = null;
+            }
+            const video = document.getElementById('localCameraStream');
+            if (video) video.srcObject = null;
+        }
+
+        async function openLocalCamera() {
+            if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+                setLocalImageStatus('ไม่สามารถใช้กล้องได้ โปรดเปิดผ่าน HTTPS บนอุปกรณ์ที่รองรับกล้อง', 'error');
+                return;
+            }
+            try {
+                localCameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false,
+                });
+                const video = document.getElementById('localCameraStream');
+                if (!video) {
+                    stopLocalCameraTracks();
+                    return;
+                }
+                video.srcObject = localCameraStream;
+                showAccessibleModal('localCameraModal', '#takeLocalPhotoButton');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } catch (error) {
+                stopLocalCameraTracks();
+                setLocalImageStatus('ไม่สามารถเปิดกล้องได้ โปรดอนุญาตการใช้กล้องในเบราว์เซอร์ แล้วลองใหม่อีกครั้ง', 'error');
+            }
+        }
+
+        function closeLocalCamera() {
+            stopLocalCameraTracks();
+            hideAccessibleModal('localCameraModal');
+        }
+
+        function takeLocalPhoto() {
+            const video = document.getElementById('localCameraStream');
+            const canvas = document.getElementById('localCameraCanvas');
+            if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+                setLocalImageStatus('กล้องยังไม่พร้อมถ่ายภาพ โปรดลองอีกครั้ง', 'error');
+                return;
+            }
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    setLocalImageStatus('ไม่สามารถสร้างภาพจากกล้องได้ โปรดลองใหม่อีกครั้ง', 'error');
+                    return;
+                }
+                const photo = new File([blob], `skin-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const input = document.getElementById('localImageInput');
+                if (input && typeof DataTransfer !== 'undefined') {
+                    const transfer = new DataTransfer();
+                    transfer.items.add(photo);
+                    input.files = transfer.files;
+                }
+                presentLocalImage(photo, 'ถ่ายจากกล้อง');
+                closeLocalCamera();
+            }, 'image/jpeg', 0.92);
+        }
 
         function openEnvironmentLocationConsent() {
             document.getElementById('environmentLocationConsentCheck').checked = false;

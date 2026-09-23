@@ -128,7 +128,7 @@
                 </h1>
             </div>
             <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
-                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">สมัครสมาชิกและเข้าสู่ระบบได้แล้ว แต่ยังไม่รับภาพเพื่อวิเคราะห์ในขณะนี้</span> และเนื้อหาไม่ใช่การวินิจฉัยแทนแพทย์
+                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">สมัครสมาชิก เข้าสู่ระบบ เลือกหรือถ่ายภาพเพื่อดูตัวอย่างบนอุปกรณ์ได้แล้ว</span> โดยยังไม่ส่งหรือวิเคราะห์ภาพ และเนื้อหาไม่ใช่การวินิจฉัยแทนแพทย์
             </p>
             <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
                 <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>ข้อมูลหน้านี้มีไว้ประกอบการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล</span></div>
@@ -188,12 +188,66 @@
                 </div>
 
                 <p id="accountStatus" class="mt-5 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-center text-xs leading-relaxed text-teal-900" aria-live="polite" tabindex="-1">
-                    ระบบบัญชีเปิดทดลองใช้งานสาธารณะแล้ว ขณะนี้ยังไม่เปิดอัปโหลดภาพหรือระบบวิเคราะห์
+                    ระบบบัญชีเปิดทดลองใช้งานสาธารณะแล้ว คุณสามารถเลือกหรือถ่ายภาพเพื่อดูตัวอย่างบนอุปกรณ์ได้ แต่ภาพจะไม่ถูกส่งหรือวิเคราะห์
                 </p>
             </div>
         </div>
 
     </main>
+
+    <!-- Image capture: preview remains only in the current browser session. -->
+    <section id="imageCaptureSection" class="max-w-7xl mx-auto px-6 py-4 w-full z-10 relative" aria-labelledby="imageCaptureTitle">
+        <div class="bg-white/90 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden w-full">
+            <div class="absolute -bottom-24 -left-24 w-60 h-60 bg-cyan-300/15 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div class="flex gap-4">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-md shadow-teal-600/20">
+                        <i data-lucide="image-plus" class="h-6 w-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-extrabold tracking-widest text-teal-700">IMAGE PREVIEW</p>
+                        <h2 id="imageCaptureTitle" class="mt-1 text-xl font-extrabold text-slate-900">เลือกหรือถ่ายภาพผิวหนัง</h2>
+                        <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">เลือกไฟล์จากอุปกรณ์หรือเปิดกล้องเพื่อถ่ายภาพ แล้วตรวจสอบความชัดเจนของภาพบนหน้าจอได้ทันที</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center gap-2 self-start rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[11px] font-bold text-teal-800"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> ไม่ส่งภาพออกจากอุปกรณ์</span>
+            </div>
+
+            <div class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(240px,.7fr)]">
+                <div class="rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-5 sm:p-7">
+                    <input id="localImageInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr-only">
+                    <div id="imageCapturePlaceholder" class="flex min-h-56 flex-col items-center justify-center text-center">
+                        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm"><i data-lucide="images" class="h-8 w-8"></i></div>
+                        <h3 class="mt-4 text-base font-extrabold text-slate-900">เพิ่มภาพเพื่อดูตัวอย่าง</h3>
+                        <p class="mt-2 max-w-md text-xs leading-relaxed text-slate-500">รองรับ JPG, JPEG, PNG และ WEBP ขนาดไม่เกิน 8 MB ภาพจะอยู่เฉพาะในเบราว์เซอร์ของคุณจนกว่าจะปิดหรือล้างภาพ</p>
+                        <div class="mt-5 flex flex-wrap justify-center gap-3">
+                            <label for="localImageInput" class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-700 focus-within:ring-2 focus-within:ring-teal-500"><i data-lucide="folder-open" class="h-4 w-4"></i> เลือกรูปภาพ / ไฟล์</label>
+                            <button id="openLocalCameraButton" type="button" class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"><i data-lucide="camera" class="h-4 w-4"></i> ถ่ายภาพด้วยกล้อง</button>
+                        </div>
+                    </div>
+
+                    <div id="localImagePreviewPanel" class="hidden">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+                            <img id="localImagePreview" alt="ภาพที่เลือกเพื่อดูตัวอย่างบนอุปกรณ์" class="max-h-[420px] w-full object-contain" />
+                        </div>
+                        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p id="localImageFileMeta" class="min-w-0 break-words text-xs font-semibold text-slate-600"></p>
+                            <div class="flex shrink-0 gap-2">
+                                <label for="localImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label>
+                                <button id="clearLocalImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">ล้างภาพ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-3xl border border-amber-200 bg-amber-50/80 p-5 text-sm leading-relaxed text-amber-950">
+                    <div class="flex items-center gap-2 font-extrabold"><i data-lucide="info" class="h-4 w-4"></i> สถานะภาพ</div>
+                    <p id="localImageStatus" class="mt-3 text-xs leading-relaxed" aria-live="polite">ยังไม่ได้เลือกภาพ ภาพที่เลือกหรือถ่ายจะไม่ถูกอัปโหลด เก็บ หรือส่งให้ผู้ดูแลระบบ</p>
+                    <div class="mt-4 border-t border-amber-200 pt-4 text-[11px] leading-relaxed text-amber-900">ระบบนี้ยังไม่แสดงผลการวิเคราะห์จากภาพ และไม่ใช่เครื่องมือวินิจฉัยโรคหรือบริการรักษาพยาบาล</div>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Environment-Aware Section -->
     <section class="max-w-7xl mx-auto px-6 py-8 w-full z-10 relative">
@@ -330,6 +384,26 @@
             </div>
         </div>
     </section>
+
+    <div id="localCameraModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="localCameraModalTitle" aria-describedby="localCameraModalDescription" data-accessible-modal="true">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="localCameraModalTitle" class="text-lg font-extrabold text-slate-900">ถ่ายภาพผิวหนัง</h2>
+                    <p id="localCameraModalDescription" class="mt-1 text-xs leading-relaxed text-slate-500">จัดภาพให้อยู่ในแสงสว่างพอดีและเห็นบริเวณที่ต้องการชัดเจน ภาพยังคงอยู่ในอุปกรณ์นี้</p>
+                </div>
+                <button id="closeLocalCameraButton" type="button" data-modal-close class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="ปิดกล้อง"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <div class="mt-5 aspect-square overflow-hidden rounded-2xl bg-slate-950">
+                <video id="localCameraStream" autoplay playsinline muted class="h-full w-full object-cover"></video>
+                <canvas id="localCameraCanvas" class="hidden"></canvas>
+            </div>
+            <div class="mt-5 flex gap-3">
+                <button id="cancelLocalCameraButton" type="button" class="w-1/2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200">ยกเลิก</button>
+                <button id="takeLocalPhotoButton" type="button" class="inline-flex w-1/2 items-center justify-center gap-2 rounded-xl bg-teal-600 py-3 text-sm font-bold text-white transition hover:bg-teal-700"><i data-lucide="aperture" class="h-4 w-4"></i> ถ่ายภาพ</button>
+            </div>
+        </div>
+    </div>
 
     <!-- น้องอิลลิคเวอร์ชันเดิม: เดินสำรวจ ทักทาย และโต้ตอบได้ -->
     <aside id="eilik-space-container" class="fixed z-40 pointer-events-none transition-all duration-[2500ms] ease-in-out" style="left: 100px; top: 60%;" aria-label="น้องอิลลิค ผู้ช่วย AI">
