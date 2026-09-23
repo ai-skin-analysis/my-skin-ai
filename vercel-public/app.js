@@ -975,8 +975,8 @@
             try {
                 const result = await accountRequest(`/api/account/${isRegister ? 'register' : 'login'}`, body);
                 form.reset();
-                showAccountSession(result.user);
                 setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
+                window.location.assign('/dashboard.html');
             } catch (error) {
                 setAccountStatus(error.message || 'ไม่สามารถดำเนินการได้ในขณะนี้', 'error');
             } finally {
@@ -987,7 +987,7 @@
         async function restoreAccountSession() {
             try {
                 const result = await accountRequest('/api/account/me');
-                if (result.user) showAccountSession(result.user);
+                if (result.user) window.location.replace('/dashboard.html');
             } catch (error) {
                 if (/กำลังตั้งค่า/.test(error.message || '')) setAccountStatus(error.message, 'warning');
             }

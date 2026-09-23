@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f766e">
+    <title>พื้นที่ภาพส่วนตัว | Smart Skin AI</title>
+    <script src="https://cdn.tailwindcss.com" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif; }
+        .page-bg { background: radial-gradient(circle at 10% 10%, rgba(45, 212, 191, .20), transparent 28%), radial-gradient(circle at 88% 15%, rgba(56, 189, 248, .16), transparent 30%), #f8fafc; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+    </style>
+</head>
+<body class="page-bg min-h-screen text-slate-800">
+    <header class="border-b border-slate-200/80 bg-slate-950 text-white shadow-lg">
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
+            <a href="/" class="flex items-center gap-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-300">
+                <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-500 text-white shadow-lg shadow-teal-500/20"><i data-lucide="cross" class="h-6 w-6"></i></span>
+                <span>
+                    <span class="block text-lg font-extrabold tracking-tight">SMART SKIN <span class="text-teal-300">AI</span></span>
+                    <span class="block text-[11px] font-semibold text-slate-400">พื้นที่จัดเตรียมภาพส่วนตัว</span>
+                </span>
+            </a>
+            <div class="flex items-center gap-3">
+                <span id="dashboardUserName" class="hidden max-w-48 truncate rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-teal-100 sm:block"></span>
+                <a href="/" class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-100 transition hover:bg-slate-800">หน้าแรก</a>
+                <button id="dashboardLogoutButton" type="button" class="rounded-xl border border-rose-800 bg-rose-950 px-3 py-2 text-xs font-bold text-rose-100 transition hover:bg-rose-900">ออกจากระบบ</button>
+            </div>
+        </div>
+    </header>
+
+    <main id="dashboardMain" class="mx-auto hidden max-w-7xl px-6 py-10">
+        <section class="overflow-hidden rounded-[32px] border border-white bg-white/90 shadow-xl backdrop-blur-xl">
+            <div class="border-b border-slate-100 bg-gradient-to-r from-teal-50 via-white to-cyan-50 px-6 py-7 sm:px-9">
+                <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="flex gap-4">
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-lg shadow-teal-600/20"><i data-lucide="scan-line" class="h-6 w-6"></i></span>
+                        <div>
+                            <p class="text-[11px] font-extrabold tracking-widest text-teal-700">PERSONAL SKIN IMAGE WORKSPACE</p>
+                            <h1 class="mt-1 text-2xl font-extrabold text-slate-950 sm:text-3xl">อัปโหลดหรือถ่ายภาพรอยโรคผิวหนัง</h1>
+                            <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">เลือกไฟล์หรือเปิดกล้องจากหน้านี้หลังเข้าสู่ระบบ เพื่อดูและตรวจสอบความชัดเจนของภาพบนอุปกรณ์ของคุณ</p>
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center gap-2 self-start rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-800"><i data-lucide="info" class="h-3.5 w-3.5"></i> ยังไม่แสดงผลวิเคราะห์</span>
+                </div>
+            </div>
+
+            <div class="grid gap-7 p-6 sm:p-9 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div class="rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/40 p-5 sm:p-8">
+                    <input id="dashboardImageInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr-only">
+                    <div id="dashboardImagePlaceholder" class="flex min-h-72 flex-col items-center justify-center text-center">
+                        <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm"><i data-lucide="image-plus" class="h-8 w-8"></i></span>
+                        <h2 class="mt-5 text-lg font-extrabold text-slate-900">เพิ่มภาพเพื่อจัดเตรียม</h2>
+                        <p class="mt-2 max-w-md text-xs leading-relaxed text-slate-500">รองรับ JPG, JPEG, PNG และ WEBP ขนาดไม่เกิน 8 MB เลือกภาพรอยโรคผิวหนังของตนเองที่เห็นบริเวณสำคัญชัดเจน</p>
+                        <div class="mt-6 flex flex-wrap justify-center gap-3">
+                            <label for="dashboardImageInput" class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-700 focus-within:ring-2 focus-within:ring-teal-500"><i data-lucide="folder-open" class="h-4 w-4"></i> เลือกรูปภาพ / ไฟล์</label>
+                            <button id="dashboardOpenCameraButton" type="button" class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"><i data-lucide="camera" class="h-4 w-4"></i> ถ่ายภาพด้วยกล้อง</button>
+                        </div>
+                    </div>
+
+                    <div id="dashboardImagePreviewPanel" class="hidden">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+                            <img id="dashboardImagePreview" alt="ภาพที่เลือกเพื่อดูตัวอย่างบนอุปกรณ์" class="max-h-[520px] w-full object-contain">
+                        </div>
+                        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p id="dashboardImageMeta" class="min-w-0 break-words text-xs font-semibold text-slate-600"></p>
+                            <div class="flex shrink-0 gap-2">
+                                <label for="dashboardImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label>
+                                <button id="dashboardClearImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">ล้างภาพ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="space-y-4">
+                    <div class="rounded-3xl border border-teal-200 bg-teal-50 p-5">
+                        <div class="flex items-center gap-2 text-sm font-extrabold text-teal-900"><i data-lucide="shield-check" class="h-4 w-4"></i> ความเป็นส่วนตัว</div>
+                        <p class="mt-3 text-xs leading-relaxed text-teal-900">ภาพที่เลือกหรือถ่ายในหน้านี้จะแสดงเฉพาะในเบราว์เซอร์ปัจจุบัน ไม่ถูกอัปโหลด จัดเก็บ หรือส่งให้ผู้ดูแลระบบ</p>
+                    </div>
+                    <div class="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                        <div class="flex items-center gap-2 text-sm font-extrabold text-amber-950"><i data-lucide="circle-alert" class="h-4 w-4"></i> สถานะการวิเคราะห์</div>
+                        <p id="dashboardImageStatus" class="mt-3 text-xs leading-relaxed text-amber-900" aria-live="polite">ยังไม่ได้เลือกภาพ ขณะนี้ระบบยังไม่ส่งภาพไปประมวลผล และไม่แสดงผลการวิเคราะห์จากภาพ</p>
+                    </div>
+                    <p class="px-2 text-[11px] leading-relaxed text-slate-500">หากรอยโรคเปลี่ยนแปลงเร็ว เจ็บ เลือดออก หรือมีความกังวล ควรปรึกษาแพทย์หรือผู้เชี่ยวชาญ</p>
+                </aside>
+            </div>
+        </section>
+    </main>
+
+    <div id="dashboardLoading" class="mx-auto flex max-w-7xl items-center gap-3 px-6 py-16 text-sm font-semibold text-slate-600"><i data-lucide="loader-circle" class="h-5 w-5 animate-spin text-teal-600"></i> กำลังตรวจสอบการเข้าสู่ระบบ…</div>
+
+    <div id="dashboardCameraModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardCameraTitle" aria-describedby="dashboardCameraDescription">
+        <div class="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h2 id="dashboardCameraTitle" class="text-lg font-extrabold text-slate-900">ถ่ายภาพบริเวณผิวหนัง</h2>
+                    <p id="dashboardCameraDescription" class="mt-1 text-xs leading-relaxed text-slate-500">จัดภาพให้อยู่ในแสงสว่างพอดีและเห็นบริเวณที่ต้องการชัดเจน ภาพจะอยู่ในอุปกรณ์นี้</p>
+                </div>
+                <button id="dashboardCloseCameraButton" type="button" class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="ปิดกล้อง"><i data-lucide="x" class="h-5 w-5"></i></button>
+            </div>
+            <div class="mt-5 aspect-square overflow-hidden rounded-2xl bg-slate-950"><video id="dashboardCameraStream" autoplay playsinline muted class="h-full w-full object-cover"></video><canvas id="dashboardCameraCanvas" class="hidden"></canvas></div>
+            <div class="mt-5 flex gap-3">
+                <button id="dashboardCancelCameraButton" type="button" class="w-1/2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200">ยกเลิก</button>
+                <button id="dashboardTakePhotoButton" type="button" class="inline-flex w-1/2 items-center justify-center gap-2 rounded-xl bg-teal-600 py-3 text-sm font-bold text-white transition hover:bg-teal-700"><i data-lucide="aperture" class="h-4 w-4"></i> ถ่ายภาพ</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js" defer></script>
+</body>
+</html>

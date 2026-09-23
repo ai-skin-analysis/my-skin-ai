@@ -128,7 +128,7 @@
                 </h1>
             </div>
             <p class="text-slate-700 text-base sm:text-lg max-w-xl leading-relaxed bg-white/85 p-5 rounded-3xl border border-white/60 shadow-lg backdrop-blur-md">
-                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">สมัครสมาชิก เข้าสู่ระบบ เลือกหรือถ่ายภาพเพื่อดูตัวอย่างบนอุปกรณ์ได้แล้ว</span> โดยยังไม่ส่งหรือวิเคราะห์ภาพ และเนื้อหาไม่ใช่การวินิจฉัยแทนแพทย์
+                Smart Skin AI อยู่ในโหมดข้อมูลสาธารณะ: แสดงคำแนะนำการดูแลผิวทั่วไปและข้อมูลสภาพแวดล้อมเท่านั้น <span class="font-bold text-teal-600">สมัครสมาชิกและเข้าสู่ระบบได้แล้ว แต่ยังไม่รับภาพเพื่อวิเคราะห์ในขณะนี้</span> และเนื้อหาไม่ใช่การวินิจฉัยแทนแพทย์
             </p>
             <div class="space-y-3 max-w-xl bg-white/95 p-5 rounded-3xl border border-slate-200/60 shadow-lg text-sm text-slate-600 font-semibold backdrop-blur-md">
                 <div class="flex items-start space-x-2"><span class="text-teal-500 font-black text-lg leading-none">•</span><span>ข้อมูลหน้านี้มีไว้ประกอบการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล</span></div>
@@ -196,7 +196,7 @@
     </main>
 
     <!-- Image capture: preview remains only in the current browser session. -->
-    <section id="imageCaptureSection" class="max-w-7xl mx-auto px-6 py-4 w-full z-10 relative" aria-labelledby="imageCaptureTitle">
+    <section id="imageCaptureSection" class="hidden" hidden aria-hidden="true">
         <div class="bg-white/90 backdrop-blur-xl border border-white/80 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden w-full">
             <div class="absolute -bottom-24 -left-24 w-60 h-60 bg-cyan-300/15 rounded-full blur-3xl pointer-events-none"></div>
             <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
