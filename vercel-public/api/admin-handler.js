@@ -14,11 +14,9 @@ import {
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
 
 function requestPath(req) {
-  try {
-    return new URL(req.url || '/', 'https://smart-skin-ai.local').pathname.replace(/^\/api\//, '');
-  } catch {
-    return '';
-  }
+  const value = req.query?.path;
+  if (Array.isArray(value)) return value.join('/');
+  return typeof value === 'string' ? value : '';
 }
 
 function rejectRateLimit(res, message, budget) {
@@ -108,11 +106,11 @@ async function mfaStatus(req, res) {
 export default async function handler(req, res) {
   try {
     switch (requestPath(req)) {
-      case 'admin/overview': return await overview(req, res);
-      case 'admin/mfa/enroll': return await enrollmentStart(req, res);
-      case 'admin/mfa/confirm': return await enrollmentConfirm(req, res);
-      case 'admin/mfa/verify': return await mfaVerify(req, res);
-      case 'admin/mfa/status': return await mfaStatus(req, res);
+      case 'overview': return await overview(req, res);
+      case 'mfa/enroll': return await enrollmentStart(req, res);
+      case 'mfa/confirm': return await enrollmentConfirm(req, res);
+      case 'mfa/verify': return await mfaVerify(req, res);
+      case 'mfa/status': return await mfaStatus(req, res);
       default: return json(res, 404, { ok: false, message: 'ไม่พบปลายทางผู้ดูแลระบบ' });
     }
   } catch (error) {
