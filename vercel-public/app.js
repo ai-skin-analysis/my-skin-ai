@@ -181,6 +181,12 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             if (typeof lucide !== 'undefined') lucide.createIcons();
+            // Bind the account-panel interactions explicitly. Inline handlers
+            // are not dependable under every static-host security policy.
+            document.getElementById('btnTabLogin')?.addEventListener('click', () => switchForm('login'));
+            document.getElementById('btnTabRegister')?.addEventListener('click', () => switchForm('register'));
+            document.getElementById('formLogin')?.addEventListener('submit', showAccountPreviewNotice);
+            document.getElementById('formRegister')?.addEventListener('submit', showAccountPreviewNotice);
         });
 
         function openEnvironmentLocationConsent() {
