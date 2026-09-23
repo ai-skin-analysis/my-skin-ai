@@ -137,20 +137,50 @@
             </div>
         </div>
 
-        <!-- บริการบัญชีจะไม่แสดงในโหมดข้อมูลสาธารณะ -->
+        <!-- รูปแบบแผงบัญชีกลับมาแสดงเหมือนหน้าเดิม แต่ยังไม่เชื่อมระบบบัญชี -->
         <div class="lg:col-span-5 flex justify-center lg:justify-end">
             <div class="glass-card w-full max-w-md p-8 sm:p-10 rounded-[32px]">
-                <div class="space-y-5 text-center" aria-live="polite">
-                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><i data-lucide="info" class="h-7 w-7"></i></div>
-                    <div>
-                        <h2 class="text-xl font-extrabold text-slate-900">โหมดข้อมูลสาธารณะ</h2>
-                        <p class="mt-2 text-sm leading-relaxed text-slate-600">ขณะนี้ระบบเปิดเผยเฉพาะข้อมูลการดูแลผิวทั่วไปและข้อมูลอากาศตามการยินยอมของคุณ</p>
-                    </div>
-                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-xs leading-relaxed text-amber-900">
-                        การสร้างบัญชี การเข้าสู่ระบบ และบริการรับภาพถูกปิดไว้ จนกว่าจะผ่านการทดสอบความพร้อมและเปิดให้บริการอย่างเป็นทางการ
-                    </div>
-                    <p class="text-xs leading-relaxed text-slate-500">หากมีอาการน่ากังวล เช่น แผลไม่หาย เลือดออก ปวดมาก หรือผื่นลามเร็ว โปรดติดต่อสถานพยาบาลโดยเร็ว</p>
+                <div class="flex bg-slate-200/60 p-1.5 rounded-xl mb-6" role="tablist" aria-label="ตัวเลือกบัญชีผู้ใช้">
+                    <button id="btnTabLogin" type="button" onclick="switchForm('login')" role="tab" aria-controls="formLogin" aria-selected="true" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm">เข้าสู่ระบบ</button>
+                    <button id="btnTabRegister" type="button" onclick="switchForm('register')" role="tab" aria-controls="formRegister" aria-selected="false" class="w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900">ลงทะเบียนใหม่</button>
                 </div>
+
+                <form id="formLogin" class="space-y-4" aria-describedby="accountStatus" onsubmit="return showAccountPreviewNotice(event)">
+                    <div>
+                        <label for="loginEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">อีเมลผู้ใช้งาน</label>
+                        <input id="loginEmail" type="email" readonly autocomplete="off" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="อีเมลผู้ใช้งาน — ยังไม่เปิดรับข้อมูล">
+                    </div>
+                    <div>
+                        <label for="loginPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสผ่าน</label>
+                        <input id="loginPassword" type="password" readonly autocomplete="off" placeholder="••••••••" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="รหัสผ่าน — ยังไม่เปิดรับข้อมูล">
+                    </div>
+                    <button type="submit" class="w-full bg-teal-950 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">เข้าสู่ระบบ (Sign In)</button>
+                </form>
+
+                <form id="formRegister" class="space-y-4 hidden" aria-describedby="accountStatus" onsubmit="return showAccountPreviewNotice(event)">
+                    <div>
+                        <label for="registerName" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อของคุณ</label>
+                        <input id="registerName" type="text" readonly autocomplete="off" placeholder="ชื่อ-นามสกุล" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="ชื่อของคุณ — ยังไม่เปิดรับข้อมูล">
+                    </div>
+                    <div>
+                        <label for="registerEmail" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ระบุอีเมลของคุณ</label>
+                        <input id="registerEmail" type="email" readonly autocomplete="off" placeholder="yourname@email.com" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="อีเมลของคุณ — ยังไม่เปิดรับข้อมูล">
+                    </div>
+                    <div>
+                        <label for="registerPassword" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ตั้งรหัสผ่าน</label>
+                        <input id="registerPassword" type="password" readonly autocomplete="off" placeholder="อย่างน้อย 12 ตัวอักษร" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-500 text-sm bg-white cursor-not-allowed" aria-label="ตั้งรหัสผ่าน — ยังไม่เปิดรับข้อมูล">
+                    </div>
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-[11px] leading-relaxed text-slate-600">
+                        <input type="checkbox" disabled class="mt-0.5 h-4 w-4 rounded border-teal-400 text-teal-700 focus:ring-teal-500">
+                        <span>ฉันอ่านและยอมรับข้อกำหนดการใช้งานและประกาศความเป็นส่วนตัวฉบับปัจจุบัน</span>
+                    </label>
+                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all mt-4">ส่งข้อมูลเพื่อรออนุมัติ</button>
+                    <p class="text-[11px] text-slate-400 text-center font-medium">* รหัสผ่านต้องยาวอย่างน้อย 12 ตัวอักษรและมีทั้งตัวอักษรกับตัวเลข</p>
+                </form>
+
+                <p id="accountStatus" class="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs leading-relaxed text-amber-900" aria-live="polite">
+                    แสดงรูปแบบหน้าเดิมแล้ว แต่บัญชีผู้ใช้ยังไม่เปิดรับข้อมูลบนเว็บไซต์สาธารณะนี้ และจะไม่มีการส่งหรือจัดเก็บข้อมูลที่กรอก
+                </p>
             </div>
         </div>
 

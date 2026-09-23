@@ -724,15 +724,31 @@
             const btnTabLogin = document.getElementById('btnTabLogin');
             const btnTabRegister = document.getElementById('btnTabRegister');
 
+            if (!formLogin || !formRegister || !btnTabLogin || !btnTabRegister) return;
+
             if (type === 'login') {
                 formLogin.classList.remove('hidden');
                 formRegister.classList.add('hidden');
                 btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-slate-900 shadow-sm";
                 btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
+                btnTabLogin.setAttribute('aria-selected', 'true');
+                btnTabRegister.setAttribute('aria-selected', 'false');
             } else {
                 formLogin.classList.add('hidden');
                 formRegister.classList.remove('hidden');
                 btnTabLogin.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all text-slate-500 hover:text-slate-900";
                 btnTabRegister.className = "w-1/2 text-sm font-bold py-2.5 rounded-lg transition-all bg-white text-teal-600 shadow-sm";
+                btnTabLogin.setAttribute('aria-selected', 'false');
+                btnTabRegister.setAttribute('aria-selected', 'true');
             }
+        }
+
+        function showAccountPreviewNotice(event) {
+            if (event) event.preventDefault();
+            const status = document.getElementById('accountStatus');
+            if (status) {
+                status.textContent = 'บัญชีผู้ใช้ยังไม่เปิดให้บริการบนเว็บไซต์สาธารณะนี้ จึงไม่มีการส่งหรือจัดเก็บอีเมล รหัสผ่าน หรือข้อมูลใด ๆ';
+                status.focus?.();
+            }
+            return false;
         }
