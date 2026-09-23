@@ -76,11 +76,11 @@
         const eilikSpeech = document.getElementById('eilik-speech');
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const eilikPhrases = [
-            'สแกนเนอร์พร้อมแล้ว เลือกภาพที่ชัดเจนเพื่อเริ่มคัดกรองได้เลยครับ',
+            'ระบบข้อมูลพร้อมแล้ว คุณสามารถดูข้อมูลสภาพอากาศประกอบการดูแลผิวได้ครับ',
             'ผิวดีเริ่มจากการสังเกตอาการ หากกังวลควรพบแพทย์ผิวหนังนะครับ',
             'พร้อมช่วยแนะนำขั้นตอนการใช้ระบบอย่างปลอดภัยครับ',
-            'อย่าลืมอ่านและยืนยันความยินยอมก่อนส่งภาพเพื่อคัดกรองนะครับ',
-            'ผลจากระบบเป็นเพียงการคัดกรองจากภาพ ไม่ใช่การวินิจฉัยครับ'
+            'ตอนนี้ระบบเปิดข้อมูลสาธารณะและบัญชีทดลอง โดยยังไม่รับภาพเพื่อวิเคราะห์ครับ',
+            'ข้อมูลในเว็บไซต์ไม่ใช่การวินิจฉัยหรือการรักษาพยาบาลครับ'
         ];
 
         function clearEilikAnimations() {
@@ -149,7 +149,7 @@
                 eilikRender.classList.add('eilik-state-jump');
                 eilikLeftArm.classList.add('eilik-arm-left-up');
                 eilikRightArm.classList.add('eilik-arm-right-up');
-                eilikSpeech.textContent = 'เยี่ยมเลย! เลือกภาพให้ชัดและอ่านคำแนะนำก่อนเริ่มคัดกรองนะครับ';
+                eilikSpeech.textContent = 'เยี่ยมเลย! เลือกดูข้อมูลที่ต้องการ และหากกังวลเรื่องผิวหนังควรพบแพทย์นะครับ';
                 window.setTimeout(resetEilikToNormal, 2500);
             }
         });
