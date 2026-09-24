@@ -1004,7 +1004,7 @@
                 }
                 form.reset();
                 setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
-                window.location.assign(result.user?.role === 'admin' && result.user?.mfaVerified ? '/admin.html' : '/dashboard.html');
+                window.location.assign(result.user?.role === 'admin' ? '/admin.html' : '/dashboard.html');
             } catch (error) {
                 setAccountStatus(error.message || 'ไม่สามารถดำเนินการได้ในขณะนี้', 'error');
             } finally {
@@ -1016,8 +1016,7 @@
             try {
                 const result = await accountRequest('/api/account/me');
                 if (result.user?.role === 'admin') {
-                    if (!result.user.mfaEnrolled) window.location.replace('/admin-mfa-enroll.html');
-                    if (result.user.mfaVerified) window.location.replace('/admin.html');
+                    window.location.replace('/admin.html');
                     return;
                 }
                 if (result.user) window.location.replace('/dashboard.html');

@@ -42,8 +42,6 @@ async function overview(req, res) {
   if (!requireGet(req, res)) return;
   const admin = await signedInAdmin(req, res);
   if (!admin) return;
-  if (!admin.user.mfaEnrolled) return json(res, 428, { ok: false, code: 'mfa_enrollment_required', message: 'กรุณาตั้งค่า MFA ก่อนเข้าสู่แดชบอร์ด' });
-  if (!admin.claims.mfaVerified) return json(res, 401, { ok: false, code: 'mfa_verification_required', message: 'กรุณายืนยัน MFA ก่อนเข้าสู่แดชบอร์ด' });
   const sql = await database();
   const [accountCount, adminCount, userCount, users] = await Promise.all([
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users`,
