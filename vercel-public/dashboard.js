@@ -44,7 +44,7 @@
     function renderSystemAvatarIcon(element, size) {
         element.replaceChildren();
         const icon = document.createElement('i');
-        icon.setAttribute('data-lucide', 'cross');
+        icon.setAttribute('data-lucide', 'user-round');
         icon.className = size;
         element.append(icon);
     }
