@@ -62,7 +62,9 @@
             }
         });
         [headerInitial, modalInitial].forEach((element) => {
-            if (element) element.textContent = initialForUser();
+            if (!element) return;
+            element.textContent = initialForUser();
+            element.classList.toggle('hidden', Boolean(dataUrl));
         });
     }
 
@@ -500,6 +502,8 @@
                 document.getElementById('dashboardHomeLink').classList.add('hidden');
             } else {
                 document.getElementById('dashboardUserName').textContent = data.user.name;
+                document.getElementById('userMenuName').textContent = data.user.name;
+                document.getElementById('userMenuEmail').textContent = data.user.email || '';
                 document.getElementById('userAccountControl').classList.remove('hidden');
                 applyAvatar(null);
                 try { await loadProfile(); } catch { /* Account menu remains usable even if avatar is unavailable. */ }
