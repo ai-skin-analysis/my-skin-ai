@@ -49,11 +49,11 @@
     }
 
     const PROCESSING_STAGES = {
-        prepare: { title: 'กำลังเตรียมภาพอย่างปลอดภัย', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
-        authorize: { title: 'กำลังตรวจสิทธิ์การจัดเก็บ', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
-        upload: { title: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัว', detail: 'กำลังจัดเก็บภาพผ่านการเชื่อมต่อที่เข้ารหัส', step: 2 },
-        commit: { title: 'กำลังยืนยันการจัดเก็บ', detail: 'กำลังเพิ่มรายการเข้าไปในประวัติการสแกนของคุณ', step: 3 },
-        complete: { title: 'จัดเก็บภาพเรียบร้อยแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการสแกน', step: 4 },
+        prepare: { title: 'กำลังตรวจความพร้อมของภาพ', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
+        authorize: { title: 'กำลังขอสิทธิ์อัปโหลด', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
+        upload: { title: 'กำลังส่งภาพผ่านการเข้ารหัส', detail: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัวของบัญชีคุณ', step: 2 },
+        commit: { title: 'กำลังบันทึกการแสกนภาพ', detail: 'กำลังเพิ่มรายการเข้าไปในประวัติการแสกนของคุณ', step: 3 },
+        complete: { title: 'แสกนภาพเสร็จแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการแสกน', step: 4 },
     };
 
     function setProcessingStage(stage) {
@@ -514,7 +514,7 @@
         title.textContent = 'คุณยังไม่มีประวัติการสแกน';
         const description = document.createElement('p');
         description.className = 'mt-2 text-sm font-medium text-slate-400';
-        description.textContent = 'หน้าแสกนปัจจุบันแสดงภาพบนอุปกรณ์และยังไม่บันทึกข้อมูลเข้าสู่ Timeline';
+        description.textContent = 'เมื่อเริ่มแสกนภาพสำเร็จ รายการของคุณจะแสดงที่นี่';
         text.append(title, description);
         wrapper.append(icon, text);
         fragment.append(wrapper);

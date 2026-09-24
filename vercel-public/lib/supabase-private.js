@@ -18,11 +18,32 @@ function normalizedSupabaseUrl(value) {
     .replace(/\/+$/, '');
 }
 
+function normalizedSecretKey(value) {
+  // Accept values copied from an .env file or an Authorization header without
+  // ever returning the key to the browser, logs, or a response body.
+  return String(value || '')
+    .trim()
+    .replace(/^SUPABASE_(?:SECRET|SERVICE_ROLE)_KEY\s*=\s*/i, '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .trim();
+}
+
+function configuredSecretKey() {
+  const current = normalizedSecretKey(process.env.SUPABASE_SECRET_KEY);
+  const legacy = normalizedSecretKey(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  // A current secret key has priority, but a usable legacy key still permits
+  // existing deployments to keep operating during a credential rotation.
+  if (current.startsWith('sb_secret_')) return current;
+  if (legacy) return legacy;
+  return current;
+}
+
 function configuration() {
   let baseUrl = normalizedSupabaseUrl(process.env.SUPABASE_URL) || DEPLOYMENT_SUPABASE_URL;
   // Prefer the current secret key. The legacy service_role name remains only
   // for existing projects while they rotate keys before its 2026 retirement.
-  const secretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const secretKey = configuredSecretKey();
   if (!baseUrl || !secretKey) {
     throw new PublicAccountError('ระบบจัดเก็บภาพส่วนตัวยังไม่ได้เชื่อมต่อ กรุณาตั้งค่า Supabase ก่อนใช้งาน', 503);
   }
@@ -39,7 +60,7 @@ function configuration() {
 }
 
 export function isSupabasePrivateStorageConfigured() {
-  return Boolean(String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim());
+  return Boolean(configuredSecretKey());
 }
 
 function objectPath(path) {

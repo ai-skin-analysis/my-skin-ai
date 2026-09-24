@@ -285,21 +285,27 @@ async function userHistory(req, res) {
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
   if (isSupabasePrivateStorageConfigured()) {
-    const now = new Date().toISOString();
-    const expired = await deletePrivateRows('smart_skin_scan_logs', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}&select=image_object_path,gradcam_object_path`);
-    const expiredPaths = (Array.isArray(expired) ? expired : []).flatMap((row) => [row.image_object_path, row.gradcam_object_path]).filter(Boolean);
-    if (expiredPaths.length) await removePrivateObjects(expiredPaths);
-    const rows = await selectPrivateRows('smart_skin_scan_logs', `?select=id,source,original_name,image_size_bytes,result_disease,confidence,created_at,decision_status&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`);
-    return json(res, 200, { ok: true, history: rows.map((item) => ({
-      id: item.id,
-      source: item.source || 'upload',
-      originalName: item.original_name,
-      imageSizeBytes: item.image_size_bytes,
-      resultLabel: item.result_disease,
-      confidence: item.confidence === null || item.confidence === undefined || item.confidence === '' ? null : Number(item.confidence),
-      createdAt: item.created_at,
-      decisionStatus: item.decision_status,
-    })) });
+    try {
+      const now = new Date().toISOString();
+      const expired = await deletePrivateRows('smart_skin_scan_logs', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}&select=image_object_path,gradcam_object_path`);
+      const expiredPaths = (Array.isArray(expired) ? expired : []).flatMap((row) => [row.image_object_path, row.gradcam_object_path]).filter(Boolean);
+      if (expiredPaths.length) await removePrivateObjects(expiredPaths);
+      const rows = await selectPrivateRows('smart_skin_scan_logs', `?select=id,source,original_name,image_size_bytes,result_disease,confidence,created_at,decision_status&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`);
+      return json(res, 200, { ok: true, history: rows.map((item) => ({
+        id: item.id,
+        source: item.source || 'upload',
+        originalName: item.original_name,
+        imageSizeBytes: item.image_size_bytes,
+        resultLabel: item.result_disease,
+        confidence: item.confidence === null || item.confidence === undefined || item.confidence === '' ? null : Number(item.confidence),
+        createdAt: item.created_at,
+        decisionStatus: item.decision_status,
+      })) });
+    } catch (error) {
+      // A temporary object-storage fault must not block a person from opening
+      // their account timeline. Continue with records stored in the account
+      // database; do not expose the upstream error or any credentials.
+    }
   }
   const sql = await database();
   const rows = await sql`SELECT id, source, original_name, image_size_bytes, result_label, confidence, created_at
