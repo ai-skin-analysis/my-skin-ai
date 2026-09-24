@@ -290,7 +290,7 @@
             setModalStatus('profileAvatarStatus', error.message, 'error');
         } finally {
             button.disabled = false;
-            button.textContent = 'บันทึกรูป';
+            button.textContent = 'บันทึกรูปโปรไฟล์';
         }
     }
 
@@ -308,24 +308,24 @@
             setModalStatus('profileAvatarStatus', error.message, 'error');
         } finally {
             button.disabled = false;
-            button.textContent = 'ลบรูป';
+            button.textContent = 'ลบรูปโปรไฟล์';
         }
     }
 
     function historyEmptyMessage() {
         const fragment = document.createDocumentFragment();
         const wrapper = document.createElement('div');
-        wrapper.className = 'flex items-start gap-3';
+        wrapper.className = 'mt-10 flex min-h-56 flex-col items-center justify-center text-center';
         const icon = document.createElement('i');
-        icon.setAttribute('data-lucide', 'history');
-        icon.className = 'h-6 w-6 text-teal-600';
+        icon.setAttribute('data-lucide', 'folder');
+        icon.className = 'mb-4 h-20 w-20 stroke-[1.5] text-slate-200';
         const text = document.createElement('div');
         const title = document.createElement('p');
-        title.className = 'font-bold text-slate-800';
-        title.textContent = 'ยังไม่มีประวัติการสแกนที่บันทึกไว้';
+        title.className = 'text-xl font-extrabold text-slate-700';
+        title.textContent = 'คุณยังไม่มีประวัติการสแกน';
         const description = document.createElement('p');
-        description.className = 'mt-1 text-xs leading-relaxed text-slate-500';
-        description.textContent = 'หน้าแสกนปัจจุบันแสดงภาพเฉพาะบนอุปกรณ์และไม่ส่งภาพไปจัดเก็บ จึงยังไม่มีรายการใน Timeline';
+        description.className = 'mt-2 text-sm font-medium text-slate-400';
+        description.textContent = 'หน้าแสกนปัจจุบันแสดงภาพบนอุปกรณ์และยังไม่บันทึกข้อมูลเข้าสู่ Timeline';
         text.append(title, description);
         wrapper.append(icon, text);
         fragment.append(wrapper);
@@ -335,7 +335,9 @@
     async function openTimeline() {
         showModal('userTimelineModal');
         const content = document.getElementById('userTimelineContent');
-        content.className = 'mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-5 text-sm text-slate-600';
+        document.getElementById('timelineUserName').textContent = `${currentUser?.name || 'ผู้ใช้งานทั่วไป'} (USER)`;
+        document.getElementById('timelineUserEmail').textContent = currentUser?.email || 'user@example.com';
+        content.className = 'min-h-48 flex-1 text-sm text-slate-600';
         content.textContent = 'กำลังโหลดประวัติ…';
         try {
             const data = await userRequest('/api/user/history');
@@ -344,19 +346,26 @@
                 content.append(historyEmptyMessage());
             } else {
                 const list = document.createElement('div');
-                list.className = 'space-y-3';
+                list.className = 'relative ml-4 space-y-5 border-l-2 border-teal-100 pb-4';
                 data.history.forEach((entry) => {
+                    const container = document.createElement('div');
+                    container.className = 'relative pl-6';
+                    const marker = document.createElement('span');
+                    marker.className = 'absolute -left-[9px] top-4 h-4 w-4 rounded-full bg-teal-500 ring-4 ring-white shadow-sm';
                     const item = document.createElement('article');
-                    item.className = 'rounded-xl border border-slate-200 bg-white p-4';
+                    item.className = 'relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm';
+                    const accent = document.createElement('span');
+                    accent.className = 'absolute inset-y-0 left-0 w-1 bg-teal-500';
                     const title = document.createElement('p');
-                    title.className = 'font-bold text-slate-800';
+                    title.className = 'pl-2 font-extrabold text-teal-700';
                     title.textContent = entry.resultLabel || 'รายการสแกนที่บันทึกไว้';
                     const meta = document.createElement('p');
-                    meta.className = 'mt-1 text-xs leading-relaxed text-slate-500';
+                    meta.className = 'mt-2 pl-2 text-xs leading-relaxed text-slate-500';
                     const confidence = entry.confidence === null || entry.confidence === undefined ? '' : ` · ความมั่นใจ ${(entry.confidence * 100).toFixed(1)}%`;
                     meta.textContent = `${formatDate(entry.createdAt)} · ${entry.source || 'upload'}${confidence}`;
-                    item.append(title, meta);
-                    list.append(item);
+                    item.append(accent, title, meta);
+                    container.append(marker, item);
+                    list.append(container);
                 });
                 content.append(list);
             }
@@ -377,19 +386,6 @@
         });
     }
 
-    function addRadarMetric(container, label, value) {
-        const card = document.createElement('div');
-        card.className = 'rounded-xl border border-teal-100 bg-teal-50 p-3';
-        const name = document.createElement('p');
-        name.className = 'text-[10px] font-bold uppercase tracking-wide text-teal-700';
-        name.textContent = label;
-        const result = document.createElement('p');
-        result.className = 'mt-1 text-base font-extrabold text-slate-800';
-        result.textContent = value;
-        card.append(name, result);
-        container.append(card);
-    }
-
     async function loadNearbyEnvironment() {
         if (!document.getElementById('nearbyConsentInput').checked) {
             setModalStatus('nearbyRadarStatus', 'กรุณายินยอมก่อนให้เบราว์เซอร์ขอพิกัด', 'error');
@@ -401,41 +397,68 @@
         setModalStatus('nearbyRadarStatus', 'กำลังขอตำแหน่งจากเบราว์เซอร์…');
         try {
             const position = await locationOnce();
-            const { latitude, longitude } = position.coords;
+            const latitude = Number(position.coords.latitude.toFixed(2));
+            const longitude = Number(position.coords.longitude.toFixed(2));
             const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&current=temperature_2m,relative_humidity_2m,uv_index`;
             const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&current=pm2_5`;
             const [weatherResponse, airResponse] = await Promise.all([fetch(weatherUrl), fetch(airUrl)]);
             if (!weatherResponse.ok || !airResponse.ok) throw new Error('ไม่สามารถเรียกข้อมูลสภาพแวดล้อมได้ในขณะนี้');
             const [weather, air] = await Promise.all([weatherResponse.json(), airResponse.json()]);
-            const result = document.getElementById('nearbyRadarResult');
-            result.replaceChildren();
-            addRadarMetric(result, 'อุณหภูมิ', `${weather.current?.temperature_2m ?? '–'} °C`);
-            addRadarMetric(result, 'ความชื้น', `${weather.current?.relative_humidity_2m ?? '–'}%`);
-            addRadarMetric(result, 'UV index', `${weather.current?.uv_index ?? '–'}`);
-            addRadarMetric(result, 'PM2.5', `${air.current?.pm2_5 ?? '–'} µg/m³`);
-            result.classList.remove('hidden');
+            document.getElementById('nearbyPm25').textContent = air.current?.pm2_5 === undefined ? '—' : Number(air.current.pm2_5).toFixed(1);
+            document.getElementById('nearbyUv').textContent = weather.current?.uv_index === undefined ? '—' : Number(weather.current.uv_index).toFixed(1);
+            document.getElementById('nearbyHumidity').textContent = weather.current?.relative_humidity_2m === undefined ? '—' : `${Math.round(weather.current.relative_humidity_2m)}%`;
+            document.getElementById('nearbyTemperature').textContent = weather.current?.temperature_2m === undefined ? '—' : `${Number(weather.current.temperature_2m).toFixed(1)}°C`;
+            document.getElementById('nearbyContextLevel').textContent = 'ข้อมูลสภาพแวดล้อมล่าสุด';
+            document.getElementById('nearbyContextSummary').textContent = 'ใช้ประกอบการดูแลผิวทั่วไปเท่านั้น ไม่ใช่การระบุหรือวินิจฉัยความเสี่ยงโรคผิวหนัง';
+            document.getElementById('nearbyContextLocation').textContent = `ข้อมูลล่าสุด ${formatDate(Date.now())} · พิกัดโดยประมาณ ${latitude.toFixed(2)}, ${longitude.toFixed(2)} · ไม่บันทึกในบัญชี`;
             setModalStatus('nearbyRadarStatus', 'ข้อมูลเรียกใช้ตามตำแหน่งปัจจุบันแบบครั้งเดียวและไม่ได้บันทึกพิกัดในบัญชี', 'success');
         } catch (error) {
             setModalStatus('nearbyRadarStatus', error.message, 'error');
         } finally {
             button.disabled = false;
-            button.innerHTML = '<i data-lucide="map-pin" class="h-4 w-4 text-teal-300"></i>ใช้ตำแหน่งปัจจุบัน';
+            button.innerHTML = '<i data-lucide="locate-fixed" class="h-4 w-4"></i>ยินยอมและตรวจบริบทพื้นที่';
             refreshIcons();
         }
+    }
+
+    function appendAccountInfoSection(container, heading, body) {
+        const section = document.createElement('section');
+        const title = document.createElement('h3');
+        title.className = 'font-bold text-slate-900';
+        title.textContent = heading;
+        const detail = document.createElement('p');
+        detail.className = 'mt-1';
+        detail.textContent = body;
+        section.append(title, detail);
+        container.append(section);
     }
 
     function openAccountInfo(kind) {
         const title = document.getElementById('accountInfoTitle');
         const description = document.getElementById('accountInfoDescription');
+        const kicker = document.getElementById('accountInfoKicker');
         const content = document.getElementById('accountInfoContent');
+        content.replaceChildren();
         if (kind === 'terms') {
+            kicker.textContent = 'SMART SKIN AI · TERMS';
             title.textContent = 'ข้อกำหนดการใช้งาน';
             description.textContent = 'หลักการใช้งานพื้นที่บัญชีและหน้าแสกน';
-            content.textContent = 'ระบบนี้ให้ข้อมูลเพื่อช่วยการดูแลผิวทั่วไปและการเตรียมข้อมูล ไม่ใช่การวินิจฉัยหรือการรักษาโดยแพทย์ หากมีแผล เลือดออก ปวดมาก หรือผื่นลาม ควรพบแพทย์หรือผู้เชี่ยวชาญโดยเร็ว';
+            appendAccountInfoSection(content, '1. ขอบเขตบริการ', 'บริการนี้ให้ข้อมูลเพื่อช่วยการดูแลผิวทั่วไปและการเตรียมข้อมูล ไม่ใช่การวินิจฉัย การรักษา หรือบริการฉุกเฉิน และไม่ควรใช้แทนการตัดสินใจทางการแพทย์ด้วยตนเอง');
+            appendAccountInfoSection(content, '2. ความปลอดภัยของผู้ใช้', 'หากมีรอยโรคใหม่หรือเปลี่ยนแปลงเร็ว เลือดออก แผลไม่หาย ปวดมาก มีไข้ ผื่นลามเร็ว หรือมีความกังวล ให้ติดต่อแพทย์ผิวหนังหรือบริการฉุกเฉินในพื้นที่ทันที');
+            appendAccountInfoSection(content, '3. ภาพและบัญชี', 'ส่งได้เฉพาะภาพผิวหนังที่คุณมีสิทธิ์ใช้ และควรปกปิดข้อมูลระบุตัวตนที่ไม่จำเป็น หน้าแสกนปัจจุบันแสดงภาพเป็นตัวอย่างบนอุปกรณ์และยังไม่อัปโหลดหรือบันทึกภาพเข้าสู่ระบบ');
+            appendAccountInfoSection(content, '4. ข้อมูลส่วนบุคคล', 'คุณจัดการรูปโปรไฟล์ รหัสผ่าน ข้อความถึงผู้ดูแล และลบบัญชีได้จากเมนูบัญชีของคุณ ข้อมูลที่บันทึกจริงจะแสดงใน Timeline เท่านั้น');
+            appendAccountInfoSection(content, '5. การเปลี่ยนแปลง', 'เมื่อเงื่อนไขหรือฟังก์ชันมีการเปลี่ยนแปลงอย่างมีนัยสำคัญ ระบบจะแจ้งให้ผู้ใช้ทราบก่อนใช้งานข้อมูลเพิ่มเติม');
         } else {
-            title.textContent = 'ความเป็นส่วนตัวและข้อมูล';
-            description.textContent = 'ข้อมูลที่ใช้ในบัญชีผู้ใช้';
-            content.textContent = 'รูปที่เลือกหรือถ่ายในหน้าแสกนปัจจุบันแสดงตัวอย่างอยู่บนอุปกรณ์ และไม่ถูกอัปโหลดหรือจัดเก็บในระบบ รูปโปรไฟล์ ข้อความถึงผู้ดูแล และประวัติที่ระบบตั้งค่าให้บันทึก สามารถจัดการหรือลบบัญชีได้จากเมนูนี้';
+            kicker.textContent = 'SMART SKIN AI';
+            title.textContent = 'ประกาศความเป็นส่วนตัวสำหรับการสแกนภาพ';
+            description.textContent = 'ระบบนี้ใช้ข้อมูลเพื่อช่วยการดูแลผิวทั่วไป ไม่ใช่การวินิจฉัยโรคหรือบริการรักษาพยาบาล';
+            appendAccountInfoSection(content, 'ผู้ควบคุมข้อมูลและการติดต่อ', 'หากต้องการแจ้งปัญหาหรือใช้สิทธิเกี่ยวกับบัญชี ให้ส่งข้อความถึงผู้ดูแลผ่านเมนูบัญชีผู้ใช้');
+            appendAccountInfoSection(content, 'ข้อมูลที่จัดเก็บ', 'รูปที่เลือกหรือถ่ายบนหน้าแสกนปัจจุบันอยู่บนอุปกรณ์และไม่ถูกส่งเข้าระบบ รูปโปรไฟล์ที่คุณบันทึก ข้อความที่ส่งถึงผู้ดูแล และข้อมูลประวัติที่ระบบตั้งค่าให้บันทึกเป็นข้อมูลของบัญชี');
+            appendAccountInfoSection(content, 'รูปโปรไฟล์ (ไม่บังคับ)', 'รูปโปรไฟล์ใช้แสดงในเมนูบัญชีเท่านั้น ไม่ใช้เพื่อคัดกรองผิวหนัง คุณเปลี่ยนหรือลบได้ทุกเมื่อ และระบบจะลบเมื่อปิดบัญชี');
+            appendAccountInfoSection(content, 'วัตถุประสงค์และการเข้าถึง', 'ผู้ดูแลระบบเห็นข้อมูลบัญชีที่จำเป็นต่อการจัดการสิทธิ์ และข้อความที่ผู้ใช้เลือกส่งให้เท่านั้น ไม่มีการแสดงรหัสผ่าน');
+            appendAccountInfoSection(content, 'การลบข้อมูล', 'คุณลบรูปโปรไฟล์และลบบัญชีพร้อมข้อมูลที่เกี่ยวข้องได้จากเมนูบัญชี การลบบัญชีเป็นการดำเนินการถาวร');
+            appendAccountInfoSection(content, 'ตำแหน่งและบริการภายนอก', 'ระบบไม่ขอตำแหน่งโดยอัตโนมัติ เรดาร์สภาพแวดล้อมจะทำงานเมื่อคุณยินยอม และส่งพิกัดโดยประมาณให้ Open-Meteo เพื่อเรียกข้อมูลอากาศครั้งเดียว โดยไม่บันทึกพิกัดไว้ในบัญชี');
+            appendAccountInfoSection(content, 'ข้อควรระวังด้านสุขภาพ', 'หากรอยโรคเปลี่ยนแปลงเร็ว มีเลือดออก แผลไม่หาย ปวดมาก มีไข้ หรือผื่นลามเร็ว ให้พบแพทย์ผิวหนังหรือบริการฉุกเฉินในพื้นที่ทันที');
         }
         showModal('accountInfoModal');
     }
@@ -477,7 +500,7 @@
             setModalStatus('feedbackStatus', error.message, 'error');
         } finally {
             button.disabled = false;
-            button.textContent = 'ส่งข้อความ';
+            button.textContent = 'ส่งข้อเสนอแนะ';
         }
     }
 
