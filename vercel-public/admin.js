@@ -8,6 +8,15 @@
 
   const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
 
+  function setActionStatus(message, tone = 'success') {
+    const target = document.getElementById('adminActionStatus');
+    target.className = tone === 'error'
+      ? 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700'
+      : 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700';
+    target.textContent = message;
+    target.classList.remove('hidden');
+  }
+
   function appendCell(row, value, className = '') {
     const cell = document.createElement('td');
     cell.className = `p-4 ${className}`.trim();
@@ -21,7 +30,7 @@
     if (!users.length) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 5;
+      cell.colSpan = 6;
       cell.className = 'p-8 text-center font-mono text-slate-400';
       cell.textContent = 'NO_USER_RECORDS_FOUND';
       row.appendChild(cell);
@@ -38,12 +47,53 @@
       const status = document.createElement('td');
       status.className = 'p-4';
       const badge = document.createElement('span');
-      badge.className = 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-mono text-[10px] font-bold text-emerald-700';
-      badge.textContent = 'ACTIVE';
+      const pending = user.approvalStatus === 'pending';
+      badge.className = pending
+        ? 'rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-mono text-[10px] font-bold text-amber-700'
+        : 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-mono text-[10px] font-bold text-emerald-700';
+      badge.textContent = pending ? 'PENDING APPROVAL' : 'APPROVED';
       status.appendChild(badge);
       row.appendChild(status);
+      const action = document.createElement('td');
+      action.className = 'p-4';
+      if (pending) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'rounded-xl bg-teal-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-teal-700 disabled:cursor-wait disabled:opacity-60';
+        button.textContent = 'ยืนยันบัญชี';
+        button.addEventListener('click', () => approveUser(user.id, button));
+        action.appendChild(button);
+      } else {
+        const approved = document.createElement('span');
+        approved.className = 'text-[11px] font-semibold text-slate-400';
+        approved.textContent = 'อนุมัติแล้ว';
+        action.appendChild(approved);
+      }
+      row.appendChild(action);
       target.appendChild(row);
     });
+  }
+
+  async function approveUser(userId, button) {
+    const initialLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = 'กำลังยืนยัน…';
+    try {
+      const response = await fetch('/api/admin/approve-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ userId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data.message || 'ไม่สามารถยืนยันบัญชีได้');
+      setActionStatus(`ยืนยันบัญชี ${data.user.name} เรียบร้อยแล้ว`);
+      await loadAdmin();
+    } catch (error) {
+      setActionStatus(error.message || 'ไม่สามารถยืนยันบัญชีได้', 'error');
+      button.disabled = false;
+      button.textContent = initialLabel;
+    }
   }
 
   function openLogoutModal() {
@@ -79,7 +129,7 @@
         throw new Error('not-admin');
       }
       setText('adminName', data.admin.name);
-      setText('userCount', data.counts.users);
+      setText('pendingUserCount', data.counts.pendingUsers);
       setText('adminCount', data.counts.admins);
       setText('scanCount', data.counts.scans);
       setText('radarAccountCount', `${data.counts.users} ACTIVE`);

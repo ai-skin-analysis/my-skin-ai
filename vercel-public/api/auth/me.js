@@ -6,9 +6,9 @@ export default async function handler(req, res) {
     const claims = sessionClaims(req);
     if (!claims) return json(res, 401, { ok: false, user: null });
     const user = await publicUserById(claims.sub);
-    if (!user) {
+    if (!user || (user.role === 'user' && user.approvalStatus !== 'approved')) {
       clearSession(res);
-      return json(res, 401, { ok: false, user: null });
+      return json(res, 401, { ok: false, user: null, message: 'บัญชีนี้กำลังรอผู้ดูแลระบบยืนยัน' });
     }
     return json(res, 200, { ok: true, user: { ...user, mfaVerified: claims.mfaVerified } });
   } catch (error) {

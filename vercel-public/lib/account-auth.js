@@ -12,6 +12,7 @@ const RATE_WINDOWS = {
   register: { limit: 5, windowMs: 60 * 60 * 1000 },
   login: { limit: 10, windowMs: 15 * 60 * 1000 },
   admin_mfa: { limit: 10, windowMs: 15 * 60 * 1000 },
+  admin_approval: { limit: 30, windowMs: 15 * 60 * 1000 },
 };
 // This bootstrap identifier is only used to retain the initial administrator
 // account requested for this deployment. A deployment secret can replace it
@@ -160,17 +161,24 @@ export async function database() {
         display_name VARCHAR(100) NOT NULL,
         password_hash TEXT NOT NULL,
         role VARCHAR(16) NOT NULL DEFAULT 'user',
+        approval_status VARCHAR(16) NOT NULL DEFAULT 'pending',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         last_login_at TIMESTAMPTZ
       )`;
       await sql`ALTER TABLE smart_skin_users
         ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'user'`;
+      await sql`ALTER TABLE smart_skin_users
+        ADD COLUMN IF NOT EXISTS approval_status VARCHAR(16) NOT NULL DEFAULT 'pending'`;
       // The account must exist already: this statement never creates an
       // administrator or accepts a role supplied by the browser.
       await sql`UPDATE smart_skin_users SET role = 'admin'
         WHERE email = ${bootstrapAdminEmail} AND role = 'user'`;
+      await sql`UPDATE smart_skin_users SET approval_status = 'approved'
+        WHERE role = 'admin'`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_users_created_at_idx
         ON smart_skin_users (created_at DESC)`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_users_approval_status_idx
+        ON smart_skin_users (approval_status, created_at DESC)`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,
@@ -276,22 +284,23 @@ export function sessionUserId(req) {
 
 export async function publicUserById(userId) {
   const sql = await database();
-  const rows = await sql`SELECT users.id, users.display_name, users.email, users.role,
+  const rows = await sql`SELECT users.id, users.display_name, users.email, users.role, users.approval_status,
     EXISTS(SELECT 1 FROM smart_skin_admin_mfa WHERE smart_skin_admin_mfa.user_id = users.id) AS mfa_enabled
     FROM smart_skin_users AS users WHERE users.id = ${userId}`;
   const user = rows[0];
-  return user ? { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: user.mfa_enabled === true } : null;
+  return user ? { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, approvalStatus: user.approval_status, mfaEnrolled: user.mfa_enabled === true } : null;
 }
 
 export async function registerUser({ name, email, password }) {
   const sql = await database();
   const passwordHash = await hashPassword(password);
   try {
-    const rows = await sql`INSERT INTO smart_skin_users (display_name, email, password_hash, role)
-      VALUES (${name}, ${email}, ${passwordHash})
-      RETURNING id, display_name, email, role`;
+    const rows = await sql`INSERT INTO smart_skin_users (display_name, email, password_hash, role, approval_status)
+      
+      VALUES (${name}, ${email}, ${passwordHash}, 'user', 'pending')
+      RETURNING id, display_name, email, role, approval_status`;
     const user = rows[0];
-    return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: false };
+    return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, approvalStatus: user.approval_status, mfaEnrolled: false };
   } catch (error) {
     if (error && error.code === '23505') {
       throw new PublicAccountError('อีเมลนี้ถูกใช้งานแล้ว');
@@ -302,14 +311,14 @@ export async function registerUser({ name, email, password }) {
 
 export async function authenticateUser({ email, password }) {
   const sql = await database();
-  const rows = await sql`SELECT users.id, users.display_name, users.email, users.password_hash, users.role,
+  const rows = await sql`SELECT users.id, users.display_name, users.email, users.password_hash, users.role, users.approval_status,
     EXISTS(SELECT 1 FROM smart_skin_admin_mfa WHERE smart_skin_admin_mfa.user_id = users.id) AS mfa_enabled
     FROM smart_skin_users AS users WHERE users.email = ${email}`;
   const user = rows[0];
   const valid = await verifyPassword(password, user?.password_hash || await dummyPasswordHash());
   if (!user || !valid) return null;
   await sql`UPDATE smart_skin_users SET last_login_at = NOW() WHERE id = ${user.id}`;
-  return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, mfaEnrolled: user.mfa_enabled === true };
+  return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, approvalStatus: user.approval_status, mfaEnrolled: user.mfa_enabled === true };
 }
 
 export function publicError(res, error, operation) {

@@ -1,5 +1,4 @@
 import {
-  issueSession,
   json,
   normalizeRegistration,
   publicError,
@@ -19,8 +18,7 @@ export default async function handler(req, res) {
   }
   try {
     const user = await registerUser(normalizeRegistration(requestJson(req)));
-    issueSession(res, user.id);
-    return json(res, 201, { ok: true, user, message: 'ลงทะเบียนและเข้าสู่ระบบเรียบร้อยแล้ว' });
+    return json(res, 201, { ok: true, user, pendingApproval: true, message: 'ลงทะเบียนสำเร็จแล้ว บัญชีของคุณกำลังรอผู้ดูแลระบบยืนยัน' });
   } catch (error) {
     return publicError(res, error, 'register');
   }

@@ -20,6 +20,9 @@ export default async function handler(req, res) {
   try {
     const user = await authenticateUser(normalizeLogin(requestJson(req)));
     if (!user) return json(res, 401, { ok: false, message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+    if (user.role === 'user' && user.approvalStatus !== 'approved') {
+      return json(res, 403, { ok: false, code: 'account_pending_approval', message: 'บัญชีนี้กำลังรอผู้ดูแลระบบยืนยัน จึงยังไม่สามารถเข้าใช้งานได้' });
+    }
     issueSession(res, user.id);
     return json(res, 200, { ok: true, user, message: `ยินดีต้อนรับ ${user.name}` });
   } catch (error) {

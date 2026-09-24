@@ -1011,6 +1011,11 @@
                     return;
                 }
                 form.reset();
+                if (result.pendingApproval) {
+                    switchForm('login');
+                    setAccountStatus(result.message || 'ลงทะเบียนสำเร็จแล้ว กรุณารอผู้ดูแลระบบยืนยันบัญชีก่อนเข้าใช้งาน', 'info');
+                    return;
+                }
                 setAccountStatus(result.message || 'เข้าสู่ระบบเรียบร้อยแล้ว', 'success');
                 window.location.assign(result.user?.role === 'admin' ? '/admin.html' : '/dashboard.html');
             } catch (error) {

@@ -43,11 +43,12 @@ async function overview(req, res) {
   const admin = await signedInAdmin(req, res);
   if (!admin) return;
   const sql = await database();
-  const [accountCount, adminCount, userCount, users] = await Promise.all([
+  const [accountCount, adminCount, approvedUserCount, pendingUserCount, users] = await Promise.all([
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users`,
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'admin'`,
-    sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'user'`,
-    sql`SELECT id, display_name, email, created_at, last_login_at
+    sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'user' AND approval_status = 'approved'`,
+    sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'user' AND approval_status = 'pending'`,
+    sql`SELECT id, display_name, email, approval_status, created_at, last_login_at
       FROM smart_skin_users WHERE role = 'user' ORDER BY id DESC LIMIT 100`,
   ]);
   return json(res, 200, {
@@ -55,7 +56,8 @@ async function overview(req, res) {
     admin: { name: admin.user.name, email: admin.user.email },
     counts: {
       accounts: accountCount[0].value,
-      users: userCount[0].value,
+      users: approvedUserCount[0].value,
+      pendingUsers: pendingUserCount[0].value,
       admins: adminCount[0].value,
       scans: 0,
     },
@@ -63,10 +65,29 @@ async function overview(req, res) {
       id: Number(user.id),
       name: user.display_name,
       email: user.email,
+      approvalStatus: user.approval_status,
       createdAt: user.created_at,
       lastLoginAt: user.last_login_at,
     })),
   });
+}
+
+async function approveUser(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const budget = takeRateBudget(req, 'admin_approval');
+  if (!budget.ok) return rejectRateLimit(res, 'ยืนยันบัญชีบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
+  const admin = await signedInAdmin(req, res);
+  if (!admin) return;
+  const rawId = requestJson(req).userId;
+  const userId = typeof rawId === 'number' ? rawId : Number(rawId);
+  if (!Number.isSafeInteger(userId) || userId < 1) return json(res, 400, { ok: false, message: 'รหัสบัญชีผู้ใช้ไม่ถูกต้อง' });
+  const sql = await database();
+  const rows = await sql`UPDATE smart_skin_users
+    SET approval_status = 'approved'
+    WHERE id = ${userId} AND role = 'user' AND approval_status = 'pending'
+    RETURNING id, display_name`;
+  if (!rows[0]) return json(res, 409, { ok: false, message: 'บัญชีนี้ถูกยืนยันแล้ว หรือไม่พบบัญชีที่รอยืนยัน' });
+  return json(res, 200, { ok: true, user: { id: Number(rows[0].id), name: rows[0].display_name }, message: 'ยืนยันบัญชีผู้ใช้เรียบร้อยแล้ว' });
 }
 
 async function enrollmentStart(req, res) {
@@ -120,6 +141,7 @@ export default async function handler(req, res) {
   try {
     switch (requestPath(req)) {
       case 'overview': return await overview(req, res);
+      case 'approve-user': return await approveUser(req, res);
       case 'mfa/enroll': return await enrollmentStart(req, res);
       case 'mfa/confirm': return await enrollmentConfirm(req, res);
       case 'mfa/verify': return await mfaVerify(req, res);
