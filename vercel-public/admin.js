@@ -46,8 +46,24 @@
     });
   }
 
+  function openLogoutModal() {
+    const modal = document.getElementById('adminLogoutModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.setAttribute('aria-hidden', 'false');
+    document.getElementById('adminLogoutConfirmButton').focus();
+  }
+
+  function closeLogoutModal() {
+    const modal = document.getElementById('adminLogoutModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    modal.setAttribute('aria-hidden', 'true');
+    document.getElementById('adminLogoutButton').focus();
+  }
+
   async function logout() {
-    const button = document.getElementById('adminLogoutButton');
+    const button = document.getElementById('adminLogoutConfirmButton');
     button.disabled = true;
     button.textContent = 'กำลังออกจากระบบ…';
     try { await fetch('/api/account/logout', { method: 'POST', credentials: 'same-origin' }); }
@@ -82,7 +98,15 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('adminLogoutButton').addEventListener('click', logout);
+    document.getElementById('adminLogoutButton').addEventListener('click', openLogoutModal);
+    document.getElementById('adminLogoutCancelButton').addEventListener('click', closeLogoutModal);
+    document.getElementById('adminLogoutConfirmButton').addEventListener('click', logout);
+    document.getElementById('adminLogoutModal').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget) closeLogoutModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !document.getElementById('adminLogoutModal').classList.contains('hidden')) closeLogoutModal();
+    });
     loadAdmin();
   });
 })();
