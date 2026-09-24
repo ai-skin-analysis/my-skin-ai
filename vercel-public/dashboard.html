@@ -91,14 +91,14 @@
                     <div class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><i data-lucide="focus" class="h-5 w-5"></i></span><h2 id="photoGuideTitle" class="text-sm font-extrabold text-slate-900">ภาพที่เหมาะสม</h2></div>
                     <ul class="mt-4 space-y-2 text-xs leading-relaxed text-slate-600"><li>• ถ่ายให้เห็นบริเวณผิวหนังชัดเจน</li><li>• ใช้แสงพอดี ไม่ใช้ฟิลเตอร์</li><li>• หลีกเลี่ยงใบหน้าหรือข้อมูลระบุตัวตนเมื่อไม่จำเป็น</li></ul>
                 </section>
-                <details class="scan-side-card rounded-3xl text-left">
-                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700"><i data-lucide="shield-check" class="h-5 w-5"></i></span><span id="privacyGuideTitle" class="text-sm font-extrabold text-slate-900">ข้อมูลและความยินยอม</span></span><span class="text-[11px] font-bold text-teal-700">ดูข้อมูล</span></summary>
-                    <p class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">ภาพจะแสดงเป็นตัวอย่างบนอุปกรณ์ก่อนเสมอ และจะถูกจัดเก็บในพื้นที่ส่วนตัวก็ต่อเมื่อคุณยืนยันความยินยอมและกดปุ่มส่งภาพ ภาพนี้ไม่ใช่ผลวินิจฉัยโรค</p>
-                </details>
-                <details class="scan-side-card rounded-3xl text-left">
-                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/10 text-teal-700"><i data-lucide="radar" class="h-5 w-5"></i></span><span id="scanStatusTitle" class="text-sm font-extrabold text-slate-900">สถานะหน้าสแกน</span></span><span class="text-[11px] font-bold text-teal-700">ดูสถานะ</span></summary>
-                    <p id="scanStorageStatusDescription" class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">กำลังตรวจสอบพื้นที่จัดเก็บส่วนตัวของบัญชีคุณ</p>
-                </details>
+                <section class="scan-side-card rounded-3xl p-5 text-left" aria-labelledby="fileGuideTitle">
+                    <div class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700"><i data-lucide="files" class="h-5 w-5"></i></span><h2 id="fileGuideTitle" class="text-sm font-extrabold text-slate-900">ไฟล์ที่รองรับ</h2></div>
+                    <ul class="mt-4 space-y-2 text-xs leading-relaxed text-slate-600"><li>• JPG, JPEG, PNG และ WEBP</li><li>• ขนาดไฟล์ไม่เกิน 8 MB</li><li>• เลือกหรือถ่ายภาพจากอุปกรณ์ได้</li></ul>
+                </section>
+                <section class="scan-side-card rounded-3xl p-5 text-left" aria-labelledby="workflowGuideTitle">
+                    <div class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/10 text-teal-700"><i data-lucide="list-checks" class="h-5 w-5"></i></span><h2 id="workflowGuideTitle" class="text-sm font-extrabold text-slate-900">ขั้นตอนส่งภาพ</h2></div>
+                    <ol class="mt-4 space-y-2 text-xs leading-relaxed text-slate-600"><li><span class="font-bold text-teal-700">1.</span> เลือกไฟล์หรือถ่ายภาพ</li><li><span class="font-bold text-teal-700">2.</span> ตรวจทานภาพตัวอย่าง</li><li><span class="font-bold text-teal-700">3.</span> ยืนยันและส่งภาพ</li></ol>
+                </section>
             </aside>
 
             <section class="scan-workbench space-y-5 rounded-[2rem] p-5 text-center sm:p-8 lg:col-span-10 lg:col-start-2" aria-labelledby="scanWorkspaceTitle">

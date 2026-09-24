@@ -701,9 +701,6 @@
                 } catch {
                     privateStorageReady = false;
                 }
-                document.getElementById('scanStorageStatusDescription').textContent = privateStorageReady
-                    ? 'บัญชีของคุณพร้อมจัดเก็บภาพส่วนตัวหลังยืนยันความยินยอม ผ่านเบราว์เซอร์ HTTPS ที่รองรับ'
-                    : 'ภาพยังดูตัวอย่างได้บนอุปกรณ์ พื้นที่จัดเก็บส่วนตัวกำลังตั้งค่าและจะเปิดใช้เมื่อพร้อม';
             }
             document.getElementById('dashboardLoading').classList.add('hidden');
             document.getElementById('dashboardMain').classList.remove('hidden');
