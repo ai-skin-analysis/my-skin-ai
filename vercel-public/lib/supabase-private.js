@@ -54,6 +54,24 @@ function privateHeaders(secretKey) {
     : { apikey: secretKey, authorization: `Bearer ${secretKey}` };
 }
 
+function upstreamFailure(response, data) {
+  const reason = [data?.message, data?.error, data?.statusCode].find((value) => typeof value === 'string') || '';
+  let message = 'ไม่สามารถจัดการข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง';
+  if (response.status === 401 || response.status === 403) {
+    message = 'สิทธิ์เชื่อมต่อพื้นที่ส่วนตัวไม่ถูกต้อง กรุณาตรวจคีย์ Supabase ของเซิร์ฟเวอร์';
+  } else if (/bucket.+not found|bucket not found/i.test(reason)) {
+    message = 'กำลังเตรียมพื้นที่จัดเก็บภาพส่วนตัว โปรดลองอีกครั้ง';
+  }
+  const error = new PublicAccountError(message, response.status >= 500 ? 503 : 502);
+  error.upstreamStatus = response.status;
+  error.upstreamReason = reason;
+  return error;
+}
+
+function bucketMissing(error) {
+  return error?.upstreamStatus === 404 || /bucket.+not found|bucket not found/i.test(String(error?.upstreamReason || ''));
+}
+
 async function request(path, { method = 'GET', body, headers = {}, accept = 'application/json' } = {}) {
   const { baseUrl, secretKey } = configuration();
   let response;
@@ -74,17 +92,42 @@ async function request(path, { method = 'GET', body, headers = {}, accept = 'app
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
   if (!response.ok) {
-    throw new PublicAccountError('ไม่สามารถจัดการข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง', response.status >= 500 ? 503 : 502);
+    throw upstreamFailure(response, data);
   }
   return data;
 }
 
-export async function createPrivateUpload(path) {
-  const data = await request(`/storage/v1/object/upload/sign/${PRIVATE_BUCKET}/${objectPath(path)}`, {
+async function ensurePrivateBucket() {
+  try {
+    await request(`/storage/v1/bucket/${PRIVATE_BUCKET}`);
+    return;
+  } catch (error) {
+    if (!bucketMissing(error)) throw error;
+  }
+  await request('/storage/v1/bucket', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ upsert: false }),
+    body: JSON.stringify({
+      id: PRIVATE_BUCKET,
+      name: PRIVATE_BUCKET,
+      public: false,
+      file_size_limit: 8 * 1024 * 1024,
+      allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'],
+    }),
   });
+}
+
+export async function createPrivateUpload(path) {
+  const requestSignedUpload = () => request(`/storage/v1/object/upload/sign/${PRIVATE_BUCKET}/${objectPath(path)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ upsert: false }),
+  });
+  let data;
+  try { data = await requestSignedUpload(); }
+  catch (error) {
+    if (!bucketMissing(error)) throw error;
+    await ensurePrivateBucket();
+    data = await requestSignedUpload();
+  }
   if (!data?.token || typeof data.token !== 'string') throw new PublicAccountError('ไม่สามารถสร้างสิทธิ์อัปโหลดภาพชั่วคราวได้', 503);
   const { baseUrl } = configuration();
   return {
