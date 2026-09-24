@@ -79,7 +79,6 @@
         throw new Error('not-admin');
       }
       setText('adminName', data.admin.name);
-      setText('adminEmail', data.admin.email);
       setText('userCount', data.counts.users);
       setText('adminCount', data.counts.admins);
       setText('scanCount', data.counts.scans);
