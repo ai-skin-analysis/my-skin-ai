@@ -51,6 +51,22 @@
         .tech-flow-row:first-child { border-top: 0; padding-top: .15rem; }
         .tech-flow-index { display: inline-flex; height: 1.2rem; width: 1.2rem; align-items: center; justify-content: center; border: 1px solid rgba(94,234,212,.48); border-radius: .35rem; color: #99f6e4; font-size: .55rem; }
         .tech-flow-arrow { margin-left: auto; color: #5eead4; }
+        .processing-console { position: relative; overflow: hidden; border: 1px solid rgba(94,234,212,.42); background: linear-gradient(145deg, #061426, #0a2636 60%, #073c42); box-shadow: 0 28px 70px rgba(2,6,23,.55), inset 0 1px 0 rgba(255,255,255,.09); }
+        .processing-console::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .52; background-image: linear-gradient(rgba(45,212,191,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,191,.09) 1px, transparent 1px); background-size: 22px 22px; mask-image: linear-gradient(150deg, #000, transparent 80%); }
+        .processing-orbit { animation: processingOrbit 2.8s linear infinite; transform-origin: center; }
+        @keyframes processingOrbit { to { transform: rotate(360deg); } }
+        .processing-step { display: flex; align-items: center; gap: .65rem; border: 1px solid rgba(148,163,184,.16); border-radius: .75rem; background: rgba(2,6,23,.28); padding: .65rem .75rem; transition: .2s ease; }
+        .processing-step > span { display: flex; height: 1.45rem; width: 1.45rem; flex: none; align-items: center; justify-content: center; border: 1px solid rgba(148,163,184,.35); border-radius: .4rem; font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .57rem; font-weight: 700; color: #94a3b8; }
+        .processing-step > p { font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .62rem; font-weight: 700; letter-spacing: .045em; color: #94a3b8; }
+        .processing-step[data-state="active"] { border-color: rgba(94,234,212,.62); background: rgba(20,184,166,.12); box-shadow: inset 0 0 18px rgba(45,212,191,.06); }
+        .processing-step[data-state="active"] > span { border-color: #5eead4; color: #99f6e4; box-shadow: 0 0 10px rgba(94,234,212,.55); }
+        .processing-step[data-state="active"] > p { color: #e6fffb; }
+        .processing-step[data-state="complete"] { border-color: rgba(74,222,128,.36); background: rgba(22,163,74,.1); }
+        .processing-step[data-state="complete"] > span { border-color: #86efac; color: #bbf7d0; }
+        .processing-step[data-state="complete"] > p { color: #d1fae5; }
+        .processing-step[data-state="error"] { border-color: rgba(251,113,133,.34); background: rgba(190,24,93,.1); }
+        .processing-step[data-state="error"] > span { border-color: #fda4af; color: #fecdd3; }
+        .processing-step[data-state="error"] > p { color: #ffe4e6; }
         .brand-logo-glow { background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); box-shadow: 0 0 15px rgba(13,148,136,.4), inset 0 1px 1px rgba(255,255,255,.3); }
         .gis-radar-bg { background-color: #090d16; background-image: radial-gradient(rgba(13,148,136,.3) 1px, transparent 0), linear-gradient(to right, rgba(15,23,42,.8) 1px, transparent 1px), linear-gradient(to bottom, rgba(15,23,42,.8) 1px, transparent 1px); background-size: 20px 20px, 40px 40px, 40px 40px; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation: none !important; } }
@@ -168,6 +184,16 @@
     </main>
 
     <div id="dashboardLoading" class="relative z-10 mx-auto flex max-w-7xl items-center gap-3 px-6 py-16 text-sm font-semibold text-slate-600"><i data-lucide="loader-circle" class="h-5 w-5 animate-spin text-teal-600"></i> กำลังตรวจสอบการเข้าสู่ระบบ…</div>
+
+    <div id="dashboardProcessingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardProcessingTitle" aria-describedby="dashboardProcessingDetail">
+        <div class="processing-console w-full max-w-md rounded-3xl p-6 text-left text-white shadow-2xl sm:p-7">
+            <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="cpu" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">PRIVATE SCAN PROCESSOR</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">กำลังเตรียมภาพอย่างปลอดภัย</h2><p id="dashboardProcessingDetail" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ</p></div></div>
+            <div class="relative mt-6 space-y-2"><div class="processing-step" data-processing-step="0" data-state="active"><span>01</span><p>LOCAL IMAGE PREPARATION</p></div><div class="processing-step" data-processing-step="1" data-state="pending"><span>02</span><p>PRIVATE ACCESS TOKEN</p></div><div class="processing-step" data-processing-step="2" data-state="pending"><span>03</span><p>ENCRYPTED OBJECT UPLOAD</p></div><div class="processing-step" data-processing-step="3" data-state="pending"><span>04</span><p>HISTORY RECORD COMMIT</p></div></div>
+            <p class="relative mt-5 text-[11px] leading-relaxed text-slate-400">หน้าจอนี้แสดงขั้นตอนจัดเก็บภาพเพื่อการตรวจทาน ไม่ใช่ผลวินิจฉัยโรคจากระบบ</p>
+            <p id="dashboardProcessingError" class="relative mt-4 hidden rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2.5 text-xs font-semibold leading-relaxed text-rose-100" role="alert"></p>
+            <button id="dashboardProcessingCloseButton" type="button" class="relative mt-5 hidden w-full rounded-xl border border-slate-500/50 bg-slate-800/70 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-700">ปิดและลองใหม่</button>
+        </div>
+    </div>
 
     <div id="dashboardLogoutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardLogoutTitle" aria-describedby="dashboardLogoutDescription">
         <div class="w-full max-w-sm rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-2xl">

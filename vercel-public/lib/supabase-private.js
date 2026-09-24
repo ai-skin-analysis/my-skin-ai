@@ -1,6 +1,10 @@
 import { PublicAccountError } from './account-auth.js';
 
 export const PRIVATE_BUCKET = 'smart-skin-private';
+// The public project endpoint is intentionally not secret. It lets the live
+// deployment recover when an older Vercel URL variable is malformed; the
+// server-only secret key is still required for every data operation.
+const DEPLOYMENT_SUPABASE_URL = 'https://gpkvjwiblvnqjrreukox.supabase.co';
 
 function normalizedSupabaseUrl(value) {
   // Environment-variable screens sometimes preserve quotes or an accidentally
@@ -15,7 +19,7 @@ function normalizedSupabaseUrl(value) {
 }
 
 function configuration() {
-  const baseUrl = normalizedSupabaseUrl(process.env.SUPABASE_URL);
+  let baseUrl = normalizedSupabaseUrl(process.env.SUPABASE_URL) || DEPLOYMENT_SUPABASE_URL;
   // Prefer the current secret key. The legacy service_role name remains only
   // for existing projects while they rotate keys before its 2026 retirement.
   const secretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -23,13 +27,19 @@ function configuration() {
     throw new PublicAccountError('ระบบจัดเก็บภาพส่วนตัวยังไม่ได้เชื่อมต่อ กรุณาตั้งค่า Supabase ก่อนใช้งาน', 503);
   }
   let parsed;
-  try { parsed = new URL(baseUrl); } catch { throw new PublicAccountError('การตั้งค่า Supabase ไม่ถูกต้อง', 503); }
+  try { parsed = new URL(baseUrl); }
+  catch {
+    // Preserve a valid custom URL where one exists, but recover this deployed
+    // project from a malformed legacy value instead of blocking every upload.
+    baseUrl = DEPLOYMENT_SUPABASE_URL;
+    parsed = new URL(baseUrl);
+  }
   if (parsed.protocol !== 'https:') throw new PublicAccountError('การตั้งค่า Supabase ต้องใช้ HTTPS', 503);
   return { baseUrl, secretKey };
 }
 
 export function isSupabasePrivateStorageConfigured() {
-  return Boolean(String(process.env.SUPABASE_URL || '').trim() && String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim());
+  return Boolean(String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim());
 }
 
 function objectPath(path) {

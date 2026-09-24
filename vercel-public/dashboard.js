@@ -27,6 +27,43 @@
         status.textContent = message;
     }
 
+    const PROCESSING_STAGES = {
+        prepare: { title: 'กำลังเตรียมภาพอย่างปลอดภัย', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
+        authorize: { title: 'กำลังตรวจสิทธิ์การจัดเก็บ', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
+        upload: { title: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัว', detail: 'กำลังจัดเก็บภาพผ่านการเชื่อมต่อที่เข้ารหัส', step: 2 },
+        commit: { title: 'กำลังยืนยันการจัดเก็บ', detail: 'กำลังเพิ่มรายการเข้าไปในประวัติการสแกนของคุณ', step: 3 },
+        complete: { title: 'จัดเก็บภาพเรียบร้อยแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการสแกน', step: 4 },
+    };
+
+    function setProcessingStage(stage) {
+        const current = PROCESSING_STAGES[stage] || PROCESSING_STAGES.prepare;
+        const modal = document.getElementById('dashboardProcessingModal');
+        if (!modal) return;
+        document.getElementById('dashboardProcessingTitle').textContent = current.title;
+        document.getElementById('dashboardProcessingDetail').textContent = current.detail;
+        document.getElementById('dashboardProcessingError').classList.add('hidden');
+        document.getElementById('dashboardProcessingCloseButton').classList.add('hidden');
+        document.querySelectorAll('[data-processing-step]').forEach((item) => {
+            const itemStep = Number(item.dataset.processingStep);
+            item.dataset.state = itemStep < current.step ? 'complete' : itemStep === current.step ? 'active' : 'pending';
+        });
+        if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
+        refreshIcons();
+    }
+
+    function showProcessingError(message) {
+        const modal = document.getElementById('dashboardProcessingModal');
+        if (!modal) return;
+        document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถจัดเก็บภาพได้';
+        document.getElementById('dashboardProcessingDetail').textContent = 'ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ และยังไม่ถูกบันทึกเป็นประวัติ';
+        document.getElementById('dashboardProcessingError').textContent = message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่';
+        document.getElementById('dashboardProcessingError').classList.remove('hidden');
+        document.getElementById('dashboardProcessingCloseButton').classList.remove('hidden');
+        document.querySelectorAll('[data-processing-step]').forEach((item) => { item.dataset.state = 'error'; });
+        if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
+        refreshIcons();
+    }
+
     function setModalStatus(id, message, tone = 'info') {
         const element = document.getElementById(id);
         if (!element) return;
@@ -197,8 +234,10 @@
         button.disabled = true;
         button.textContent = 'กำลังเตรียมภาพ…';
         try {
+            setProcessingStage('prepare');
             const preparedImage = await preparePrivateScanImage(selectedScanImage);
             button.textContent = 'กำลังขอสิทธิ์อัปโหลด…';
+            setProcessingStage('authorize');
             const uploadRequest = await userRequest('/api/user/scan/upload', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -210,6 +249,7 @@
                 }),
             });
             button.textContent = 'กำลังจัดเก็บภาพส่วนตัว…';
+            setProcessingStage('upload');
             const uploadResponse = await fetch(uploadRequest.upload.url, {
                 method: 'PUT',
                 headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
@@ -217,6 +257,7 @@
             });
             if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้ กรุณาลองใหม่');
             button.textContent = 'กำลังยืนยันการจัดเก็บ…';
+            setProcessingStage('commit');
             const completed = await userRequest('/api/user/scan/complete', {
                 method: 'POST',
                 body: JSON.stringify({ uploadId: uploadRequest.upload.id }),
@@ -226,10 +267,13 @@
             document.getElementById('dashboardScanConsentInput').checked = false;
             button.textContent = 'บันทึกภาพแล้ว';
             setStatus(`${completed.message} · รายการถูกเพิ่มในประวัติการสแกนของคุณ`, 'success');
+            setProcessingStage('complete');
+            window.setTimeout(() => closeModal('dashboardProcessingModal'), 1000);
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน';
             setStatus(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่', 'error');
+            showProcessingError(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่');
             refreshIcons();
         }
     }
@@ -749,6 +793,7 @@
         document.getElementById('dashboardLogoutCancelButton').addEventListener('click', closeLogoutModal);
         document.getElementById('dashboardLogoutConfirmButton').addEventListener('click', logout);
         document.getElementById('dashboardLogoutModal').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeLogoutModal(); });
+        document.getElementById('dashboardProcessingCloseButton').addEventListener('click', () => closeModal('dashboardProcessingModal'));
 
         document.getElementById('userAccountButton').addEventListener('click', openUserMenu);
         document.getElementById('profileAvatarMenuItem').addEventListener('click', openAvatarModal);
@@ -770,7 +815,7 @@
 
         document.querySelectorAll('[data-close-modal]').forEach((button) => button.addEventListener('click', () => closeModal(button.dataset.closeModal)));
         document.querySelectorAll('[role="dialog"]').forEach((modal) => modal.addEventListener('click', (event) => {
-            if (event.target !== modal || modal.id === 'dashboardLogoutModal') return;
+            if (event.target !== modal || modal.id === 'dashboardLogoutModal' || modal.id === 'dashboardProcessingModal') return;
             if (modal.id === 'dashboardCameraModal') closeCamera();
             else closeModal(modal.id);
         }));
