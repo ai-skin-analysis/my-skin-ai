@@ -2,8 +2,20 @@ import { PublicAccountError } from './account-auth.js';
 
 export const PRIVATE_BUCKET = 'smart-skin-private';
 
+function normalizedSupabaseUrl(value) {
+  // Environment-variable screens sometimes preserve quotes or an accidentally
+  // pasted KEY=value pair. Accept those harmless forms without exposing the
+  // configured value to a browser or response body.
+  return String(value || '')
+    .trim()
+    .replace(/^SUPABASE_URL\s*=\s*/i, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .trim()
+    .replace(/\/+$/, '');
+}
+
 function configuration() {
-  const baseUrl = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const baseUrl = normalizedSupabaseUrl(process.env.SUPABASE_URL);
   // Prefer the current secret key. The legacy service_role name remains only
   // for existing projects while they rotate keys before its 2026 retirement.
   const secretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
