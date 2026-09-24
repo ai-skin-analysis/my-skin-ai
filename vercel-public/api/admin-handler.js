@@ -129,6 +129,45 @@ function avatarDataUrl(value) {
   return `data:${match[1]};base64,${bytes.toString('base64')}`;
 }
 
+const NEARBY_CONTEXT_RETENTION_HOURS = 24;
+
+function nearbyNumber(body, key, minimum, maximum) {
+  const value = body[key];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`${key} อยู่นอกช่วงที่อนุญาต`);
+  }
+  return value;
+}
+
+function environmentalContextLevel(pm25, uvIndex, relativeHumidity, temperatureC) {
+  const notices = [];
+  if (uvIndex >= 6) notices.push('ดัชนี UV สูง ควรหลีกเลี่ยงแดดจัดและป้องกันผิว');
+  if (pm25 >= 37.5) notices.push('PM2.5 สูง ควรลดการสัมผัสฝุ่นเมื่อทำได้');
+  if (temperatureC >= 33 && relativeHumidity >= 70) notices.push('อากาศร้อนชื้น ควรรักษาผิวให้สะอาดและแห้งสบาย');
+  if (notices.length >= 2) return { level: 'ควรระวังมาก', summary: notices.join(' · ') };
+  if (notices.length) return { level: 'ควรระวัง', summary: notices.join(' · ') };
+  return {
+    level: 'ข้อมูลทั่วไป',
+    summary: 'ไม่พบเงื่อนไขแจ้งเตือนจากกติกาสิ่งแวดล้อมของระบบ',
+  };
+}
+
+function nearbyContextResponse(row) {
+  if (!row) return null;
+  return {
+    latitudeApprox: Number(row.latitude_approx),
+    longitudeApprox: Number(row.longitude_approx),
+    pm25: Number(row.pm25),
+    uvIndex: Number(row.uv_index),
+    relativeHumidity: Number(row.relative_humidity),
+    temperatureC: Number(row.temperature_c),
+    contextLevel: row.context_level,
+    contextSummary: row.context_summary,
+    updatedAt: row.consented_at,
+    retentionExpiresAt: row.retention_expires_at,
+  };
+}
+
 async function userProfile(req, res) {
   if (!requireGet(req, res)) return;
   const account = await signedInApprovedUser(req, res);
@@ -178,6 +217,95 @@ async function userHistory(req, res) {
     id: Number(item.id), source: item.source, originalName: item.original_name, imageSizeBytes: item.image_size_bytes,
     resultLabel: item.result_label, confidence: item.confidence === null ? null : Number(item.confidence), createdAt: item.created_at,
   })) });
+}
+
+async function userNearbyContext(req, res) {
+  if (!requireGet(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const sql = await database();
+  // Expired contexts are never returned and are removed when this account is
+  // next accessed. This keeps the store to one current coarse context only.
+  await sql`DELETE FROM smart_skin_nearby_context_reports
+    WHERE user_id = ${account.user.id} AND retention_expires_at <= NOW()`;
+  const rows = await sql`SELECT latitude_approx, longitude_approx, pm25, uv_index,
+      relative_humidity, temperature_c, context_level, context_summary,
+      consented_at, retention_expires_at
+    FROM smart_skin_nearby_context_reports
+    WHERE user_id = ${account.user.id} AND retention_expires_at > NOW()`;
+  return json(res, 200, { ok: true, context: nearbyContextResponse(rows[0]) });
+}
+
+async function saveNearbyContext(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const budget = takeRateBudget(req, 'user_nearby_context');
+  if (!budget.ok) return rejectRateLimit(res, 'ส่งข้อมูลบริบทพื้นที่บ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const body = requestJson(req);
+  if (body.consent !== true) return json(res, 400, { ok: false, message: 'ต้องยืนยันความยินยอมก่อนบันทึกบริบทพื้นที่' });
+
+  let latitude;
+  let longitude;
+  let pm25;
+  let uvIndex;
+  let relativeHumidity;
+  let temperatureC;
+  try {
+    latitude = nearbyNumber(body, 'latitude', -90, 90);
+    longitude = nearbyNumber(body, 'longitude', -180, 180);
+    pm25 = nearbyNumber(body, 'pm25', 0, 1000);
+    uvIndex = nearbyNumber(body, 'uvIndex', 0, 30);
+    relativeHumidity = nearbyNumber(body, 'relativeHumidity', 0, 100);
+    temperatureC = nearbyNumber(body, 'temperatureC', -90, 70);
+  } catch (error) {
+    return json(res, 400, { ok: false, message: error.message });
+  }
+
+  // Discard GPS precision before persistence. Two decimal places are a coarse
+  // coordinate grid (roughly 1 km), not a route or a circular detector.
+  const latitudeApprox = Math.round(latitude * 100) / 100;
+  const longitudeApprox = Math.round(longitude * 100) / 100;
+  const notice = environmentalContextLevel(pm25, uvIndex, relativeHumidity, temperatureC);
+  const retentionExpiresAt = new Date(Date.now() + NEARBY_CONTEXT_RETENTION_HOURS * 60 * 60 * 1000);
+  const sql = await database();
+  const rows = await sql`INSERT INTO smart_skin_nearby_context_reports (
+      user_id, latitude_approx, longitude_approx, pm25, uv_index,
+      relative_humidity, temperature_c, context_level, context_summary,
+      consented_at, retention_expires_at, created_at
+    ) VALUES (
+      ${account.user.id}, ${latitudeApprox}, ${longitudeApprox}, ${pm25}, ${uvIndex},
+      ${relativeHumidity}, ${temperatureC}, ${notice.level}, ${notice.summary},
+      NOW(), ${retentionExpiresAt}, NOW()
+    ) ON CONFLICT (user_id) DO UPDATE SET
+      latitude_approx = EXCLUDED.latitude_approx,
+      longitude_approx = EXCLUDED.longitude_approx,
+      pm25 = EXCLUDED.pm25,
+      uv_index = EXCLUDED.uv_index,
+      relative_humidity = EXCLUDED.relative_humidity,
+      temperature_c = EXCLUDED.temperature_c,
+      context_level = EXCLUDED.context_level,
+      context_summary = EXCLUDED.context_summary,
+      consented_at = NOW(),
+      retention_expires_at = EXCLUDED.retention_expires_at,
+      created_at = NOW()
+    RETURNING latitude_approx, longitude_approx, pm25, uv_index,
+      relative_humidity, temperature_c, context_level, context_summary,
+      consented_at, retention_expires_at`;
+  return json(res, 201, { ok: true, context: nearbyContextResponse(rows[0]), message: 'บันทึกบริบทพื้นที่โดยประมาณล่าสุดแล้ว' });
+}
+
+async function deleteNearbyContext(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const sql = await database();
+  const rows = await sql`DELETE FROM smart_skin_nearby_context_reports
+    WHERE user_id = ${account.user.id} RETURNING id`;
+  return json(res, 200, {
+    ok: true,
+    message: rows[0] ? 'ลบตำแหน่งโดยประมาณและบริบทสภาพแวดล้อมล่าสุดแล้ว' : 'ไม่พบข้อมูลบริบทพื้นที่ที่ต้องลบ',
+  });
 }
 
 async function changePassword(req, res) {
@@ -273,6 +401,9 @@ export default async function handler(req, res) {
       case 'user/avatar': return await updateAvatar(req, res);
       case 'user/avatar/remove': return await removeAvatar(req, res);
       case 'user/history': return await userHistory(req, res);
+      case 'user/nearby-context': return await userNearbyContext(req, res);
+      case 'user/nearby-context/save': return await saveNearbyContext(req, res);
+      case 'user/nearby-context/delete': return await deleteNearbyContext(req, res);
       case 'user/password': return await changePassword(req, res);
       case 'user/feedback': return await sendFeedback(req, res);
       case 'user/delete': return await deleteAccount(req, res);

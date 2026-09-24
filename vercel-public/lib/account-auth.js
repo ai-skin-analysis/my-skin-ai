@@ -16,6 +16,7 @@ const RATE_WINDOWS = {
   user_profile: { limit: 8, windowMs: 60 * 60 * 1000 },
   user_sensitive: { limit: 5, windowMs: 60 * 60 * 1000 },
   user_feedback: { limit: 10, windowMs: 60 * 60 * 1000 },
+  user_nearby_context: { limit: 4, windowMs: 24 * 60 * 60 * 1000 },
 };
 // This bootstrap identifier is only used to retain the initial administrator
 // account requested for this deployment. A deployment secret can replace it
@@ -207,6 +208,25 @@ export async function database() {
       )`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_feedback_created_idx
         ON smart_skin_feedback (created_at DESC)`;
+      // This table intentionally retains only one coarse environmental
+      // context per person. Exact device GPS never reaches persistent storage.
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_nearby_context_reports (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL UNIQUE REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        latitude_approx NUMERIC(6,2) NOT NULL,
+        longitude_approx NUMERIC(6,2) NOT NULL,
+        pm25 NUMERIC(8,2) NOT NULL,
+        uv_index NUMERIC(6,2) NOT NULL,
+        relative_humidity NUMERIC(6,2) NOT NULL,
+        temperature_c NUMERIC(6,2) NOT NULL,
+        context_level VARCHAR(160) NOT NULL,
+        context_summary TEXT NOT NULL,
+        consented_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        retention_expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_nearby_context_active_idx
+        ON smart_skin_nearby_context_reports (user_id, retention_expires_at DESC)`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,
@@ -232,6 +252,9 @@ export async function database() {
     });
   }
   await schemaPromise;
+  // Match the legacy retention behavior: any active application request also
+  // removes expired environmental context records from every account.
+  await sql`DELETE FROM smart_skin_nearby_context_reports WHERE retention_expires_at <= NOW()`;
   return sql;
 }
 

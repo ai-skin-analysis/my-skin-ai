@@ -386,6 +386,45 @@
         });
     }
 
+    function renderNearbyContext(context) {
+        const deleteButton = document.getElementById('nearbyContextDeleteButton');
+        if (!context) {
+            document.getElementById('nearbyPm25').textContent = '—';
+            document.getElementById('nearbyUv').textContent = '—';
+            document.getElementById('nearbyHumidity').textContent = '—';
+            document.getElementById('nearbyTemperature').textContent = '—';
+            document.getElementById('nearbyContextLevel').textContent = 'ยังไม่มีข้อมูลบริบทพื้นที่';
+            document.getElementById('nearbyContextSummary').textContent = 'กดปุ่มด้านล่างเพื่อเลือกแชร์ตำแหน่งโดยประมาณครั้งนี้';
+            document.getElementById('nearbyContextLocation').textContent = '';
+            deleteButton.classList.add('hidden');
+            return;
+        }
+        document.getElementById('nearbyPm25').textContent = Number(context.pm25).toFixed(1);
+        document.getElementById('nearbyUv').textContent = Number(context.uvIndex).toFixed(1);
+        document.getElementById('nearbyHumidity').textContent = `${Math.round(Number(context.relativeHumidity))}%`;
+        document.getElementById('nearbyTemperature').textContent = `${Number(context.temperatureC).toFixed(1)}°C`;
+        document.getElementById('nearbyContextLevel').textContent = context.contextLevel;
+        document.getElementById('nearbyContextSummary').textContent = `${context.contextSummary} ใช้ประกอบการดูแลผิวทั่วไปเท่านั้น ไม่ใช่การวินิจฉัยโรคผิวหนัง`;
+        document.getElementById('nearbyContextLocation').textContent = `อัปเดต ${formatDate(context.updatedAt)} · พิกัดโดยประมาณ ${Number(context.latitudeApprox).toFixed(2)}, ${Number(context.longitudeApprox).toFixed(2)} · หมดอายุ ${formatDate(context.retentionExpiresAt)}`;
+        deleteButton.classList.remove('hidden');
+    }
+
+    async function openNearbyRadar() {
+        document.getElementById('nearbyConsentInput').checked = false;
+        showModal('nearbyRadarModal');
+        setModalStatus('nearbyRadarStatus', 'กำลังตรวจข้อมูลบริบทพื้นที่ล่าสุด…');
+        try {
+            const data = await userRequest('/api/user/nearby-context');
+            renderNearbyContext(data.context);
+            setModalStatus('nearbyRadarStatus', data.context
+                ? 'แสดงบริบทล่าสุดที่คุณเคยยินยอมไว้ คุณลบข้อมูลนี้ได้ทุกเมื่อ'
+                : 'ระบบจะขอสิทธิ์ตำแหน่งเมื่อคุณยืนยันและกดปุ่มเท่านั้น');
+        } catch (error) {
+            renderNearbyContext(null);
+            setModalStatus('nearbyRadarStatus', error.message, 'error');
+        }
+    }
+
     async function loadNearbyEnvironment() {
         if (!document.getElementById('nearbyConsentInput').checked) {
             setModalStatus('nearbyRadarStatus', 'กรุณายินยอมก่อนให้เบราว์เซอร์ขอพิกัด', 'error');
@@ -404,19 +443,43 @@
             const [weatherResponse, airResponse] = await Promise.all([fetch(weatherUrl), fetch(airUrl)]);
             if (!weatherResponse.ok || !airResponse.ok) throw new Error('ไม่สามารถเรียกข้อมูลสภาพแวดล้อมได้ในขณะนี้');
             const [weather, air] = await Promise.all([weatherResponse.json(), airResponse.json()]);
-            document.getElementById('nearbyPm25').textContent = air.current?.pm2_5 === undefined ? '—' : Number(air.current.pm2_5).toFixed(1);
-            document.getElementById('nearbyUv').textContent = weather.current?.uv_index === undefined ? '—' : Number(weather.current.uv_index).toFixed(1);
-            document.getElementById('nearbyHumidity').textContent = weather.current?.relative_humidity_2m === undefined ? '—' : `${Math.round(weather.current.relative_humidity_2m)}%`;
-            document.getElementById('nearbyTemperature').textContent = weather.current?.temperature_2m === undefined ? '—' : `${Number(weather.current.temperature_2m).toFixed(1)}°C`;
-            document.getElementById('nearbyContextLevel').textContent = 'ข้อมูลสภาพแวดล้อมล่าสุด';
-            document.getElementById('nearbyContextSummary').textContent = 'ใช้ประกอบการดูแลผิวทั่วไปเท่านั้น ไม่ใช่การระบุหรือวินิจฉัยความเสี่ยงโรคผิวหนัง';
-            document.getElementById('nearbyContextLocation').textContent = `ข้อมูลล่าสุด ${formatDate(Date.now())} · พิกัดโดยประมาณ ${latitude.toFixed(2)}, ${longitude.toFixed(2)} · ไม่บันทึกในบัญชี`;
-            setModalStatus('nearbyRadarStatus', 'ข้อมูลเรียกใช้ตามตำแหน่งปัจจุบันแบบครั้งเดียวและไม่ได้บันทึกพิกัดในบัญชี', 'success');
+            const pm25 = Number(air.current?.pm2_5);
+            const uvIndex = Number(weather.current?.uv_index);
+            const relativeHumidity = Number(weather.current?.relative_humidity_2m);
+            const temperatureC = Number(weather.current?.temperature_2m);
+            if (![pm25, uvIndex, relativeHumidity, temperatureC].every(Number.isFinite)) {
+                throw new Error('ข้อมูลสภาพแวดล้อมจากบริการสาธารณะไม่ครบถ้วน กรุณาลองใหม่');
+            }
+            setModalStatus('nearbyRadarStatus', 'กำลังบันทึกเฉพาะบริบทล่าสุดแบบพิกัดโดยประมาณ…');
+            const data = await userRequest('/api/user/nearby-context/save', {
+                method: 'POST',
+                body: JSON.stringify({ consent: true, latitude, longitude, pm25, uvIndex, relativeHumidity, temperatureC }),
+            });
+            renderNearbyContext(data.context);
+            setModalStatus('nearbyRadarStatus', 'บันทึกบริบทสภาพแวดล้อมล่าสุดแล้ว เก็บเฉพาะพิกัดโดยประมาณและลบได้ทุกเมื่อ', 'success');
         } catch (error) {
             setModalStatus('nearbyRadarStatus', error.message, 'error');
         } finally {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="locate-fixed" class="h-4 w-4"></i>ยินยอมและตรวจบริบทพื้นที่';
+            refreshIcons();
+        }
+    }
+
+    async function deleteNearbyContext() {
+        if (!window.confirm('ลบพิกัดโดยประมาณและข้อมูลสภาพแวดล้อมล่าสุดของคุณใช่หรือไม่?')) return;
+        const button = document.getElementById('nearbyContextDeleteButton');
+        button.disabled = true;
+        button.textContent = 'กำลังลบ…';
+        try {
+            const data = await userRequest('/api/user/nearby-context/delete', { method: 'POST', body: JSON.stringify({}) });
+            renderNearbyContext(null);
+            setModalStatus('nearbyRadarStatus', data.message, 'success');
+        } catch (error) {
+            setModalStatus('nearbyRadarStatus', error.message, 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>ลบข้อมูลพื้นที่';
             refreshIcons();
         }
     }
@@ -446,7 +509,7 @@
             appendAccountInfoSection(content, '1. ขอบเขตบริการ', 'บริการนี้ให้ข้อมูลเพื่อช่วยการดูแลผิวทั่วไปและการเตรียมข้อมูล ไม่ใช่การวินิจฉัย การรักษา หรือบริการฉุกเฉิน และไม่ควรใช้แทนการตัดสินใจทางการแพทย์ด้วยตนเอง');
             appendAccountInfoSection(content, '2. ความปลอดภัยของผู้ใช้', 'หากมีรอยโรคใหม่หรือเปลี่ยนแปลงเร็ว เลือดออก แผลไม่หาย ปวดมาก มีไข้ ผื่นลามเร็ว หรือมีความกังวล ให้ติดต่อแพทย์ผิวหนังหรือบริการฉุกเฉินในพื้นที่ทันที');
             appendAccountInfoSection(content, '3. ภาพและบัญชี', 'ส่งได้เฉพาะภาพผิวหนังที่คุณมีสิทธิ์ใช้ และควรปกปิดข้อมูลระบุตัวตนที่ไม่จำเป็น หน้าแสกนปัจจุบันแสดงภาพเป็นตัวอย่างบนอุปกรณ์และยังไม่อัปโหลดหรือบันทึกภาพเข้าสู่ระบบ');
-            appendAccountInfoSection(content, '4. ข้อมูลส่วนบุคคล', 'คุณจัดการรูปโปรไฟล์ รหัสผ่าน ข้อความถึงผู้ดูแล และลบบัญชีได้จากเมนูบัญชีของคุณ ข้อมูลที่บันทึกจริงจะแสดงใน Timeline เท่านั้น');
+            appendAccountInfoSection(content, '4. ข้อมูลส่วนบุคคล', 'คุณจัดการรูปโปรไฟล์ รหัสผ่าน ข้อความถึงผู้ดูแล บริบทสภาพแวดล้อมล่าสุด และลบบัญชีได้จากเมนูบัญชีของคุณ');
             appendAccountInfoSection(content, '5. การเปลี่ยนแปลง', 'เมื่อเงื่อนไขหรือฟังก์ชันมีการเปลี่ยนแปลงอย่างมีนัยสำคัญ ระบบจะแจ้งให้ผู้ใช้ทราบก่อนใช้งานข้อมูลเพิ่มเติม');
         } else {
             kicker.textContent = 'SMART SKIN AI';
@@ -457,7 +520,7 @@
             appendAccountInfoSection(content, 'รูปโปรไฟล์ (ไม่บังคับ)', 'รูปโปรไฟล์ใช้แสดงในเมนูบัญชีเท่านั้น ไม่ใช้เพื่อคัดกรองผิวหนัง คุณเปลี่ยนหรือลบได้ทุกเมื่อ และระบบจะลบเมื่อปิดบัญชี');
             appendAccountInfoSection(content, 'วัตถุประสงค์และการเข้าถึง', 'ผู้ดูแลระบบเห็นข้อมูลบัญชีที่จำเป็นต่อการจัดการสิทธิ์ และข้อความที่ผู้ใช้เลือกส่งให้เท่านั้น ไม่มีการแสดงรหัสผ่าน');
             appendAccountInfoSection(content, 'การลบข้อมูล', 'คุณลบรูปโปรไฟล์และลบบัญชีพร้อมข้อมูลที่เกี่ยวข้องได้จากเมนูบัญชี การลบบัญชีเป็นการดำเนินการถาวร');
-            appendAccountInfoSection(content, 'ตำแหน่งและบริการภายนอก', 'ระบบไม่ขอตำแหน่งโดยอัตโนมัติ เรดาร์สภาพแวดล้อมจะทำงานเมื่อคุณยินยอม และส่งพิกัดโดยประมาณให้ Open-Meteo เพื่อเรียกข้อมูลอากาศครั้งเดียว โดยไม่บันทึกพิกัดไว้ในบัญชี');
+            appendAccountInfoSection(content, 'ตำแหน่งและบริการภายนอก', 'ระบบไม่ขอตำแหน่งโดยอัตโนมัติ เมื่อคุณยินยอม เรดาร์จะส่งพิกัดโดยประมาณที่ปัดเหลือ 2 ตำแหน่งทศนิยมไปยัง Open-Meteo เพื่อเรียกข้อมูลอากาศสาธารณะ ระบบเก็บเฉพาะบริบทล่าสุดนี้ไว้ไม่เกิน 24 ชั่วโมงและคุณลบได้ทันที โดยไม่เก็บ GPS แบบละเอียดหรือประวัติเส้นทาง');
             appendAccountInfoSection(content, 'ข้อควรระวังด้านสุขภาพ', 'หากรอยโรคเปลี่ยนแปลงเร็ว มีเลือดออก แผลไม่หาย ปวดมาก มีไข้ หรือผื่นลามเร็ว ให้พบแพทย์ผิวหนังหรือบริการฉุกเฉินในพื้นที่ทันที');
         }
         showModal('accountInfoModal');
@@ -590,8 +653,9 @@
         document.getElementById('saveProfileAvatarButton').addEventListener('click', saveAvatar);
         document.getElementById('removeProfileAvatarButton').addEventListener('click', removeAvatar);
         document.getElementById('userTimelineButton').addEventListener('click', openTimeline);
-        document.getElementById('nearbyEnvironmentRadarButton').addEventListener('click', () => showModal('nearbyRadarModal'));
+        document.getElementById('nearbyEnvironmentRadarButton').addEventListener('click', openNearbyRadar);
         document.getElementById('nearbyRadarLoadButton').addEventListener('click', loadNearbyEnvironment);
+        document.getElementById('nearbyContextDeleteButton').addEventListener('click', deleteNearbyContext);
         document.getElementById('termsMenuItem').addEventListener('click', () => openAccountInfo('terms'));
         document.getElementById('privacyMenuItem').addEventListener('click', () => openAccountInfo('privacy'));
         document.getElementById('changePasswordMenuItem').addEventListener('click', () => { document.getElementById('changePasswordForm').reset(); setModalStatus('changePasswordStatus', ''); showModal('changePasswordModal'); });
