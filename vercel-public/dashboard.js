@@ -60,6 +60,7 @@
         const current = PROCESSING_STAGES[stage] || PROCESSING_STAGES.prepare;
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
+        modal.dataset.processing = stage === 'complete' ? 'complete' : 'active';
         document.getElementById('dashboardProcessingTitle').textContent = current.title;
         document.getElementById('dashboardProcessingDetail').textContent = current.detail;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
@@ -83,6 +84,7 @@
     function showProcessingError(message, imageState) {
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
+        modal.dataset.processing = 'error';
         document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถจัดเก็บภาพได้';
         document.getElementById('dashboardProcessingDetail').textContent = 'ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ และยังไม่ถูกบันทึกเป็นประวัติ';
         document.getElementById('dashboardProcessingError').textContent = message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่';
@@ -155,6 +157,7 @@
     function closeModal(id) {
         const modal = document.getElementById(id);
         if (!modal) return;
+        if (id === 'dashboardProcessingModal') modal.dataset.processing = 'idle';
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         modal.setAttribute('aria-hidden', 'true');

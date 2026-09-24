@@ -53,7 +53,8 @@
         .tech-flow-arrow { margin-left: auto; color: #5eead4; }
         .processing-console { position: relative; overflow: hidden; border: 1px solid rgba(94,234,212,.42); background: linear-gradient(145deg, #061426, #0a2636 60%, #073c42); box-shadow: 0 28px 70px rgba(2,6,23,.55), inset 0 1px 0 rgba(255,255,255,.09); }
         .processing-console::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .52; background-image: linear-gradient(rgba(45,212,191,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,191,.09) 1px, transparent 1px); background-size: 22px 22px; mask-image: linear-gradient(150deg, #000, transparent 80%); }
-        .processing-orbit { animation: processingOrbit 2.8s linear infinite; transform-origin: center; }
+        .processing-orbit { transform-origin: center; }
+        #dashboardProcessingModal[data-processing="active"] .processing-orbit { animation: processingOrbit 2.8s linear infinite; }
         @keyframes processingOrbit { to { transform: rotate(360deg); } }
         .processing-step { display: flex; align-items: center; gap: .65rem; border: 1px solid rgba(148,163,184,.16); border-radius: .75rem; background: rgba(2,6,23,.28); padding: .65rem .75rem; transition: .2s ease; }
         .processing-step > span { display: flex; height: 1.45rem; width: 1.45rem; flex: none; align-items: center; justify-content: center; border: 1px solid rgba(148,163,184,.35); border-radius: .4rem; font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .57rem; font-weight: 700; color: #94a3b8; }
