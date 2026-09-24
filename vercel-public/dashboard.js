@@ -500,6 +500,7 @@
             if (data.user.role === 'admin') {
                 document.getElementById('dashboardAdminLink').classList.remove('hidden');
                 document.getElementById('dashboardHomeLink').classList.add('hidden');
+                document.getElementById('dashboardLogoutButton').classList.remove('hidden');
             } else {
                 document.getElementById('dashboardUserName').textContent = data.user.name;
                 document.getElementById('userMenuName').textContent = data.user.name;
@@ -523,7 +524,8 @@
 
     function closeLogoutModal() {
         closeModal('dashboardLogoutModal');
-        document.getElementById('dashboardLogoutButton').focus();
+        const trigger = currentUser?.role === 'admin' ? document.getElementById('dashboardLogoutButton') : document.getElementById('menuLogoutButton');
+        trigger?.focus();
     }
 
     async function logout() {
