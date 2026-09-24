@@ -189,7 +189,15 @@
             document.getElementById('btnTabRegister')?.addEventListener('click', () => switchForm('register'));
             document.getElementById('formLogin')?.addEventListener('submit', submitAccountForm);
             document.getElementById('formRegister')?.addEventListener('submit', submitAccountForm);
-            document.getElementById('logoutButton')?.addEventListener('click', logoutAccount);
+            document.getElementById('logoutButton')?.addEventListener('click', openAccountLogoutModal);
+            document.getElementById('accountLogoutCancelButton')?.addEventListener('click', closeAccountLogoutModal);
+            document.getElementById('accountLogoutConfirmButton')?.addEventListener('click', logoutAccount);
+            document.getElementById('accountLogoutModal')?.addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) closeAccountLogoutModal();
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !document.getElementById('accountLogoutModal')?.classList.contains('hidden')) closeAccountLogoutModal();
+            });
             restoreAccountSession();
         });
 
@@ -1025,8 +1033,26 @@
             }
         }
 
+        function openAccountLogoutModal() {
+            const modal = document.getElementById('accountLogoutModal');
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('accountLogoutConfirmButton')?.focus();
+        }
+
+        function closeAccountLogoutModal() {
+            const modal = document.getElementById('accountLogoutModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            modal.setAttribute('aria-hidden', 'true');
+            document.getElementById('logoutButton')?.focus();
+        }
+
         async function logoutAccount() {
-            const button = document.getElementById('logoutButton');
+            const button = document.getElementById('accountLogoutConfirmButton');
             if (button) {
                 button.disabled = true;
                 button.textContent = 'กำลังออกจากระบบ…';
@@ -1040,7 +1066,7 @@
             } finally {
                 if (button) {
                     button.disabled = false;
-                    button.textContent = 'ออกจากระบบ';
+                    button.textContent = 'ตกลง';
                 }
             }
         }

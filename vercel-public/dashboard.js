@@ -141,8 +141,24 @@
         }
     }
 
+    function openLogoutModal() {
+        const modal = document.getElementById('dashboardLogoutModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.setAttribute('aria-hidden', 'false');
+        document.getElementById('dashboardLogoutConfirmButton').focus();
+    }
+
+    function closeLogoutModal() {
+        const modal = document.getElementById('dashboardLogoutModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.setAttribute('aria-hidden', 'true');
+        document.getElementById('dashboardLogoutButton').focus();
+    }
+
     async function logout() {
-        const button = document.getElementById('dashboardLogoutButton');
+        const button = document.getElementById('dashboardLogoutConfirmButton');
         button.disabled = true;
         button.textContent = 'กำลังออกจากระบบ…';
         try {
@@ -163,7 +179,15 @@
         document.getElementById('dashboardCloseCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardCancelCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardTakePhotoButton').addEventListener('click', takePhoto);
-        document.getElementById('dashboardLogoutButton').addEventListener('click', logout);
+        document.getElementById('dashboardLogoutButton').addEventListener('click', openLogoutModal);
+        document.getElementById('dashboardLogoutCancelButton').addEventListener('click', closeLogoutModal);
+        document.getElementById('dashboardLogoutConfirmButton').addEventListener('click', logout);
+        document.getElementById('dashboardLogoutModal').addEventListener('click', (event) => {
+            if (event.target === event.currentTarget) closeLogoutModal();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !document.getElementById('dashboardLogoutModal').classList.contains('hidden')) closeLogoutModal();
+        });
         window.addEventListener('pagehide', stopCamera);
         requireSession();
     });
