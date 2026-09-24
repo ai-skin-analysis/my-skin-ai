@@ -67,6 +67,12 @@
         .processing-step[data-state="error"] { border-color: rgba(251,113,133,.34); background: rgba(190,24,93,.1); }
         .processing-step[data-state="error"] > span { border-color: #fda4af; color: #fecdd3; }
         .processing-step[data-state="error"] > p { color: #ffe4e6; }
+        .processing-image-state { position: relative; margin-top: 1rem; border: 1px solid rgba(94,234,212,.28); border-radius: .8rem; background: rgba(2,6,23,.22); padding: .7rem .8rem; }
+        .processing-image-state > span { display: block; font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .57rem; font-weight: 700; letter-spacing: .08em; color: #5eead4; }
+        .processing-image-state > p { margin-top: .3rem; font-size: .7rem; line-height: 1.5; color: #dbeafe; }
+        .processing-image-state[data-tone="error"] { border-color: rgba(251,113,133,.4); background: rgba(190,24,93,.1); }
+        .processing-image-state[data-tone="error"] > span { color: #fda4af; }
+        .dashboard-alert-toast { position: fixed; left: 50%; top: 1rem; z-index: 55; width: min(calc(100% - 2rem), 34rem); transform: translateX(-50%); border: 1px solid rgba(251,113,133,.45); border-radius: 1rem; background: #4c0519; box-shadow: 0 18px 42px rgba(76,5,25,.32); padding: .85rem 1rem; color: #ffe4e6; }
         .brand-logo-glow { background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); box-shadow: 0 0 15px rgba(13,148,136,.4), inset 0 1px 1px rgba(255,255,255,.3); }
         .gis-radar-bg { background-color: #090d16; background-image: radial-gradient(rgba(13,148,136,.3) 1px, transparent 0), linear-gradient(to right, rgba(15,23,42,.8) 1px, transparent 1px), linear-gradient(to bottom, rgba(15,23,42,.8) 1px, transparent 1px); background-size: 20px 20px, 40px 40px, 40px 40px; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation: none !important; } }
@@ -178,7 +184,7 @@
                         <button id="dashboardSubmitScanButton" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800"><i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน</button>
                     </div>
                 </div>
-                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left"><div class="flex items-start gap-3"><i data-lucide="circle-alert" class="mt-0.5 h-5 w-5 shrink-0 text-amber-700"></i><div><h3 class="text-xs font-extrabold text-amber-950">สถานะการประมวลผล</h3><p id="dashboardImageStatus" class="mt-2 text-xs leading-relaxed text-amber-900" aria-live="polite">ยังไม่ได้เลือกภาพ ภาพจะถูกจัดเก็บเมื่อคุณเลือก ยืนยัน และกดปุ่มส่งภาพเท่านั้น</p></div></div></div>
+                <p id="dashboardImageStatus" class="sr-only" aria-live="polite">ยังไม่ได้เลือกภาพ</p>
             </section>
         </div>
     </main>
@@ -189,11 +195,14 @@
         <div class="processing-console w-full max-w-md rounded-3xl p-6 text-left text-white shadow-2xl sm:p-7">
             <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="cpu" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">หน่วยประมวลผลภาพส่วนตัว</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">กำลังเตรียมภาพอย่างปลอดภัย</h2><p id="dashboardProcessingDetail" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ</p></div></div>
             <div class="relative mt-6 space-y-2"><div class="processing-step" data-processing-step="0" data-state="active"><span>01</span><p>เตรียมภาพบนอุปกรณ์</p></div><div class="processing-step" data-processing-step="1" data-state="pending"><span>02</span><p>ขอสิทธิ์อัปโหลดเฉพาะรายการ</p></div><div class="processing-step" data-processing-step="2" data-state="pending"><span>03</span><p>ส่งภาพผ่านการเข้ารหัส</p></div><div class="processing-step" data-processing-step="3" data-state="pending"><span>04</span><p>บันทึกในประวัติการสแกน</p></div></div>
-            <p class="relative mt-5 text-[11px] leading-relaxed text-slate-400">หน้าจอนี้แสดงขั้นตอนจัดเก็บภาพเพื่อการตรวจทาน ไม่ใช่ผลวินิจฉัยโรคจากระบบ</p>
+            <div id="dashboardProcessingImageState" class="processing-image-state" data-tone="info"><span>สถานะรูปภาพของคุณ</span><p>ภาพยังอยู่บนอุปกรณ์ของคุณ ระบบจะเริ่มส่งเมื่อผ่านทุกขั้นตอน</p></div>
+            <p class="relative mt-4 text-[11px] leading-relaxed text-slate-400">หน้าจอนี้แสดงขั้นตอนจัดเก็บภาพเพื่อการตรวจทาน ไม่ใช่ผลวินิจฉัยโรคจากระบบ</p>
             <p id="dashboardProcessingError" class="relative mt-4 hidden rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2.5 text-xs font-semibold leading-relaxed text-rose-100" role="alert"></p>
             <button id="dashboardProcessingCloseButton" type="button" class="relative mt-5 hidden w-full rounded-xl border border-slate-500/50 bg-slate-800/70 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-700">ปิดและลองใหม่</button>
         </div>
     </div>
+
+    <div id="dashboardAlertToast" class="dashboard-alert-toast hidden" role="alert" aria-live="assertive"><div class="flex items-start gap-3"><i data-lucide="triangle-alert" class="mt-0.5 h-5 w-5 shrink-0"></i><p id="dashboardAlertToastMessage" class="text-xs font-semibold leading-relaxed"></p></div></div>
 
     <div id="dashboardLogoutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardLogoutTitle" aria-describedby="dashboardLogoutDescription">
         <div class="w-full max-w-sm rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-2xl">

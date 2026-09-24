@@ -10,6 +10,7 @@
     let selectedScanImage = null;
     let selectedScanSource = 'upload';
     let privateStorageReady = false;
+    let dashboardAlertTimer = null;
 
     function refreshIcons() {
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -18,13 +19,33 @@
     function setStatus(message, tone = 'info') {
         const status = document.getElementById('dashboardImageStatus');
         if (!status) return;
-        const tones = {
-            info: 'mt-3 text-xs leading-relaxed text-amber-900',
-            success: 'mt-3 text-xs font-semibold leading-relaxed text-teal-800',
-            error: 'mt-3 text-xs font-semibold leading-relaxed text-rose-700',
-        };
-        status.className = tones[tone] || tones.info;
+        status.className = 'sr-only';
         status.textContent = message;
+        const processing = document.getElementById('dashboardProcessingModal');
+        if (tone === 'error' && processing?.classList.contains('hidden')) showDashboardAlert(message);
+    }
+
+    function showDashboardAlert(message) {
+        const toast = document.getElementById('dashboardAlertToast');
+        const toastMessage = document.getElementById('dashboardAlertToastMessage');
+        if (!toast || !toastMessage) return;
+        toastMessage.textContent = message;
+        toast.classList.remove('hidden');
+        window.clearTimeout(dashboardAlertTimer);
+        dashboardAlertTimer = window.setTimeout(() => toast.classList.add('hidden'), 7500);
+        refreshIcons();
+    }
+
+    function selectedImageName() {
+        return selectedScanImage?.name ? `ภาพ “${selectedScanImage.name}”` : 'รูปภาพที่เลือก';
+    }
+
+    function setProcessingImageState(message, tone = 'info') {
+        const panel = document.getElementById('dashboardProcessingImageState');
+        if (!panel) return;
+        panel.dataset.tone = tone;
+        const text = panel.querySelector('p');
+        if (text) text.textContent = message;
     }
 
     const PROCESSING_STAGES = {
@@ -43,6 +64,14 @@
         document.getElementById('dashboardProcessingDetail').textContent = current.detail;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
         document.getElementById('dashboardProcessingCloseButton').classList.add('hidden');
+        const imageStates = {
+            prepare: `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ ระบบกำลังเตรียมข้อมูลก่อนส่ง`,
+            authorize: `${selectedImageName()} ถูกเตรียมแล้วและยังอยู่บนอุปกรณ์ กำลังขอสิทธิ์อัปโหลดเฉพาะรายการ`,
+            upload: `กำลังส่ง ${selectedImageName()} ไปยังพื้นที่ส่วนตัวผ่านการเชื่อมต่อที่เข้ารหัส`,
+            commit: `${selectedImageName()} ถูกส่งถึงพื้นที่ส่วนตัวแล้ว กำลังบันทึกประวัติการสแกน`,
+            complete: `${selectedImageName()} ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`,
+        };
+        setProcessingImageState(imageStates[stage] || imageStates.prepare);
         document.querySelectorAll('[data-processing-step]').forEach((item) => {
             const itemStep = Number(item.dataset.processingStep);
             item.dataset.state = itemStep < current.step ? 'complete' : itemStep === current.step ? 'active' : 'pending';
@@ -51,7 +80,7 @@
         refreshIcons();
     }
 
-    function showProcessingError(message) {
+    function showProcessingError(message, imageState) {
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
         document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถจัดเก็บภาพได้';
@@ -59,6 +88,7 @@
         document.getElementById('dashboardProcessingError').textContent = message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่';
         document.getElementById('dashboardProcessingError').classList.remove('hidden');
         document.getElementById('dashboardProcessingCloseButton').classList.remove('hidden');
+        setProcessingImageState(imageState || `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกบันทึกเป็นประวัติ`, 'error');
         document.querySelectorAll('[data-processing-step]').forEach((item) => { item.dataset.state = 'error'; });
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
         refreshIcons();
@@ -223,7 +253,7 @@
             return;
         }
         if (!selectedScanImage) {
-            setStatus('กรุณาเลือกรูปภาพก่อนส่ง', 'error');
+            setStatus('ไม่พบภาพสำหรับส่ง ระบบยังไม่ได้รับไฟล์จากอุปกรณ์ของคุณ กรุณาเลือกภาพใหม่', 'error');
             return;
         }
         if (!document.getElementById('dashboardScanConsentInput').checked) {
@@ -231,6 +261,8 @@
             return;
         }
         const button = document.getElementById('dashboardSubmitScanButton');
+        const imageName = selectedScanImage.name || 'รูปภาพที่เลือก';
+        let uploadedToPrivateStorage = false;
         button.disabled = true;
         button.textContent = 'กำลังเตรียมภาพ…';
         try {
@@ -256,6 +288,7 @@
                 body: preparedImage,
             });
             if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้ กรุณาลองใหม่');
+            uploadedToPrivateStorage = true;
             button.textContent = 'กำลังยืนยันการจัดเก็บ…';
             setProcessingStage('commit');
             const completed = await userRequest('/api/user/scan/complete', {
@@ -268,12 +301,18 @@
             button.textContent = 'บันทึกภาพแล้ว';
             setStatus(`${completed.message} · รายการถูกเพิ่มในประวัติการสแกนของคุณ`, 'success');
             setProcessingStage('complete');
+            setProcessingImageState(`ภาพ “${imageName}” ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`);
             window.setTimeout(() => closeModal('dashboardProcessingModal'), 1000);
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน';
             setStatus(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่', 'error');
-            showProcessingError(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่');
+            showProcessingError(
+                error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่',
+                uploadedToPrivateStorage
+                    ? `ภาพ “${imageName}” ถูกส่งถึงพื้นที่ส่วนตัวแล้ว แต่ยังบันทึกประวัติไม่สำเร็จ ระบบจะไม่แสดงรายการนี้จนกว่าจะยืนยันการบันทึกได้`
+                    : `ภาพ “${imageName}” ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกจัดเก็บในพื้นที่ส่วนตัว`,
+            );
             refreshIcons();
         }
     }
