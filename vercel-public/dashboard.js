@@ -7,6 +7,9 @@
     let currentUser = null;
     let savedAvatarDataUrl = null;
     let pendingAvatarDataUrl = null;
+    let selectedScanImage = null;
+    let selectedScanSource = 'upload';
+    let privateStorageReady = false;
 
     function refreshIcons() {
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -116,26 +119,119 @@
         return true;
     }
 
-    function presentImage(file, source) {
+    function presentImage(file, source, scanSource = 'upload') {
         if (!isAllowedImage(file)) return;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = URL.createObjectURL(file);
+        selectedScanImage = file;
+        selectedScanSource = scanSource;
         document.getElementById('dashboardImagePreview').src = previewUrl;
         document.getElementById('dashboardImageMeta').textContent = `${source}: ${file.name} · ${formatSize(file.size)}`;
         document.getElementById('dashboardImagePlaceholder').classList.add('hidden');
         document.getElementById('dashboardImagePreviewPanel').classList.remove('hidden');
-        setStatus('ภาพพร้อมสำหรับดูตัวอย่างบนอุปกรณ์นี้เท่านั้น ภาพไม่ได้ถูกอัปโหลด จัดเก็บ หรือส่งให้ผู้ดูแลระบบ', 'success');
+        document.getElementById('dashboardScanConsentInput').checked = false;
+        const submit = document.getElementById('dashboardSubmitScanButton');
+        submit.disabled = !privateStorageReady;
+        submit.innerHTML = privateStorageReady
+            ? '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน'
+            : '<i data-lucide="database-zap" class="h-4 w-4"></i>พื้นที่ส่วนตัวยังอยู่ระหว่างการตั้งค่า';
+        setStatus(privateStorageReady
+            ? 'ภาพพร้อมแล้ว หากยินยอมและกดส่ง ระบบจะลบข้อมูลเมตาแล้วจัดเก็บภาพในพื้นที่ส่วนตัว'
+            : 'ภาพยังอยู่บนอุปกรณ์ของคุณ พื้นที่จัดเก็บส่วนตัวยังอยู่ระหว่างการตั้งค่า จึงยังส่งภาพไม่ได้', privateStorageReady ? 'success' : 'info');
+        refreshIcons();
     }
 
     function clearImage() {
         const input = document.getElementById('dashboardImageInput');
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = '';
+        selectedScanImage = null;
+        selectedScanSource = 'upload';
         if (input) input.value = '';
         document.getElementById('dashboardImagePreview').removeAttribute('src');
         document.getElementById('dashboardImagePlaceholder').classList.remove('hidden');
         document.getElementById('dashboardImagePreviewPanel').classList.add('hidden');
+        document.getElementById('dashboardScanConsentInput').checked = false;
         setStatus('ล้างภาพจากหน้าปัจจุบันแล้ว ไม่มีภาพถูกเก็บหรือส่งออกจากอุปกรณ์', 'info');
+    }
+
+    async function preparePrivateScanImage(file) {
+        if (!window.createImageBitmap) throw new Error('เบราว์เซอร์นี้ไม่รองรับการเตรียมภาพส่วนตัว กรุณาใช้เบราว์เซอร์รุ่นใหม่');
+        let bitmap;
+        try { bitmap = await createImageBitmap(file); }
+        catch { throw new Error('ไม่สามารถอ่านรูปภาพนี้ได้ กรุณาเลือกไฟล์ภาพใหม่'); }
+        try {
+            const limit = 2048;
+            const scale = Math.min(1, limit / Math.max(bitmap.width, bitmap.height));
+            const width = Math.max(1, Math.round(bitmap.width * scale));
+            const height = Math.max(1, Math.round(bitmap.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d', { alpha: false });
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, width, height);
+            context.drawImage(bitmap, 0, 0, width, height);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+            if (!blob || !blob.size || blob.size > MAX_IMAGE_BYTES) throw new Error('ไม่สามารถเตรียมภาพให้อยู่ในขนาดที่ปลอดภัยได้ กรุณาเลือกภาพที่เล็กลง');
+            return new File([blob], `skin-scan-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        } finally {
+            bitmap.close?.();
+        }
+    }
+
+    async function submitPrivateScan() {
+        if (!privateStorageReady) {
+            setStatus('พื้นที่จัดเก็บภาพส่วนตัวยังอยู่ระหว่างการตั้งค่า กรุณาลองใหม่ภายหลัง', 'error');
+            return;
+        }
+        if (!selectedScanImage) {
+            setStatus('กรุณาเลือกรูปภาพก่อนส่ง', 'error');
+            return;
+        }
+        if (!document.getElementById('dashboardScanConsentInput').checked) {
+            setStatus('กรุณายืนยันสิทธิ์และความยินยอมก่อนส่งภาพ', 'error');
+            return;
+        }
+        const button = document.getElementById('dashboardSubmitScanButton');
+        button.disabled = true;
+        button.textContent = 'กำลังเตรียมภาพ…';
+        try {
+            const preparedImage = await preparePrivateScanImage(selectedScanImage);
+            button.textContent = 'กำลังขอสิทธิ์อัปโหลด…';
+            const uploadRequest = await userRequest('/api/user/scan/upload', {
+                method: 'POST',
+                body: JSON.stringify({
+                    consent: true,
+                    originalName: preparedImage.name,
+                    mimeType: preparedImage.type,
+                    imageSizeBytes: preparedImage.size,
+                    source: selectedScanSource,
+                }),
+            });
+            button.textContent = 'กำลังจัดเก็บภาพส่วนตัว…';
+            const uploadResponse = await fetch(uploadRequest.upload.url, {
+                method: 'PUT',
+                headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
+                body: preparedImage,
+            });
+            if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้ กรุณาลองใหม่');
+            button.textContent = 'กำลังยืนยันการจัดเก็บ…';
+            const completed = await userRequest('/api/user/scan/complete', {
+                method: 'POST',
+                body: JSON.stringify({ uploadId: uploadRequest.upload.id }),
+            });
+            selectedScanImage = null;
+            document.getElementById('dashboardImageInput').value = '';
+            document.getElementById('dashboardScanConsentInput').checked = false;
+            button.textContent = 'บันทึกภาพแล้ว';
+            setStatus(`${completed.message} · รายการถูกเพิ่มในประวัติการสแกนของคุณ`, 'success');
+        } catch (error) {
+            button.disabled = false;
+            button.innerHTML = '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน';
+            setStatus(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่', 'error');
+            refreshIcons();
+        }
     }
 
     function stopCamera() {
@@ -193,7 +289,7 @@
                 transfer.items.add(photo);
                 input.files = transfer.files;
             }
-            presentImage(photo, 'ถ่ายจากกล้อง');
+            presentImage(photo, 'ถ่ายจากกล้อง', 'camera');
             closeCamera();
         }, 'image/jpeg', 0.92);
     }
@@ -599,6 +695,15 @@
                 document.getElementById('userAccountControl').classList.remove('hidden');
                 applyAvatar(null);
                 try { await loadProfile(); } catch { /* Account menu remains usable even if avatar is unavailable. */ }
+                try {
+                    const storage = await userRequest('/api/user/storage-status');
+                    privateStorageReady = storage.configured === true;
+                } catch {
+                    privateStorageReady = false;
+                }
+                document.getElementById('scanStorageStatusDescription').textContent = privateStorageReady
+                    ? 'บัญชีของคุณพร้อมจัดเก็บภาพส่วนตัวหลังยืนยันความยินยอม ผ่านเบราว์เซอร์ HTTPS ที่รองรับ'
+                    : 'ภาพยังดูตัวอย่างได้บนอุปกรณ์ พื้นที่จัดเก็บส่วนตัวกำลังตั้งค่าและจะเปิดใช้เมื่อพร้อม';
             }
             document.getElementById('dashboardLoading').classList.add('hidden');
             document.getElementById('dashboardMain').classList.remove('hidden');
@@ -634,10 +739,11 @@
         refreshIcons();
         document.getElementById('dashboardImageInput').addEventListener('change', (event) => {
             const file = event.target.files?.[0];
-            if (file) presentImage(file, 'เลือกจากอุปกรณ์');
+            if (file) presentImage(file, 'เลือกจากอุปกรณ์', 'upload');
         });
         document.getElementById('dashboardOpenCameraButton').addEventListener('click', openCamera);
         document.getElementById('dashboardClearImageButton').addEventListener('click', clearImage);
+        document.getElementById('dashboardSubmitScanButton').addEventListener('click', submitPrivateScan);
         document.getElementById('dashboardCloseCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardCancelCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardTakePhotoButton').addEventListener('click', takePhoto);

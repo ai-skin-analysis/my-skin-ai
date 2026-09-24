@@ -93,11 +93,11 @@
                 </section>
                 <details class="scan-side-card rounded-3xl text-left">
                     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700"><i data-lucide="shield-check" class="h-5 w-5"></i></span><span id="privacyGuideTitle" class="text-sm font-extrabold text-slate-900">ข้อมูลและความยินยอม</span></span><span class="text-[11px] font-bold text-teal-700">ดูข้อมูล</span></summary>
-                    <p class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">ภาพจะแสดงเป็นตัวอย่างบนอุปกรณ์ในระยะนี้ ยังไม่ถูกส่งไปวิเคราะห์หรือจัดเก็บโดยระบบ</p>
+                    <p class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">ภาพจะแสดงเป็นตัวอย่างบนอุปกรณ์ก่อนเสมอ และจะถูกจัดเก็บในพื้นที่ส่วนตัวก็ต่อเมื่อคุณยืนยันความยินยอมและกดปุ่มส่งภาพ ภาพนี้ไม่ใช่ผลวินิจฉัยโรค</p>
                 </details>
                 <details class="scan-side-card rounded-3xl text-left">
                     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden"><span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/10 text-teal-700"><i data-lucide="radar" class="h-5 w-5"></i></span><span id="scanStatusTitle" class="text-sm font-extrabold text-slate-900">สถานะหน้าสแกน</span></span><span class="text-[11px] font-bold text-teal-700">ดูสถานะ</span></summary>
-                    <p class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">บัญชีของคุณพร้อมใช้งานสำหรับการเลือกหรือถ่ายภาพในเบราว์เซอร์ที่รองรับ HTTPS</p>
+                    <p id="scanStorageStatusDescription" class="border-t border-slate-100 px-5 pb-5 pt-4 text-xs leading-relaxed text-slate-600">กำลังตรวจสอบพื้นที่จัดเก็บส่วนตัวของบัญชีคุณ</p>
                 </details>
             </aside>
 
@@ -123,9 +123,11 @@
                         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950"><img id="dashboardImagePreview" alt="ภาพที่เลือกเพื่อดูตัวอย่างบนอุปกรณ์" class="mx-auto max-h-[520px] w-full object-contain"></div>
                         <p id="dashboardImageMeta" class="break-words text-xs font-bold text-slate-600 font-code"></p>
                         <div class="flex flex-col justify-center gap-2 sm:flex-row"><label for="dashboardImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-4 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label><button id="dashboardClearImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">✕ ยกเลิกและเลือกภาพใหม่</button></div>
+                        <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-left"><input id="dashboardScanConsentInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-500 text-teal-700 focus:ring-teal-500"><span class="text-xs leading-relaxed text-slate-700">ฉันยืนยันว่ามีสิทธิ์ส่งภาพนี้ และยินยอมให้ระบบลบข้อมูลเมตาของภาพก่อนจัดเก็บในพื้นที่ส่วนตัวเพื่อการตรวจทาน ภาพจะไม่ใช้เป็นผลวินิจฉัยโรค</span></label>
+                        <button id="dashboardSubmitScanButton" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800"><i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน</button>
                     </div>
                 </div>
-                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left"><div class="flex items-start gap-3"><i data-lucide="circle-alert" class="mt-0.5 h-5 w-5 shrink-0 text-amber-700"></i><div><h3 class="text-xs font-extrabold text-amber-950">สถานะการประมวลผล</h3><p id="dashboardImageStatus" class="mt-2 text-xs leading-relaxed text-amber-900" aria-live="polite">ยังไม่ได้เลือกภาพ ขณะนี้ระบบแสดงภาพเพื่อดูตัวอย่างบนอุปกรณ์เท่านั้น ยังไม่ส่งภาพไปประมวลผลหรือแสดงผลการวิเคราะห์</p></div></div></div>
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left"><div class="flex items-start gap-3"><i data-lucide="circle-alert" class="mt-0.5 h-5 w-5 shrink-0 text-amber-700"></i><div><h3 class="text-xs font-extrabold text-amber-950">สถานะการประมวลผล</h3><p id="dashboardImageStatus" class="mt-2 text-xs leading-relaxed text-amber-900" aria-live="polite">ยังไม่ได้เลือกภาพ ภาพจะถูกจัดเก็บเมื่อคุณเลือก ยืนยัน และกดปุ่มส่งภาพเท่านั้น</p></div></div></div>
             </section>
         </div>
     </main>

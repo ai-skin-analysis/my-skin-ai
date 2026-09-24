@@ -10,6 +10,9 @@ create table if not exists public.smart_skin_scan_logs (
   user_id bigint not null,
   image_object_path text,
   gradcam_object_path text,
+  source text not null default 'upload',
+  original_name text,
+  image_size_bytes integer,
   result_disease text,
   confidence text,
   created_at timestamptz not null default now(),
@@ -21,8 +24,14 @@ create table if not exists public.smart_skin_scan_logs (
   decision_status text not null default 'preview_only',
   model_version text,
   check (char_length(coalesce(result_disease, '')) <= 300),
-  check (char_length(coalesce(confidence, '')) <= 32)
+  check (char_length(coalesce(confidence, '')) <= 32),
+  check (source in ('upload', 'camera')),
+  check (image_size_bytes is null or image_size_bytes between 1 and 8388608)
 );
+
+alter table public.smart_skin_scan_logs add column if not exists source text not null default 'upload';
+alter table public.smart_skin_scan_logs add column if not exists original_name text;
+alter table public.smart_skin_scan_logs add column if not exists image_size_bytes integer;
 
 create index if not exists smart_skin_scan_logs_user_created_idx
   on public.smart_skin_scan_logs (user_id, created_at desc);
@@ -81,6 +90,24 @@ alter table public.smart_skin_scan_logs enable row level security;
 alter table public.smart_skin_feedback enable row level security;
 alter table public.smart_skin_nearby_context enable row level security;
 alter table public.smart_skin_profile_avatars enable row level security;
+
+-- New Supabase projects may not expose public-schema tables through the Data
+-- API automatically. This server-only app deliberately grants the minimum
+-- required role and explicitly denies browser-facing roles. RLS remains on as
+-- defense in depth; a secret/service key is used only inside Vercel functions.
+revoke all on table public.smart_skin_scan_logs from anon, authenticated;
+revoke all on table public.smart_skin_feedback from anon, authenticated;
+revoke all on table public.smart_skin_nearby_context from anon, authenticated;
+revoke all on table public.smart_skin_profile_avatars from anon, authenticated;
+revoke all on table public.smart_skin_scan_logs from public;
+revoke all on table public.smart_skin_feedback from public;
+revoke all on table public.smart_skin_nearby_context from public;
+revoke all on table public.smart_skin_profile_avatars from public;
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table public.smart_skin_scan_logs to service_role;
+grant select, insert, update, delete on table public.smart_skin_feedback to service_role;
+grant select, insert, update, delete on table public.smart_skin_nearby_context to service_role;
+grant select, insert, update, delete on table public.smart_skin_profile_avatars to service_role;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

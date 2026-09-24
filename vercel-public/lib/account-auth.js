@@ -17,6 +17,7 @@ const RATE_WINDOWS = {
   user_sensitive: { limit: 5, windowMs: 60 * 60 * 1000 },
   user_feedback: { limit: 10, windowMs: 60 * 60 * 1000 },
   user_nearby_context: { limit: 4, windowMs: 24 * 60 * 60 * 1000 },
+  user_scan: { limit: 12, windowMs: 60 * 60 * 1000 },
 };
 // This bootstrap identifier is only used to retain the initial administrator
 // account requested for this deployment. A deployment secret can replace it
@@ -227,6 +228,21 @@ export async function database() {
       )`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_nearby_context_active_idx
         ON smart_skin_nearby_context_reports (user_id, retention_expires_at DESC)`;
+      // The browser receives a one-time upload URL only after the current
+      // approved user has been verified. This table never contains image data.
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_pending_scan_uploads (
+        id UUID PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        object_path TEXT NOT NULL UNIQUE,
+        original_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(32) NOT NULL,
+        image_size_bytes INTEGER NOT NULL,
+        source VARCHAR(24) NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_pending_scan_uploads_expiry_idx
+        ON smart_skin_pending_scan_uploads (expires_at)`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,
@@ -401,7 +417,7 @@ export async function changeOwnPassword(userId, { currentPassword, newPassword, 
   await sql`UPDATE smart_skin_users SET password_hash = ${passwordHash} WHERE id = ${userId} AND role = 'user'`;
 }
 
-export async function deleteOwnUser(userId, password) {
+export async function deleteOwnUser(userId, password, beforeDelete) {
   if (!password) throw new PublicAccountError('กรุณากรอกรหัสผ่านเพื่อยืนยันการลบบัญชี');
   const sql = await database();
   const rows = await sql`SELECT password_hash FROM smart_skin_users
@@ -410,6 +426,7 @@ export async function deleteOwnUser(userId, password) {
   if (!user || !await verifyPassword(password, user.password_hash)) {
     throw new PublicAccountError('รหัสผ่านไม่ถูกต้อง', 403);
   }
+  if (typeof beforeDelete === 'function') await beforeDelete();
   const deleted = await sql`DELETE FROM smart_skin_users WHERE id = ${userId} AND role = 'user' RETURNING id`;
   if (!deleted[0]) throw new PublicAccountError('ไม่พบบัญชีผู้ใช้', 404);
 }

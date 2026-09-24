@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   changeOwnPassword,
   clearSession,
@@ -15,6 +16,19 @@ import {
   takeRateBudget,
 } from '../lib/account-auth.js';
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
+import {
+  countPrivateRows,
+  createPrivateDownloadUrl,
+  createPrivateUpload,
+  deletePrivateRows,
+  insertPrivateRow,
+  isSupabasePrivateStorageConfigured,
+  privateObjectExists,
+  removePrivateObjects,
+  selectPrivateRows,
+  uploadPrivateObject,
+  upsertPrivateRow,
+} from '../lib/supabase-private.js';
 
 function requestPath(req) {
   const value = req.query?.path;
@@ -60,7 +74,7 @@ async function overview(req, res) {
   const admin = await signedInAdmin(req, res);
   if (!admin) return;
   const sql = await database();
-  const [accountCount, adminCount, approvedUserCount, pendingUserCount, scanCount, feedbackCount, users, feedbacks] = await Promise.all([
+  const [accountCount, adminCount, approvedUserCount, pendingUserCount, legacyScanCount, legacyFeedbackCount, users, legacyFeedbacks] = await Promise.all([
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users`,
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'admin'`,
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'user' AND approval_status = 'approved'`,
@@ -74,6 +88,25 @@ async function overview(req, res) {
       JOIN smart_skin_users AS users ON users.id = feedback.user_id
       ORDER BY feedback.created_at DESC LIMIT 30`,
   ]);
+  let scanCount = legacyScanCount[0].value;
+  let feedbackCount = legacyFeedbackCount[0].value;
+  let feedbacks = legacyFeedbacks;
+  if (isSupabasePrivateStorageConfigured()) {
+    const [privateScans, privateFeedbacks, privateFeedbackRows] = await Promise.all([
+      countPrivateRows('smart_skin_scan_logs', '?select=id'),
+      countPrivateRows('smart_skin_feedback', '?select=id'),
+      selectPrivateRows('smart_skin_feedback', '?select=id,user_id,message,created_at&order=created_at.desc&limit=30'),
+    ]);
+    scanCount = privateScans;
+    feedbackCount = privateFeedbacks;
+    const usersById = new Map(users.map((user) => [String(user.id), user.display_name]));
+    feedbacks = privateFeedbackRows.map((feedback) => ({
+      id: feedback.id,
+      message: feedback.message,
+      created_at: feedback.created_at,
+      display_name: usersById.get(String(feedback.user_id)) || 'ผู้ใช้ที่ลบบัญชีแล้ว',
+    }));
+  }
   return json(res, 200, {
     ok: true,
     admin: { name: admin.user.name, email: admin.user.email },
@@ -82,8 +115,8 @@ async function overview(req, res) {
       users: approvedUserCount[0].value,
       pendingUsers: pendingUserCount[0].value,
       admins: adminCount[0].value,
-      scans: scanCount[0].value,
-      feedbacks: feedbackCount[0].value,
+      scans: scanCount,
+      feedbacks: feedbackCount,
     },
     users: users.map((user) => ({
       id: Number(user.id),
@@ -94,7 +127,7 @@ async function overview(req, res) {
       lastLoginAt: user.last_login_at,
     })),
     feedbacks: feedbacks.map((feedback) => ({
-      id: Number(feedback.id),
+      id: feedback.id,
       name: feedback.display_name,
       message: feedback.message,
       createdAt: feedback.created_at,
@@ -120,16 +153,25 @@ async function approveUser(req, res) {
   return json(res, 200, { ok: true, user: { id: Number(rows[0].id), name: rows[0].display_name }, message: 'ยืนยันบัญชีผู้ใช้เรียบร้อยแล้ว' });
 }
 
-function avatarDataUrl(value) {
+function avatarPayload(value) {
   if (typeof value !== 'string') throw new Error('invalid-avatar');
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value);
   if (!match) throw new Error('invalid-avatar');
   const bytes = Buffer.from(match[2], 'base64');
   if (!bytes.length || bytes.length > 400 * 1024) throw new Error('invalid-avatar');
-  return `data:${match[1]};base64,${bytes.toString('base64')}`;
+  return { dataUrl: `data:${match[1]};base64,${bytes.toString('base64')}`, mimeType: match[1], bytes };
+}
+
+function avatarObjectPath(userId, mimeType) {
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  return `avatars/${userId}/${randomUUID()}.${extension}`;
 }
 
 const NEARBY_CONTEXT_RETENTION_HOURS = 24;
+// Supabase signed upload URLs currently have a fixed two-hour validity. Keep
+// the local authorization record on the same bounded lifetime so an accepted
+// signed URL never outlives the server-side pending-upload record.
+const PENDING_SCAN_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
 
 function nearbyNumber(body, key, minimum, maximum) {
   const value = body[key];
@@ -172,6 +214,13 @@ async function userProfile(req, res) {
   if (!requireGet(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (isSupabasePrivateStorageConfigured()) {
+    const rows = await selectPrivateRows('smart_skin_profile_avatars', `?select=object_path,updated_at&user_id=eq.${encodeURIComponent(account.user.id)}&limit=1`);
+    const avatar = rows[0];
+    if (!avatar) return json(res, 200, { ok: true, user: account.user, avatar: null });
+    const dataUrl = await createPrivateDownloadUrl(avatar.object_path, 60);
+    return json(res, 200, { ok: true, user: account.user, avatar: { dataUrl, updatedAt: avatar.updated_at } });
+  }
   const sql = await database();
   const rows = await sql`SELECT data_uri, updated_at FROM smart_skin_profile_avatars WHERE user_id = ${account.user.id}`;
   const avatar = rows[0];
@@ -184,12 +233,30 @@ async function updateAvatar(req, res) {
   if (!budget.ok) return rejectRateLimit(res, 'อัปเดตรูปโปรไฟล์บ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
-  let dataUrl;
-  try { dataUrl = avatarDataUrl(requestJson(req).dataUrl); }
+  let avatar;
+  try { avatar = avatarPayload(requestJson(req).dataUrl); }
   catch { return json(res, 400, { ok: false, message: 'รูปโปรไฟล์ต้องเป็น JPEG, PNG หรือ WEBP ที่มีขนาดไม่เกิน 400 KB' }); }
+  if (isSupabasePrivateStorageConfigured()) {
+    const previousRows = await selectPrivateRows('smart_skin_profile_avatars', `?select=object_path&user_id=eq.${encodeURIComponent(account.user.id)}&limit=1`);
+    const objectPath = avatarObjectPath(account.user.id, avatar.mimeType);
+    await uploadPrivateObject(objectPath, avatar.bytes, avatar.mimeType);
+    let saved;
+    try {
+      saved = await upsertPrivateRow('smart_skin_profile_avatars', {
+        user_id: Number(account.user.id), object_path: objectPath, updated_at: new Date().toISOString(), retention_expires_at: null,
+      }, 'user_id');
+    } catch (error) {
+      await removePrivateObjects([objectPath]).catch(() => {});
+      throw error;
+    }
+    const previousPath = previousRows[0]?.object_path;
+    if (previousPath && previousPath !== objectPath) await removePrivateObjects([previousPath]);
+    const dataUrl = await createPrivateDownloadUrl(objectPath, 60);
+    return json(res, 200, { ok: true, avatar: { dataUrl, updatedAt: saved[0]?.updated_at || new Date().toISOString() }, message: 'บันทึกรูปโปรไฟล์เรียบร้อยแล้ว' });
+  }
   const sql = await database();
   const rows = await sql`INSERT INTO smart_skin_profile_avatars (user_id, data_uri, updated_at)
-    VALUES (${account.user.id}, ${dataUrl}, NOW())
+    VALUES (${account.user.id}, ${avatar.dataUrl}, NOW())
     ON CONFLICT (user_id) DO UPDATE SET data_uri = EXCLUDED.data_uri, updated_at = NOW()
     RETURNING data_uri, updated_at`;
   return json(res, 200, { ok: true, avatar: { dataUrl: rows[0].data_uri, updatedAt: rows[0].updated_at }, message: 'บันทึกรูปโปรไฟล์เรียบร้อยแล้ว' });
@@ -201,6 +268,13 @@ async function removeAvatar(req, res) {
   if (!budget.ok) return rejectRateLimit(res, 'ลบรูปโปรไฟล์บ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (isSupabasePrivateStorageConfigured()) {
+    const previousRows = await selectPrivateRows('smart_skin_profile_avatars', `?select=object_path&user_id=eq.${encodeURIComponent(account.user.id)}&limit=1`);
+    const removed = await deletePrivateRows('smart_skin_profile_avatars', `?user_id=eq.${encodeURIComponent(account.user.id)}`);
+    const objectPath = previousRows[0]?.object_path;
+    if (objectPath) await removePrivateObjects([objectPath]);
+    return json(res, 200, { ok: true, message: removed?.length ? 'ลบรูปโปรไฟล์เรียบร้อยแล้ว' : 'ไม่พบรูปโปรไฟล์ที่ต้องลบ' });
+  }
   const sql = await database();
   await sql`DELETE FROM smart_skin_profile_avatars WHERE user_id = ${account.user.id}`;
   return json(res, 200, { ok: true, message: 'ลบรูปโปรไฟล์เรียบร้อยแล้ว' });
@@ -210,6 +284,23 @@ async function userHistory(req, res) {
   if (!requireGet(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (isSupabasePrivateStorageConfigured()) {
+    const now = new Date().toISOString();
+    const expired = await deletePrivateRows('smart_skin_scan_logs', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}&select=image_object_path,gradcam_object_path`);
+    const expiredPaths = (Array.isArray(expired) ? expired : []).flatMap((row) => [row.image_object_path, row.gradcam_object_path]).filter(Boolean);
+    if (expiredPaths.length) await removePrivateObjects(expiredPaths);
+    const rows = await selectPrivateRows('smart_skin_scan_logs', `?select=id,source,original_name,image_size_bytes,result_disease,confidence,created_at,decision_status&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&order=created_at.desc&limit=50`);
+    return json(res, 200, { ok: true, history: rows.map((item) => ({
+      id: item.id,
+      source: item.source || 'upload',
+      originalName: item.original_name,
+      imageSizeBytes: item.image_size_bytes,
+      resultLabel: item.result_disease,
+      confidence: item.confidence === null || item.confidence === undefined || item.confidence === '' ? null : Number(item.confidence),
+      createdAt: item.created_at,
+      decisionStatus: item.decision_status,
+    })) });
+  }
   const sql = await database();
   const rows = await sql`SELECT id, source, original_name, image_size_bytes, result_label, confidence, created_at
     FROM smart_skin_scan_logs WHERE user_id = ${account.user.id} ORDER BY created_at DESC LIMIT 50`;
@@ -219,10 +310,133 @@ async function userHistory(req, res) {
   })) });
 }
 
+async function privateStorageStatus(req, res) {
+  if (!requireGet(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  return json(res, 200, { ok: true, configured: isSupabasePrivateStorageConfigured() });
+}
+
+function scanRetentionDays() {
+  const configured = Number(process.env.SMART_SKIN_SCAN_RETENTION_DAYS || 30);
+  return Number.isInteger(configured) && configured >= 1 && configured <= 365 ? configured : 30;
+}
+
+function validateScanRequest(body) {
+  const originalName = typeof body.originalName === 'string' ? body.originalName.trim() : '';
+  const mimeType = typeof body.mimeType === 'string' ? body.mimeType : '';
+  const source = body.source === 'camera' ? 'camera' : body.source === 'upload' ? 'upload' : '';
+  const imageSizeBytes = body.imageSizeBytes;
+  if (body.consent !== true) throw new PublicAccountError('กรุณายืนยันสิทธิ์และความยินยอมก่อนส่งภาพ');
+  if (!originalName || originalName.length > 255 || /[\u0000-\u001f\u007f]/.test(originalName)) throw new PublicAccountError('ชื่อไฟล์รูปภาพไม่ถูกต้อง');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) throw new PublicAccountError('รองรับเฉพาะภาพ JPG, PNG และ WEBP');
+  if (!Number.isSafeInteger(imageSizeBytes) || imageSizeBytes < 1 || imageSizeBytes > 8 * 1024 * 1024) throw new PublicAccountError('ขนาดรูปภาพต้องไม่เกิน 8 MB');
+  if (!source) throw new PublicAccountError('แหล่งที่มาของรูปภาพไม่ถูกต้อง');
+  return { originalName, mimeType, source, imageSizeBytes };
+}
+
+function scanObjectPath(userId, mimeType) {
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  return `scans/${userId}/${randomUUID()}.${extension}`;
+}
+
+async function removeExpiredPendingScans(sql) {
+  const rows = await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE expires_at <= NOW() RETURNING object_path`;
+  if (rows.length && isSupabasePrivateStorageConfigured()) {
+    await removePrivateObjects(rows.map((row) => row.object_path));
+  }
+}
+
+async function startScanUpload(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const budget = takeRateBudget(req, 'user_scan');
+  if (!budget.ok) return rejectRateLimit(res, 'ส่งภาพบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  if (!isSupabasePrivateStorageConfigured()) return json(res, 503, { ok: false, message: 'ระบบจัดเก็บภาพส่วนตัวยังไม่ได้เชื่อมต่อ Supabase' });
+  let details;
+  try { details = validateScanRequest(requestJson(req)); }
+  catch (error) { return json(res, error.status || 400, { ok: false, message: error.message || 'ข้อมูลรูปภาพไม่ถูกต้อง' }); }
+  const sql = await database();
+  await removeExpiredPendingScans(sql);
+  const id = randomUUID();
+  const objectPath = scanObjectPath(account.user.id, details.mimeType);
+  const expiresAt = new Date(Date.now() + PENDING_SCAN_UPLOAD_TTL_MS);
+  await sql`INSERT INTO smart_skin_pending_scan_uploads (
+      id, user_id, object_path, original_name, mime_type, image_size_bytes, source, expires_at
+    ) VALUES (
+      ${id}, ${account.user.id}, ${objectPath}, ${details.originalName}, ${details.mimeType},
+      ${details.imageSizeBytes}, ${details.source}, ${expiresAt}
+    )`;
+  let upload;
+  try {
+    upload = await createPrivateUpload(objectPath);
+  } catch (error) {
+    await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE id = ${id}`;
+    throw error;
+  }
+  return json(res, 201, {
+    ok: true,
+    upload: { id, url: upload.uploadUrl, expiresAt: expiresAt.toISOString(), mimeType: details.mimeType },
+  });
+}
+
+async function completeScanUpload(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const uploadId = typeof requestJson(req).uploadId === 'string' ? requestJson(req).uploadId : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadId)) return json(res, 400, { ok: false, message: 'รหัสอัปโหลดไม่ถูกต้อง' });
+  const sql = await database();
+  await removeExpiredPendingScans(sql);
+  const rows = await sql`SELECT id, object_path, original_name, image_size_bytes, source
+    FROM smart_skin_pending_scan_uploads WHERE id = ${uploadId} AND user_id = ${account.user.id} AND expires_at > NOW()`;
+  const pending = rows[0];
+  if (!pending) return json(res, 404, { ok: false, message: 'สิทธิ์อัปโหลดหมดอายุหรือไม่พบรายการ กรุณาเริ่มใหม่' });
+  if (!await privateObjectExists(pending.object_path)) return json(res, 409, { ok: false, message: 'ยังไม่พบรูปภาพที่อัปโหลด กรุณาลองส่งภาพอีกครั้ง' });
+  const retentionExpiresAt = new Date(Date.now() + scanRetentionDays() * 24 * 60 * 60 * 1000).toISOString();
+  const saved = await insertPrivateRow('smart_skin_scan_logs', {
+    user_id: Number(account.user.id),
+    image_object_path: pending.object_path,
+    source: pending.source,
+    original_name: pending.original_name,
+    image_size_bytes: Number(pending.image_size_bytes),
+    result_disease: 'บันทึกภาพเพื่อการตรวจทาน',
+    confidence: null,
+    consent_version: 'vercel-supabase-v1',
+    retention_expires_at: retentionExpiresAt,
+    top_predictions: [],
+    is_uncertain: true,
+    decision_status: 'image_received',
+    model_version: null,
+  });
+  await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE id = ${uploadId} AND user_id = ${account.user.id}`;
+  const scan = saved[0] || {};
+  return json(res, 201, {
+    ok: true,
+    scan: {
+      id: scan.id,
+      source: pending.source,
+      originalName: pending.original_name,
+      imageSizeBytes: Number(pending.image_size_bytes),
+      resultLabel: scan.result_disease || 'บันทึกภาพเพื่อการตรวจทาน',
+      createdAt: scan.created_at || new Date().toISOString(),
+      retentionExpiresAt,
+    },
+    message: 'จัดเก็บภาพไว้ในพื้นที่ส่วนตัวเรียบร้อยแล้ว ยังไม่มีผลวินิจฉัยจากโมเดล',
+  });
+}
+
 async function userNearbyContext(req, res) {
   if (!requireGet(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (isSupabasePrivateStorageConfigured()) {
+    const now = new Date().toISOString();
+    await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}`);
+    const rows = await selectPrivateRows('smart_skin_nearby_context', `?select=latitude_approx,longitude_approx,pm25,uv_index,relative_humidity,temperature_c,context_level,context_summary,consented_at,retention_expires_at&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&limit=1`);
+    return json(res, 200, { ok: true, context: nearbyContextResponse(rows[0]) });
+  }
   const sql = await database();
   // Expired contexts are never returned and are removed when this account is
   // next accessed. This keeps the store to one current coarse context only.
@@ -268,6 +482,15 @@ async function saveNearbyContext(req, res) {
   const longitudeApprox = Math.round(longitude * 100) / 100;
   const notice = environmentalContextLevel(pm25, uvIndex, relativeHumidity, temperatureC);
   const retentionExpiresAt = new Date(Date.now() + NEARBY_CONTEXT_RETENTION_HOURS * 60 * 60 * 1000);
+  if (isSupabasePrivateStorageConfigured()) {
+    const saved = await upsertPrivateRow('smart_skin_nearby_context', {
+      user_id: Number(account.user.id), latitude_approx: latitudeApprox, longitude_approx: longitudeApprox,
+      pm25, uv_index: uvIndex, relative_humidity: relativeHumidity, temperature_c: temperatureC,
+      context_level: notice.level, context_summary: notice.summary,
+      consented_at: new Date().toISOString(), retention_expires_at: retentionExpiresAt.toISOString(),
+    }, 'user_id');
+    return json(res, 201, { ok: true, context: nearbyContextResponse(saved[0]), message: 'บันทึกบริบทพื้นที่โดยประมาณล่าสุดแล้ว' });
+  }
   const sql = await database();
   const rows = await sql`INSERT INTO smart_skin_nearby_context_reports (
       user_id, latitude_approx, longitude_approx, pm25, uv_index,
@@ -299,6 +522,13 @@ async function deleteNearbyContext(req, res) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (isSupabasePrivateStorageConfigured()) {
+    const rows = await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}`);
+    return json(res, 200, {
+      ok: true,
+      message: rows?.length ? 'ลบตำแหน่งโดยประมาณและบริบทสภาพแวดล้อมล่าสุดแล้ว' : 'ไม่พบข้อมูลบริบทพื้นที่ที่ต้องลบ',
+    });
+  }
   const sql = await database();
   const rows = await sql`DELETE FROM smart_skin_nearby_context_reports
     WHERE user_id = ${account.user.id} RETURNING id`;
@@ -327,9 +557,36 @@ async function sendFeedback(req, res) {
   if (!account) return;
   const message = typeof requestJson(req).message === 'string' ? requestJson(req).message.trim() : '';
   if (!message || message.length > 2000 || /[\u0000-\u001f\u007f]/.test(message)) return json(res, 400, { ok: false, message: 'กรุณาระบุข้อความที่ถูกต้องและยาวไม่เกิน 2,000 ตัวอักษร' });
-  const sql = await database();
-  await sql`INSERT INTO smart_skin_feedback (user_id, message) VALUES (${account.user.id}, ${message})`;
+  if (isSupabasePrivateStorageConfigured()) {
+    const retentionExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    await insertPrivateRow('smart_skin_feedback', {
+      user_id: Number(account.user.id), topic: 'general', message, retention_expires_at: retentionExpiresAt,
+    });
+  } else {
+    const sql = await database();
+    await sql`INSERT INTO smart_skin_feedback (user_id, message) VALUES (${account.user.id}, ${message})`;
+  }
   return json(res, 201, { ok: true, message: 'ส่งข้อความถึงผู้ดูแลระบบเรียบร้อยแล้ว' });
+}
+
+async function deletePrivateUserData(userId) {
+  if (!isSupabasePrivateStorageConfigured()) return;
+  const filter = `?user_id=eq.${encodeURIComponent(userId)}`;
+  const [scans, avatars] = await Promise.all([
+    selectPrivateRows('smart_skin_scan_logs', `${filter}&select=image_object_path,gradcam_object_path`),
+    selectPrivateRows('smart_skin_profile_avatars', `${filter}&select=object_path`),
+  ]);
+  const paths = [
+    ...scans.flatMap((scan) => [scan.image_object_path, scan.gradcam_object_path]),
+    ...avatars.map((avatar) => avatar.object_path),
+  ].filter(Boolean);
+  if (paths.length) await removePrivateObjects(paths);
+  await Promise.all([
+    deletePrivateRows('smart_skin_scan_logs', filter),
+    deletePrivateRows('smart_skin_feedback', filter),
+    deletePrivateRows('smart_skin_nearby_context', filter),
+    deletePrivateRows('smart_skin_profile_avatars', filter),
+  ]);
 }
 
 async function deleteAccount(req, res) {
@@ -340,7 +597,7 @@ async function deleteAccount(req, res) {
   if (!account) return;
   const body = requestJson(req);
   if (body.confirmation !== 'DELETE') return json(res, 400, { ok: false, message: 'กรุณาพิมพ์ DELETE เพื่อยืนยันการลบบัญชี' });
-  await deleteOwnUser(account.user.id, body.password);
+  await deleteOwnUser(account.user.id, body.password, () => deletePrivateUserData(account.user.id));
   clearSession(res);
   return json(res, 200, { ok: true, message: 'ลบบัญชีและข้อมูลที่เกี่ยวข้องเรียบร้อยแล้ว' });
 }
@@ -400,7 +657,10 @@ export default async function handler(req, res) {
       case 'user/profile': return await userProfile(req, res);
       case 'user/avatar': return await updateAvatar(req, res);
       case 'user/avatar/remove': return await removeAvatar(req, res);
+      case 'user/storage-status': return await privateStorageStatus(req, res);
       case 'user/history': return await userHistory(req, res);
+      case 'user/scan/upload': return await startScanUpload(req, res);
+      case 'user/scan/complete': return await completeScanUpload(req, res);
       case 'user/nearby-context': return await userNearbyContext(req, res);
       case 'user/nearby-context/save': return await saveNearbyContext(req, res);
       case 'user/nearby-context/delete': return await deleteNearbyContext(req, res);
