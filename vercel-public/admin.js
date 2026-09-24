@@ -74,6 +74,35 @@
     });
   }
 
+  function renderFeedbacks(feedbacks) {
+    const target = document.getElementById('feedbackList');
+    target.replaceChildren();
+    if (!feedbacks.length) {
+      target.className = 'mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-5 text-center font-mono text-xs text-slate-400';
+      target.textContent = 'ยังไม่มีข้อเสนอแนะในฐานข้อมูล';
+      return;
+    }
+    target.className = 'mt-6 space-y-3';
+    feedbacks.forEach((feedback) => {
+      const item = document.createElement('article');
+      item.className = 'rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left';
+      const header = document.createElement('div');
+      header.className = 'flex items-start justify-between gap-3';
+      const name = document.createElement('p');
+      name.className = 'text-xs font-bold text-slate-800';
+      name.textContent = feedback.name;
+      const date = document.createElement('time');
+      date.className = 'shrink-0 text-[10px] text-slate-500';
+      date.textContent = formatDate(feedback.createdAt);
+      header.append(name, date);
+      const message = document.createElement('p');
+      message.className = 'mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600';
+      message.textContent = feedback.message;
+      item.append(header, message);
+      target.append(item);
+    });
+  }
+
   async function approveUser(userId, button) {
     const initialLabel = button.textContent;
     button.disabled = true;
@@ -136,8 +165,9 @@
       setText('radarUserText', data.counts.users ? `ผู้ใช้ทั่วไป ${data.counts.users} บัญชีในระบบ` : 'ยังไม่มีผู้ใช้ทั่วไปในระบบขณะนี้');
       setText('latestScanResult', 'ยังไม่มีข้อมูล');
       setText('latestScanConfidence', '0.0%');
-      setText('feedbackCount', '0 ข้อความ');
+      setText('feedbackCount', `${data.counts.feedbacks || 0} ข้อความ`);
       renderUsers(data.users || []);
+      renderFeedbacks(data.feedbacks || []);
       document.getElementById('adminLoading').classList.add('hidden');
       document.getElementById('adminMain').classList.remove('hidden');
       if (typeof lucide !== 'undefined') lucide.createIcons();

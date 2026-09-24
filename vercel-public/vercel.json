@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/admin/:path*", "destination": "/api/admin-handler?path=:path*" }
+    { "source": "/api/admin/:path*", "destination": "/api/admin-handler?path=:path*" },
+    { "source": "/api/user/:path*", "destination": "/api/admin-handler?path=user/:path*" }
   ],
   "headers": [
     {

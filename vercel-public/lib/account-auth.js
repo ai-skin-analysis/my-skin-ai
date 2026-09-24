@@ -13,6 +13,9 @@ const RATE_WINDOWS = {
   login: { limit: 10, windowMs: 15 * 60 * 1000 },
   admin_mfa: { limit: 10, windowMs: 15 * 60 * 1000 },
   admin_approval: { limit: 30, windowMs: 15 * 60 * 1000 },
+  user_profile: { limit: 8, windowMs: 60 * 60 * 1000 },
+  user_sensitive: { limit: 5, windowMs: 60 * 60 * 1000 },
+  user_feedback: { limit: 10, windowMs: 60 * 60 * 1000 },
 };
 // This bootstrap identifier is only used to retain the initial administrator
 // account requested for this deployment. A deployment secret can replace it
@@ -179,6 +182,31 @@ export async function database() {
         ON smart_skin_users (created_at DESC)`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_users_approval_status_idx
         ON smart_skin_users (approval_status, created_at DESC)`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_profile_avatars (
+        user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        data_uri TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_scan_logs (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        source VARCHAR(24) NOT NULL DEFAULT 'upload',
+        original_name VARCHAR(255),
+        image_size_bytes INTEGER,
+        result_label VARCHAR(160),
+        confidence NUMERIC(5,4),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_scan_logs_user_created_idx
+        ON smart_skin_scan_logs (user_id, created_at DESC)`;
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_feedback (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        message VARCHAR(2000) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_feedback_created_idx
+        ON smart_skin_feedback (created_at DESC)`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,
@@ -211,6 +239,17 @@ async function hashPassword(password) {
   const salt = randomBytes(16).toString('base64url');
   const derived = await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
   return `scrypt$${salt}$${Buffer.from(derived).toString('base64url')}`;
+}
+
+function assertStrongPassword(password) {
+  if (
+    typeof password !== 'string'
+    || password.length < MIN_PASSWORD_LENGTH
+    || !/\p{L}/u.test(password)
+    || !/\d/.test(password)
+  ) {
+    throw new PublicAccountError('รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร และมีทั้งตัวอักษรกับตัวเลข');
+  }
 }
 
 async function verifyPassword(password, storedHash) {
@@ -319,6 +358,37 @@ export async function authenticateUser({ email, password }) {
   if (!user || !valid) return null;
   await sql`UPDATE smart_skin_users SET last_login_at = NOW() WHERE id = ${user.id}`;
   return { id: Number(user.id), name: user.display_name, email: user.email, role: user.role, approvalStatus: user.approval_status, mfaEnrolled: user.mfa_enabled === true };
+}
+
+export async function changeOwnPassword(userId, { currentPassword, newPassword, confirmation }) {
+  if (!currentPassword) throw new PublicAccountError('กรุณากรอกรหัสผ่านปัจจุบัน');
+  if (newPassword !== confirmation) throw new PublicAccountError('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
+  assertStrongPassword(newPassword);
+  const sql = await database();
+  const rows = await sql`SELECT password_hash FROM smart_skin_users
+    WHERE id = ${userId} AND role = 'user'`;
+  const user = rows[0];
+  if (!user || !await verifyPassword(currentPassword, user.password_hash)) {
+    throw new PublicAccountError('รหัสผ่านปัจจุบันไม่ถูกต้อง', 403);
+  }
+  if (await verifyPassword(newPassword, user.password_hash)) {
+    throw new PublicAccountError('โปรดตั้งรหัสผ่านใหม่ที่แตกต่างจากรหัสผ่านปัจจุบัน');
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await sql`UPDATE smart_skin_users SET password_hash = ${passwordHash} WHERE id = ${userId} AND role = 'user'`;
+}
+
+export async function deleteOwnUser(userId, password) {
+  if (!password) throw new PublicAccountError('กรุณากรอกรหัสผ่านเพื่อยืนยันการลบบัญชี');
+  const sql = await database();
+  const rows = await sql`SELECT password_hash FROM smart_skin_users
+    WHERE id = ${userId} AND role = 'user'`;
+  const user = rows[0];
+  if (!user || !await verifyPassword(password, user.password_hash)) {
+    throw new PublicAccountError('รหัสผ่านไม่ถูกต้อง', 403);
+  }
+  const deleted = await sql`DELETE FROM smart_skin_users WHERE id = ${userId} AND role = 'user' RETURNING id`;
+  if (!deleted[0]) throw new PublicAccountError('ไม่พบบัญชีผู้ใช้', 404);
 }
 
 export function publicError(res, error, operation) {
