@@ -131,9 +131,13 @@
             const response = await fetch('/api/account/me', { credentials: 'same-origin' });
             const data = await response.json();
             if (!response.ok || !data.user) throw new Error('missing session');
-            document.getElementById('dashboardUserName').textContent = data.user.name;
-            document.getElementById('dashboardUserName').classList.remove('hidden');
-            if (data.user.role === 'admin') document.getElementById('dashboardAdminLink').classList.remove('hidden');
+            if (data.user.role === 'admin') {
+                document.getElementById('dashboardAdminLink').classList.remove('hidden');
+                document.getElementById('dashboardHomeLink').classList.add('hidden');
+            } else {
+                document.getElementById('dashboardUserName').textContent = data.user.name;
+                document.getElementById('dashboardUserName').classList.remove('hidden');
+            }
             document.getElementById('dashboardLoading').classList.add('hidden');
             document.getElementById('dashboardMain').classList.remove('hidden');
         } catch (error) {
