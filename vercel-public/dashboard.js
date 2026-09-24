@@ -199,14 +199,15 @@
         document.getElementById('dashboardImageMeta').textContent = `${source}: ${file.name} · ${formatSize(file.size)}`;
         document.getElementById('dashboardImagePlaceholder').classList.add('hidden');
         document.getElementById('dashboardImagePreviewPanel').classList.remove('hidden');
+        document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
         const submit = document.getElementById('dashboardSubmitScanButton');
         submit.disabled = !privateStorageReady;
         submit.innerHTML = privateStorageReady
-            ? '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน'
+            ? '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ'
             : '<i data-lucide="database-zap" class="h-4 w-4"></i>พื้นที่ส่วนตัวยังอยู่ระหว่างการตั้งค่า';
         setStatus(privateStorageReady
-            ? 'ภาพพร้อมแล้ว หากยินยอมและกดส่ง ระบบจะลบข้อมูลเมตาแล้วจัดเก็บภาพในพื้นที่ส่วนตัว'
+            ? 'ภาพพร้อมแสกนแล้ว กรุณายืนยันข้อมูลภาพและความยินยอม จากนั้นกดเริ่มแสกนภาพ'
             : 'ภาพยังอยู่บนอุปกรณ์ของคุณ พื้นที่จัดเก็บส่วนตัวยังอยู่ระหว่างการตั้งค่า จึงยังส่งภาพไม่ได้', privateStorageReady ? 'success' : 'info');
         refreshIcons();
     }
@@ -221,6 +222,7 @@
         document.getElementById('dashboardImagePreview').removeAttribute('src');
         document.getElementById('dashboardImagePlaceholder').classList.remove('hidden');
         document.getElementById('dashboardImagePreviewPanel').classList.add('hidden');
+        document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
         setStatus('ล้างภาพจากหน้าปัจจุบันแล้ว ไม่มีภาพถูกเก็บหรือส่งออกจากอุปกรณ์', 'info');
     }
@@ -259,6 +261,10 @@
             setStatus('ไม่พบภาพสำหรับส่ง ระบบยังไม่ได้รับไฟล์จากอุปกรณ์ของคุณ กรุณาเลือกภาพใหม่', 'error');
             return;
         }
+        if (!document.getElementById('dashboardLesionImageInput').checked) {
+            setStatus('กรุณายืนยันว่าภาพแสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่น ก่อนเริ่มแสกนภาพ', 'error');
+            return;
+        }
         if (!document.getElementById('dashboardScanConsentInput').checked) {
             setStatus('กรุณายืนยันสิทธิ์และความยินยอมก่อนส่งภาพ', 'error');
             return;
@@ -267,11 +273,11 @@
         const imageName = selectedScanImage.name || 'รูปภาพที่เลือก';
         let uploadedToPrivateStorage = false;
         button.disabled = true;
-        button.textContent = 'กำลังเตรียมภาพ…';
+        button.textContent = 'กำลังเริ่มแสกนภาพ…';
         try {
             setProcessingStage('prepare');
             const preparedImage = await preparePrivateScanImage(selectedScanImage);
-            button.textContent = 'กำลังขอสิทธิ์อัปโหลด…';
+            button.textContent = 'กำลังตรวจความพร้อมของภาพ…';
             setProcessingStage('authorize');
             const uploadRequest = await userRequest('/api/user/scan/upload', {
                 method: 'POST',
@@ -283,7 +289,7 @@
                     source: selectedScanSource,
                 }),
             });
-            button.textContent = 'กำลังจัดเก็บภาพส่วนตัว…';
+            button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
             setProcessingStage('upload');
             const uploadResponse = await fetch(uploadRequest.upload.url, {
                 method: 'PUT',
@@ -292,7 +298,7 @@
             });
             if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้ กรุณาลองใหม่');
             uploadedToPrivateStorage = true;
-            button.textContent = 'กำลังยืนยันการจัดเก็บ…';
+            button.textContent = 'กำลังบันทึกการแสกนภาพ…';
             setProcessingStage('commit');
             const completed = await userRequest('/api/user/scan/complete', {
                 method: 'POST',
@@ -300,18 +306,19 @@
             });
             selectedScanImage = null;
             document.getElementById('dashboardImageInput').value = '';
+            document.getElementById('dashboardLesionImageInput').checked = false;
             document.getElementById('dashboardScanConsentInput').checked = false;
-            button.textContent = 'บันทึกภาพแล้ว';
-            setStatus(`${completed.message} · รายการถูกเพิ่มในประวัติการสแกนของคุณ`, 'success');
+            button.textContent = 'แสกนภาพเสร็จแล้ว';
+            setStatus(`แสกนภาพเสร็จแล้ว · ${completed.message} · รายการถูกเพิ่มในประวัติการแสกนของคุณ`, 'success');
             setProcessingStage('complete');
-            setProcessingImageState(`ภาพ “${imageName}” ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`);
+            setProcessingImageState(`ภาพ “${imageName}” ผ่านขั้นตอนแสกนและบันทึกในประวัติเรียบร้อยแล้ว ระบบยังไม่แสดงผลจำแนกโรค`);
             window.setTimeout(() => closeModal('dashboardProcessingModal'), 1000);
         } catch (error) {
             button.disabled = false;
-            button.innerHTML = '<i data-lucide="lock-keyhole" class="h-4 w-4"></i>จัดเก็บภาพส่วนตัวเพื่อการตรวจทาน';
-            setStatus(error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่', 'error');
+            button.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
+            setStatus(error.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่', 'error');
             showProcessingError(
-                error.message || 'ไม่สามารถจัดเก็บภาพได้ กรุณาลองใหม่',
+                error.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่',
                 uploadedToPrivateStorage
                     ? `ภาพ “${imageName}” ถูกส่งถึงพื้นที่ส่วนตัวแล้ว แต่ยังบันทึกประวัติไม่สำเร็จ ระบบจะไม่แสดงรายการนี้จนกว่าจะยืนยันการบันทึกได้`
                     : `ภาพ “${imageName}” ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกจัดเก็บในพื้นที่ส่วนตัว`,
