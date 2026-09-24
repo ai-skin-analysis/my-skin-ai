@@ -45,14 +45,29 @@ async function overview(req, res) {
   if (!admin.user.mfaEnrolled) return json(res, 428, { ok: false, code: 'mfa_enrollment_required', message: 'กรุณาตั้งค่า MFA ก่อนเข้าสู่แดชบอร์ด' });
   if (!admin.claims.mfaVerified) return json(res, 401, { ok: false, code: 'mfa_verification_required', message: 'กรุณายืนยัน MFA ก่อนเข้าสู่แดชบอร์ด' });
   const sql = await database();
-  const [accountCount, adminCount] = await Promise.all([
+  const [accountCount, adminCount, userCount, users] = await Promise.all([
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users`,
     sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'admin'`,
+    sql`SELECT COUNT(*)::int AS value FROM smart_skin_users WHERE role = 'user'`,
+    sql`SELECT id, display_name, email, created_at, last_login_at
+      FROM smart_skin_users WHERE role = 'user' ORDER BY id DESC LIMIT 100`,
   ]);
   return json(res, 200, {
     ok: true,
     admin: { name: admin.user.name, email: admin.user.email },
-    counts: { accounts: accountCount[0].value, admins: adminCount[0].value },
+    counts: {
+      accounts: accountCount[0].value,
+      users: userCount[0].value,
+      admins: adminCount[0].value,
+      scans: 0,
+    },
+    users: users.map((user) => ({
+      id: Number(user.id),
+      name: user.display_name,
+      email: user.email,
+      createdAt: user.created_at,
+      lastLoginAt: user.last_login_at,
+    })),
   });
 }
 
