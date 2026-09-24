@@ -130,7 +130,7 @@
       }
       setText('adminName', data.admin.name);
       setText('pendingUserCount', data.counts.pendingUsers);
-      setText('adminCount', data.counts.admins);
+      setText('approvedUserCount', data.counts.users);
       setText('scanCount', data.counts.scans);
       setText('radarAccountCount', `${data.counts.users} ACTIVE`);
       setText('radarUserText', data.counts.users ? `ผู้ใช้ทั่วไป ${data.counts.users} บัญชีในระบบ` : 'ยังไม่มีผู้ใช้ทั่วไปในระบบขณะนี้');
