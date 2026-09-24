@@ -41,8 +41,12 @@
         return Number.isNaN(date.getTime()) ? 'ไม่ทราบเวลา' : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
     }
 
-    function initialForUser() {
-        return Array.from(currentUser?.name || 'U')[0]?.toUpperCase() || 'U';
+    function renderSystemAvatarIcon(element, size) {
+        element.replaceChildren();
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'cross');
+        icon.className = size;
+        element.append(icon);
     }
 
     function applyAvatar(dataUrl) {
@@ -63,9 +67,10 @@
         });
         [headerInitial, modalInitial].forEach((element) => {
             if (!element) return;
-            element.textContent = initialForUser();
+            if (!dataUrl) renderSystemAvatarIcon(element, element.id === 'profileAvatarInitial' ? 'h-8 w-8' : 'h-4 w-4');
             element.classList.toggle('hidden', Boolean(dataUrl));
         });
+        refreshIcons();
     }
 
     function showModal(id) {
@@ -259,7 +264,7 @@
             const preview = document.getElementById('profileAvatarPreview');
             preview.src = pendingAvatarDataUrl;
             preview.classList.remove('hidden');
-            document.getElementById('profileAvatarInitial').textContent = initialForUser();
+            document.getElementById('profileAvatarInitial').classList.add('hidden');
             document.getElementById('profileAvatarStatus').textContent = 'พร้อมบันทึกรูปใหม่ ขนาดจะถูกลดให้เหมาะสม';
         } catch (error) {
             pendingAvatarDataUrl = null;
