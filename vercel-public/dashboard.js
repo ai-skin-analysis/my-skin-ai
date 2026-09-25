@@ -85,7 +85,7 @@
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
         modal.dataset.processing = 'error';
-        document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถจัดเก็บภาพได้';
+        document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถแสกนภาพได้';
         document.getElementById('dashboardProcessingDetail').textContent = 'ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ และยังไม่ถูกบันทึกเป็นประวัติ';
         document.getElementById('dashboardProcessingError').textContent = message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่';
         document.getElementById('dashboardProcessingError').classList.remove('hidden');
