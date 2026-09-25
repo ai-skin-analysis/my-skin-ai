@@ -760,18 +760,57 @@
         }
     }
 
+    function selectedDeletionMode() {
+        return document.querySelector('input[name="deleteDataMode"]:checked')?.value || 'history';
+    }
+
+    function updateDeletionDialog() {
+        const deletingAccount = selectedDeletionMode() === 'account';
+        document.getElementById('deleteAccountDescription').textContent = deletingAccount
+            ? 'บัญชีและข้อมูลที่เกี่ยวข้องทั้งหมดจะถูกลบถาวร และคุณจะออกจากระบบทันที'
+            : 'ลบเฉพาะภาพและประวัติการแสกนทั้งหมด โดยบัญชีของคุณยังใช้งานได้ตามปกติ';
+        document.getElementById('deleteAcknowledgementText').textContent = deletingAccount
+            ? 'ฉันเข้าใจว่าบัญชีและข้อมูลทั้งหมดจะถูกลบถาวรและไม่สามารถกู้คืนได้'
+            : 'ฉันเข้าใจว่าประวัติการแสกนที่ลบแล้วไม่สามารถกู้คืนได้';
+        document.getElementById('deleteAccountSubmitButton').textContent = deletingAccount
+            ? 'ลบบัญชีถาวร'
+            : 'ลบประวัติการแสกน';
+    }
+
+    function openDeletionModal() {
+        document.getElementById('deleteAccountForm').reset();
+        document.getElementById('deleteModeHistory').checked = true;
+        setModalStatus('deleteAccountStatus', '');
+        updateDeletionDialog();
+        showModal('deleteAccountModal');
+    }
+
     async function submitDeleteAccount(event) {
         event.preventDefault();
+        const mode = selectedDeletionMode();
         const button = document.getElementById('deleteAccountSubmitButton');
         button.disabled = true;
-        button.textContent = 'กำลังลบบัญชี…';
+        button.textContent = mode === 'account' ? 'กำลังลบบัญชี…' : 'กำลังลบประวัติ…';
         try {
-            await userRequest('/api/user/delete', { method: 'POST', body: JSON.stringify({ confirmation: document.getElementById('deleteConfirmationInput').value, password: document.getElementById('deletePasswordInput').value }) });
-            window.location.replace('/');
+            const password = document.getElementById('deletePasswordInput').value;
+            if (mode === 'account') {
+                await userRequest('/api/user/delete', { method: 'POST', body: JSON.stringify({ confirmation: 'DELETE', password }) });
+                window.location.replace('/');
+                return;
+            }
+            const data = await userRequest('/api/user/scan/delete-all', {
+                method: 'POST',
+                body: JSON.stringify({ confirmed: document.getElementById('deleteAcknowledgementInput').checked, password }),
+            });
+            event.currentTarget.reset();
+            document.getElementById('deleteModeHistory').checked = true;
+            updateDeletionDialog();
+            setModalStatus('deleteAccountStatus', data.message, data.complete === false ? 'error' : 'success');
         } catch (error) {
             setModalStatus('deleteAccountStatus', error.message, 'error');
+        } finally {
             button.disabled = false;
-            button.textContent = 'ลบบัญชีถาวร';
+            updateDeletionDialog();
         }
     }
 
@@ -861,7 +900,12 @@
         document.getElementById('privacyMenuItem').addEventListener('click', () => openAccountInfo('privacy'));
         document.getElementById('changePasswordMenuItem').addEventListener('click', () => { document.getElementById('changePasswordForm').reset(); setModalStatus('changePasswordStatus', ''); showModal('changePasswordModal'); });
         document.getElementById('feedbackMenuItem').addEventListener('click', () => { document.getElementById('feedbackForm').reset(); setModalStatus('feedbackStatus', ''); showModal('feedbackModal'); });
-        document.getElementById('accountDeletionMenuItem').addEventListener('click', () => { document.getElementById('deleteAccountForm').reset(); setModalStatus('deleteAccountStatus', ''); showModal('deleteAccountModal'); });
+        document.getElementById('accountDeletionMenuItem').addEventListener('click', openDeletionModal);
+        document.querySelectorAll('input[name="deleteDataMode"]').forEach((input) => input.addEventListener('change', () => {
+            document.getElementById('deleteAcknowledgementInput').checked = false;
+            setModalStatus('deleteAccountStatus', '');
+            updateDeletionDialog();
+        }));
         document.getElementById('changePasswordForm').addEventListener('submit', submitChangePassword);
         document.getElementById('feedbackForm').addEventListener('submit', submitFeedback);
         document.getElementById('deleteAccountForm').addEventListener('submit', submitDeleteAccount);

@@ -417,8 +417,8 @@ export async function changeOwnPassword(userId, { currentPassword, newPassword, 
   await sql`UPDATE smart_skin_users SET password_hash = ${passwordHash} WHERE id = ${userId} AND role = 'user'`;
 }
 
-export async function deleteOwnUser(userId, password, beforeDelete) {
-  if (!password) throw new PublicAccountError('กรุณากรอกรหัสผ่านเพื่อยืนยันการลบบัญชี');
+export async function verifyOwnPassword(userId, password) {
+  if (!password) throw new PublicAccountError('กรุณากรอกรหัสผ่านปัจจุบันเพื่อยืนยัน');
   const sql = await database();
   const rows = await sql`SELECT password_hash FROM smart_skin_users
     WHERE id = ${userId} AND role = 'user'`;
@@ -426,6 +426,12 @@ export async function deleteOwnUser(userId, password, beforeDelete) {
   if (!user || !await verifyPassword(password, user.password_hash)) {
     throw new PublicAccountError('รหัสผ่านไม่ถูกต้อง', 403);
   }
+}
+
+export async function deleteOwnUser(userId, password, beforeDelete) {
+  if (!password) throw new PublicAccountError('กรุณากรอกรหัสผ่านเพื่อยืนยันการลบบัญชี');
+  await verifyOwnPassword(userId, password);
+  const sql = await database();
   if (typeof beforeDelete === 'function') await beforeDelete();
   const deleted = await sql`DELETE FROM smart_skin_users WHERE id = ${userId} AND role = 'user' RETURNING id`;
   if (!deleted[0]) throw new PublicAccountError('ไม่พบบัญชีผู้ใช้', 404);

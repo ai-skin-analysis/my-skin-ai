@@ -14,6 +14,7 @@ import {
   requireSameOrigin,
   sessionClaims,
   takeRateBudget,
+  verifyOwnPassword,
 } from '../lib/account-auth.js';
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
 import {
@@ -611,6 +612,45 @@ async function deletePrivateUserData(userId) {
   ]);
 }
 
+async function deleteScanHistory(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const budget = takeRateBudget(req, 'user_sensitive');
+  if (!budget.ok) return rejectRateLimit(res, 'ส่งคำขอลบประวัติบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const body = requestJson(req);
+  if (body.confirmed !== true) return json(res, 400, { ok: false, message: 'กรุณาติ๊กยืนยันก่อนลบประวัติการแสกน' });
+  await verifyOwnPassword(account.user.id, body.password);
+
+  const sql = await database();
+  const pendingRows = await sql`SELECT object_path FROM smart_skin_pending_scan_uploads
+    WHERE user_id = ${account.user.id}`;
+  let privateDeleteComplete = true;
+  if (isSupabasePrivateStorageConfigured()) {
+    try {
+      const filter = `?user_id=eq.${encodeURIComponent(account.user.id)}`;
+      const scans = await selectPrivateRows('smart_skin_scan_logs', `${filter}&select=image_object_path,gradcam_object_path`);
+      const paths = [
+        ...scans.flatMap((scan) => [scan.image_object_path, scan.gradcam_object_path]),
+        ...pendingRows.map((row) => row.object_path),
+      ].filter(Boolean);
+      if (paths.length) await removePrivateObjects(paths);
+      await deletePrivateRows('smart_skin_scan_logs', filter);
+    } catch (error) {
+      privateDeleteComplete = false;
+    }
+  }
+  await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE user_id = ${account.user.id}`;
+  await sql`DELETE FROM smart_skin_scan_logs WHERE user_id = ${account.user.id}`;
+  return json(res, 200, {
+    ok: true,
+    complete: privateDeleteComplete,
+    message: privateDeleteComplete
+      ? 'ลบประวัติการแสกนและภาพที่เกี่ยวข้องทั้งหมดแล้ว โดยบัญชีของคุณยังใช้งานได้ตามปกติ'
+      : 'ลบประวัติในบัญชีแล้ว แต่พื้นที่จัดเก็บภาพส่วนตัวยังไม่พร้อม กรุณาส่งข้อความถึงผู้ดูแลเพื่อยืนยันการลบภาพอีกครั้ง',
+  });
+}
+
 async function deleteAccount(req, res) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   const budget = takeRateBudget(req, 'user_sensitive');
@@ -683,6 +723,7 @@ export default async function handler(req, res) {
       case 'user/history': return await userHistory(req, res);
       case 'user/scan/upload': return await startScanUpload(req, res);
       case 'user/scan/complete': return await completeScanUpload(req, res);
+      case 'user/scan/delete-all': return await deleteScanHistory(req, res);
       case 'user/nearby-context': return await userNearbyContext(req, res);
       case 'user/nearby-context/save': return await saveNearbyContext(req, res);
       case 'user/nearby-context/delete': return await deleteNearbyContext(req, res);
