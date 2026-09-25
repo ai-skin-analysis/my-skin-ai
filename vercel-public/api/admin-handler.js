@@ -438,10 +438,16 @@ async function userNearbyContext(req, res) {
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
   if (isSupabasePrivateStorageConfigured()) {
-    const now = new Date().toISOString();
-    await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}`);
-    const rows = await selectPrivateRows('smart_skin_nearby_context', `?select=latitude_approx,longitude_approx,pm25,uv_index,relative_humidity,temperature_c,context_level,context_summary,consented_at,retention_expires_at&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&limit=1`);
-    return json(res, 200, { ok: true, context: nearbyContextResponse(rows[0]) });
+    try {
+      const now = new Date().toISOString();
+      await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=lte.${encodeURIComponent(now)}`);
+      const rows = await selectPrivateRows('smart_skin_nearby_context', `?select=latitude_approx,longitude_approx,pm25,uv_index,relative_humidity,temperature_c,context_level,context_summary,consented_at,retention_expires_at&user_id=eq.${encodeURIComponent(account.user.id)}&retention_expires_at=gt.${encodeURIComponent(now)}&limit=1`);
+      return json(res, 200, { ok: true, context: nearbyContextResponse(rows[0]) });
+    } catch (error) {
+      // The radar remains useful during a private-storage outage. Fall back to
+      // the account database, which stores only the same coarse, expiring
+      // context and never precise GPS or a location history.
+    }
   }
   const sql = await database();
   // Expired contexts are never returned and are removed when this account is
@@ -489,13 +495,18 @@ async function saveNearbyContext(req, res) {
   const notice = environmentalContextLevel(pm25, uvIndex, relativeHumidity, temperatureC);
   const retentionExpiresAt = new Date(Date.now() + NEARBY_CONTEXT_RETENTION_HOURS * 60 * 60 * 1000);
   if (isSupabasePrivateStorageConfigured()) {
-    const saved = await upsertPrivateRow('smart_skin_nearby_context', {
-      user_id: Number(account.user.id), latitude_approx: latitudeApprox, longitude_approx: longitudeApprox,
-      pm25, uv_index: uvIndex, relative_humidity: relativeHumidity, temperature_c: temperatureC,
-      context_level: notice.level, context_summary: notice.summary,
-      consented_at: new Date().toISOString(), retention_expires_at: retentionExpiresAt.toISOString(),
-    }, 'user_id');
-    return json(res, 201, { ok: true, context: nearbyContextResponse(saved[0]), message: 'บันทึกบริบทพื้นที่โดยประมาณล่าสุดแล้ว' });
+    try {
+      const saved = await upsertPrivateRow('smart_skin_nearby_context', {
+        user_id: Number(account.user.id), latitude_approx: latitudeApprox, longitude_approx: longitudeApprox,
+        pm25, uv_index: uvIndex, relative_humidity: relativeHumidity, temperature_c: temperatureC,
+        context_level: notice.level, context_summary: notice.summary,
+        consented_at: new Date().toISOString(), retention_expires_at: retentionExpiresAt.toISOString(),
+      }, 'user_id');
+      return json(res, 201, { ok: true, context: nearbyContextResponse(saved[0]), message: 'บันทึกบริบทพื้นที่โดยประมาณล่าสุดแล้ว' });
+    } catch (error) {
+      // Continue below using the account database. The value is already
+      // rounded to a coarse grid and expires under the same retention rule.
+    }
   }
   const sql = await database();
   const rows = await sql`INSERT INTO smart_skin_nearby_context_reports (
@@ -529,11 +540,16 @@ async function deleteNearbyContext(req, res) {
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
   if (isSupabasePrivateStorageConfigured()) {
-    const rows = await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}`);
-    return json(res, 200, {
-      ok: true,
-      message: rows?.length ? 'ลบตำแหน่งโดยประมาณและบริบทสภาพแวดล้อมล่าสุดแล้ว' : 'ไม่พบข้อมูลบริบทพื้นที่ที่ต้องลบ',
-    });
+    try {
+      const rows = await deletePrivateRows('smart_skin_nearby_context', `?user_id=eq.${encodeURIComponent(account.user.id)}`);
+      return json(res, 200, {
+        ok: true,
+        message: rows?.length ? 'ลบตำแหน่งโดยประมาณและบริบทสภาพแวดล้อมล่าสุดแล้ว' : 'ไม่พบข้อมูลบริบทพื้นที่ที่ต้องลบ',
+      });
+    } catch (error) {
+      // A fallback record may still be removed below. Do not expose a storage
+      // credential failure to the browser.
+    }
   }
   const sql = await database();
   const rows = await sql`DELETE FROM smart_skin_nearby_context_reports
