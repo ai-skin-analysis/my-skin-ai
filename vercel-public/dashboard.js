@@ -50,8 +50,10 @@
 
     const PROCESSING_STAGES = {
         prepare: { title: 'กำลังตรวจความพร้อมของภาพ', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
-        authorize: { title: 'กำลังขอสิทธิ์อัปโหลด', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
+        inspect: { title: 'กำลังแสกนภาพบนอุปกรณ์', detail: 'กำลังตรวจความสว่าง ความคมชัด และความพร้อมสำหรับการตรวจทาน', step: 1 },
+        authorize: { title: 'กำลังเตรียมพื้นที่ส่วนตัว', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 2 },
         upload: { title: 'กำลังส่งภาพผ่านการเข้ารหัส', detail: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัวของบัญชีคุณ', step: 2 },
+        local: { title: 'แสกนภาพบนอุปกรณ์เสร็จแล้ว', detail: 'พื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพของคุณ', step: 2 },
         commit: { title: 'กำลังบันทึกการแสกนภาพ', detail: 'กำลังเพิ่มรายการเข้าไปในประวัติการแสกนของคุณ', step: 3 },
         complete: { title: 'แสกนภาพเสร็จแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการแสกน', step: 4 },
     };
@@ -64,11 +66,15 @@
         document.getElementById('dashboardProcessingTitle').textContent = current.title;
         document.getElementById('dashboardProcessingDetail').textContent = current.detail;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
-        document.getElementById('dashboardProcessingCloseButton').classList.add('hidden');
+        const closeButton = document.getElementById('dashboardProcessingCloseButton');
+        closeButton.textContent = stage === 'complete' ? 'ปิด' : 'ปิดและลองใหม่';
+        closeButton.classList.toggle('hidden', stage !== 'complete');
         const imageStates = {
             prepare: `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ ระบบกำลังเตรียมข้อมูลก่อนส่ง`,
+            inspect: `กำลังแสกนคุณภาพของ ${selectedImageName()} ภายในอุปกรณ์ของคุณ`,
             authorize: `${selectedImageName()} ถูกเตรียมแล้วและยังอยู่บนอุปกรณ์ กำลังขอสิทธิ์อัปโหลดเฉพาะรายการ`,
             upload: `กำลังส่ง ${selectedImageName()} ไปยังพื้นที่ส่วนตัวผ่านการเชื่อมต่อที่เข้ารหัส`,
+            local: `${selectedImageName()} แสกนบนอุปกรณ์เสร็จแล้ว ไฟล์ภาพจะไม่ถูกส่งออกจากอุปกรณ์`,
             commit: `${selectedImageName()} ถูกส่งถึงพื้นที่ส่วนตัวแล้ว กำลังบันทึกประวัติการสแกน`,
             complete: `${selectedImageName()} ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`,
         };
@@ -202,13 +208,11 @@
         document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
         const submit = document.getElementById('dashboardSubmitScanButton');
-        submit.disabled = !privateStorageReady;
-        submit.innerHTML = privateStorageReady
-            ? '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ'
-            : '<i data-lucide="database-zap" class="h-4 w-4"></i>พื้นที่ส่วนตัวยังอยู่ระหว่างการตั้งค่า';
+        submit.disabled = false;
+        submit.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
         setStatus(privateStorageReady
             ? 'ภาพพร้อมแสกนแล้ว กรุณายืนยันข้อมูลภาพและความยินยอม จากนั้นกดเริ่มแสกนภาพ'
-            : 'ภาพยังอยู่บนอุปกรณ์ของคุณ พื้นที่จัดเก็บส่วนตัวยังอยู่ระหว่างการตั้งค่า จึงยังส่งภาพไม่ได้', privateStorageReady ? 'success' : 'info');
+            : 'ภาพพร้อมแสกนบนอุปกรณ์ หากพื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพ', privateStorageReady ? 'success' : 'info');
         refreshIcons();
     }
 
@@ -252,11 +256,70 @@
         }
     }
 
-    async function submitPrivateScan() {
-        if (!privateStorageReady) {
-            setStatus('พื้นที่จัดเก็บภาพส่วนตัวยังอยู่ระหว่างการตั้งค่า กรุณาลองใหม่ภายหลัง', 'error');
-            return;
+    async function inspectPreparedScanImage(file) {
+        let bitmap;
+        try { bitmap = await createImageBitmap(file); }
+        catch { throw new Error('ไม่สามารถแสกนข้อมูลภาพนี้ได้ กรุณาเลือกภาพใหม่'); }
+        try {
+            const sampleEdge = 192;
+            const scale = Math.min(1, sampleEdge / Math.max(bitmap.width, bitmap.height));
+            const width = Math.max(1, Math.round(bitmap.width * scale));
+            const height = Math.max(1, Math.round(bitmap.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+            context.drawImage(bitmap, 0, 0, width, height);
+            const pixels = context.getImageData(0, 0, width, height).data;
+            const luminance = new Float32Array(width * height);
+            let sum = 0;
+            for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
+                const value = (pixels[pixel] * 0.2126) + (pixels[pixel + 1] * 0.7152) + (pixels[pixel + 2] * 0.0722);
+                luminance[index] = value;
+                sum += value;
+            }
+            const mean = sum / luminance.length;
+            let variance = 0;
+            let edgeTotal = 0;
+            let edgeCount = 0;
+            for (let y = 1; y < height - 1; y += 1) {
+                for (let x = 1; x < width - 1; x += 1) {
+                    const index = (y * width) + x;
+                    variance += (luminance[index] - mean) ** 2;
+                    edgeTotal += Math.abs(luminance[index + 1] - luminance[index - 1]);
+                    edgeTotal += Math.abs(luminance[index + width] - luminance[index - width]);
+                    edgeCount += 2;
+                }
+            }
+            const contrast = Math.sqrt(variance / Math.max(1, (width - 2) * (height - 2)));
+            const edgeScore = edgeTotal / Math.max(1, edgeCount);
+            if (mean < 45 || mean > 225) {
+                return { status: 'retake-light', summary: 'แสกนสำเร็จ แต่ภาพมืดหรือสว่างเกินไป แนะนำให้ถ่ายใหม่ในแสงธรรมชาติ' };
+            }
+            if (contrast < 18 || edgeScore < 4.5) {
+                return { status: 'retake-focus', summary: 'แสกนสำเร็จ แต่ภาพอาจไม่คมชัด แนะนำให้ถ่ายใหม่โดยถือกล้องให้นิ่งและโฟกัสบริเวณผิว' };
+            }
+            return { status: 'ready', summary: 'แสกนสำเร็จ ภาพมีความสว่างและความคมชัดเพียงพอสำหรับการตรวจทาน' };
+        } finally {
+            bitmap.close?.();
         }
+    }
+
+    function recordDeviceScan(preparedImage, qualityStatus) {
+        return userRequest('/api/user/scan/record', {
+            method: 'POST',
+            body: JSON.stringify({
+                consent: true,
+                originalName: preparedImage.name,
+                mimeType: preparedImage.type,
+                imageSizeBytes: preparedImage.size,
+                source: selectedScanSource,
+                qualityStatus,
+            }),
+        });
+    }
+
+    async function submitPrivateScan() {
         if (!selectedScanImage) {
             setStatus('ไม่พบภาพสำหรับส่ง ระบบยังไม่ได้รับไฟล์จากอุปกรณ์ของคุณ กรุณาเลือกภาพใหม่', 'error');
             return;
@@ -272,47 +335,66 @@
         const button = document.getElementById('dashboardSubmitScanButton');
         const imageName = selectedScanImage.name || 'รูปภาพที่เลือก';
         let uploadedToPrivateStorage = false;
+        let storedImage = false;
         button.disabled = true;
         button.textContent = 'กำลังเริ่มแสกนภาพ…';
         try {
             setProcessingStage('prepare');
             const preparedImage = await preparePrivateScanImage(selectedScanImage);
-            button.textContent = 'กำลังตรวจความพร้อมของภาพ…';
-            setProcessingStage('authorize');
-            const uploadRequest = await userRequest('/api/user/scan/upload', {
-                method: 'POST',
-                body: JSON.stringify({
-                    consent: true,
-                    originalName: preparedImage.name,
-                    mimeType: preparedImage.type,
-                    imageSizeBytes: preparedImage.size,
-                    source: selectedScanSource,
-                }),
-            });
-            button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
-            setProcessingStage('upload');
-            const uploadResponse = await fetch(uploadRequest.upload.url, {
-                method: 'PUT',
-                headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
-                body: preparedImage,
-            });
-            if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้ กรุณาลองใหม่');
-            uploadedToPrivateStorage = true;
-            button.textContent = 'กำลังบันทึกการแสกนภาพ…';
-            setProcessingStage('commit');
-            const completed = await userRequest('/api/user/scan/complete', {
-                method: 'POST',
-                body: JSON.stringify({ uploadId: uploadRequest.upload.id }),
-            });
+            button.textContent = 'กำลังแสกนคุณภาพของภาพ…';
+            setProcessingStage('inspect');
+            const inspection = await inspectPreparedScanImage(preparedImage);
+            let completed;
+            if (privateStorageReady) {
+                try {
+                    setProcessingStage('authorize');
+                    const uploadRequest = await userRequest('/api/user/scan/upload', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            consent: true,
+                            originalName: preparedImage.name,
+                            mimeType: preparedImage.type,
+                            imageSizeBytes: preparedImage.size,
+                            source: selectedScanSource,
+                            qualityStatus: inspection.status,
+                        }),
+                    });
+                    button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
+                    setProcessingStage('upload');
+                    const uploadResponse = await fetch(uploadRequest.upload.url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
+                        body: preparedImage,
+                    });
+                    if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้');
+                    uploadedToPrivateStorage = true;
+                    button.textContent = 'กำลังบันทึกการแสกนภาพ…';
+                    setProcessingStage('commit');
+                    completed = await userRequest('/api/user/scan/complete', {
+                        method: 'POST',
+                        body: JSON.stringify({ uploadId: uploadRequest.upload.id, qualityStatus: inspection.status }),
+                    });
+                    storedImage = true;
+                } catch (storageError) {
+                    if (uploadedToPrivateStorage) throw storageError;
+                    privateStorageReady = false;
+                    setProcessingStage('local');
+                    completed = await recordDeviceScan(preparedImage, inspection.status);
+                }
+            } else {
+                setProcessingStage('local');
+                completed = await recordDeviceScan(preparedImage, inspection.status);
+            }
             selectedScanImage = null;
             document.getElementById('dashboardImageInput').value = '';
             document.getElementById('dashboardLesionImageInput').checked = false;
             document.getElementById('dashboardScanConsentInput').checked = false;
             button.textContent = 'แสกนภาพเสร็จแล้ว';
-            setStatus(`แสกนภาพเสร็จแล้ว · ${completed.message} · รายการถูกเพิ่มในประวัติการแสกนของคุณ`, 'success');
+            setStatus(`${inspection.summary} · ${completed.message}`, 'success');
             setProcessingStage('complete');
-            setProcessingImageState(`ภาพ “${imageName}” ผ่านขั้นตอนแสกนและบันทึกในประวัติเรียบร้อยแล้ว ระบบยังไม่แสดงผลจำแนกโรค`);
-            window.setTimeout(() => closeModal('dashboardProcessingModal'), 1000);
+            setProcessingImageState(storedImage
+                ? `${inspection.summary} ภาพ “${imageName}” ถูกเก็บในพื้นที่ส่วนตัวแล้ว`
+                : `${inspection.summary} ไฟล์ภาพ “${imageName}” ยังอยู่บนอุปกรณ์และไม่ถูกอัปโหลด`);
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';

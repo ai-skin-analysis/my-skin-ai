@@ -321,7 +321,16 @@ async function privateStorageStatus(req, res) {
   if (!requireGet(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
-  return json(res, 200, { ok: true, configured: isSupabasePrivateStorageConfigured() });
+  let configured = false;
+  if (isSupabasePrivateStorageConfigured()) {
+    try {
+      await selectPrivateRows('smart_skin_scan_logs', '?select=id&limit=1');
+      configured = true;
+    } catch {
+      configured = false;
+    }
+  }
+  return json(res, 200, { ok: true, configured });
 }
 
 function scanRetentionDays() {
@@ -339,7 +348,38 @@ function validateScanRequest(body) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) throw new PublicAccountError('รองรับเฉพาะภาพ JPG, PNG และ WEBP');
   if (!Number.isSafeInteger(imageSizeBytes) || imageSizeBytes < 1 || imageSizeBytes > 8 * 1024 * 1024) throw new PublicAccountError('ขนาดรูปภาพต้องไม่เกิน 8 MB');
   if (!source) throw new PublicAccountError('แหล่งที่มาของรูปภาพไม่ถูกต้อง');
-  return { originalName, mimeType, source, imageSizeBytes };
+  const qualityStatus = ['ready', 'retake-light', 'retake-focus'].includes(body.qualityStatus) ? body.qualityStatus : 'ready';
+  return { originalName, mimeType, source, imageSizeBytes, qualityStatus };
+}
+
+function deviceScanResultLabel(status) {
+  if (status === 'retake-light') return 'แสกนแล้ว · แนะนำให้ถ่ายใหม่ด้วยแสงที่พอดี';
+  if (status === 'retake-focus') return 'แสกนแล้ว · แนะนำให้ถ่ายใหม่ให้คมชัด';
+  return 'แสกนแล้ว · คุณภาพภาพพร้อมตรวจทาน';
+}
+
+async function recordDeviceScan(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const budget = takeRateBudget(req, 'user_scan');
+  if (!budget.ok) return rejectRateLimit(res, 'แสกนภาพบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  let details;
+  try { details = validateScanRequest(requestJson(req)); }
+  catch (error) { return json(res, error.status || 400, { ok: false, message: error.message || 'ข้อมูลรูปภาพไม่ถูกต้อง' }); }
+  const sql = await database();
+  const rows = await sql`INSERT INTO smart_skin_scan_logs (
+      user_id, source, original_name, image_size_bytes, result_label, confidence
+    ) VALUES (
+      ${account.user.id}, ${details.source}, ${details.originalName}, ${details.imageSizeBytes},
+      ${deviceScanResultLabel(details.qualityStatus)}, ${null}
+    ) RETURNING id, created_at`;
+  return json(res, 201, {
+    ok: true,
+    storedImage: false,
+    scan: { id: Number(rows[0]?.id), createdAt: rows[0]?.created_at || new Date().toISOString() },
+    message: 'บันทึกผลตรวจคุณภาพแล้ว โดยไม่ได้อัปโหลดหรือเก็บไฟล์ภาพ',
+  });
 }
 
 function scanObjectPath(userId, mimeType) {
@@ -392,7 +432,9 @@ async function completeScanUpload(req, res) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
-  const uploadId = typeof requestJson(req).uploadId === 'string' ? requestJson(req).uploadId : '';
+  const body = requestJson(req);
+  const uploadId = typeof body.uploadId === 'string' ? body.uploadId : '';
+  const qualityStatus = ['ready', 'retake-light', 'retake-focus'].includes(body.qualityStatus) ? body.qualityStatus : 'ready';
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uploadId)) return json(res, 400, { ok: false, message: 'รหัสอัปโหลดไม่ถูกต้อง' });
   const sql = await database();
   await removeExpiredPendingScans(sql);
@@ -408,7 +450,7 @@ async function completeScanUpload(req, res) {
     source: pending.source,
     original_name: pending.original_name,
     image_size_bytes: Number(pending.image_size_bytes),
-    result_disease: 'บันทึกภาพเพื่อการตรวจทาน',
+    result_disease: deviceScanResultLabel(qualityStatus),
     confidence: null,
     consent_version: 'vercel-supabase-v1',
     retention_expires_at: retentionExpiresAt,
@@ -426,7 +468,7 @@ async function completeScanUpload(req, res) {
       source: pending.source,
       originalName: pending.original_name,
       imageSizeBytes: Number(pending.image_size_bytes),
-      resultLabel: scan.result_disease || 'บันทึกภาพเพื่อการตรวจทาน',
+      resultLabel: scan.result_disease || deviceScanResultLabel(qualityStatus),
       createdAt: scan.created_at || new Date().toISOString(),
       retentionExpiresAt,
     },
@@ -723,6 +765,7 @@ export default async function handler(req, res) {
       case 'user/history': return await userHistory(req, res);
       case 'user/scan/upload': return await startScanUpload(req, res);
       case 'user/scan/complete': return await completeScanUpload(req, res);
+      case 'user/scan/record': return await recordDeviceScan(req, res);
       case 'user/scan/delete-all': return await deleteScanHistory(req, res);
       case 'user/nearby-context': return await userNearbyContext(req, res);
       case 'user/nearby-context/save': return await saveNearbyContext(req, res);
