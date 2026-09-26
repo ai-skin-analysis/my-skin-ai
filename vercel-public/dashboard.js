@@ -11,6 +11,8 @@
     let selectedScanSource = 'upload';
     let privateStorageReady = false;
     let dashboardAlertTimer = null;
+    let imageSelectionVersion = 0;
+    let cameraSessionVersion = 0;
 
     function refreshIcons() {
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -184,7 +186,7 @@
     }
 
     function isAllowedImage(file) {
-        if (!file || !IMAGE_TYPES.has(file.type)) {
+        if (!file || !(IMAGE_TYPES.has(file.type) || (!file.type && /\.(jpe?g|png|webp)$/i.test(file.name)))) {
             setStatus('กรุณาเลือกภาพ JPG, JPEG, PNG หรือ WEBP เท่านั้น', 'error');
             return false;
         }
@@ -195,8 +197,50 @@
         return true;
     }
 
-    function presentImage(file, source, scanSource = 'upload') {
-        if (!isAllowedImage(file)) return;
+    async function decodeScanImage(file) {
+        if (typeof window.createImageBitmap === 'function') {
+            try { return await createImageBitmap(file); } catch { /* Try the browser image decoder too. */ }
+        }
+        const url = URL.createObjectURL(file);
+        try {
+            const image = await new Promise((resolve, reject) => {
+                const candidate = new Image();
+                candidate.onload = () => resolve(candidate);
+                candidate.onerror = () => reject(new Error('ไม่สามารถอ่านรูปภาพนี้ได้ กรุณาเลือกไฟล์ภาพใหม่'));
+                candidate.src = url;
+            });
+            return image;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    async function presentImage(file, source, scanSource = 'upload', stillCurrent = () => true) {
+        const version = ++imageSelectionVersion;
+        const submit = document.getElementById('dashboardSubmitScanButton');
+        if (!isAllowedImage(file)) {
+            submit.disabled = !selectedScanImage;
+            return false;
+        }
+        submit.disabled = true;
+        try {
+            const decoded = await decodeScanImage(file);
+            try {
+                if (!decoded.width || !decoded.height || decoded.width * decoded.height > 40000000) {
+                    throw new Error('ภาพมีขนาดใหญ่เกินไป กรุณาลดความละเอียดให้ไม่เกิน 40 ล้านพิกเซล');
+                }
+            } finally { decoded.close?.(); }
+        } catch (error) {
+            if (version === imageSelectionVersion) {
+                submit.disabled = !selectedScanImage;
+                if (stillCurrent()) setStatus(error.message || 'ไม่สามารถอ่านรูปภาพได้ กรุณาเลือกภาพใหม่', 'error');
+            }
+            return false;
+        }
+        if (version !== imageSelectionVersion || !stillCurrent()) {
+            if (version === imageSelectionVersion) submit.disabled = !selectedScanImage;
+            return false;
+        }
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = URL.createObjectURL(file);
         selectedScanImage = file;
@@ -207,22 +251,26 @@
         document.getElementById('dashboardImagePreviewPanel').classList.remove('hidden');
         document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
-        const submit = document.getElementById('dashboardSubmitScanButton');
         submit.disabled = false;
         submit.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
         setStatus(privateStorageReady
             ? 'ภาพพร้อมแสกนแล้ว กรุณายืนยันข้อมูลภาพและความยินยอม จากนั้นกดเริ่มแสกนภาพ'
             : 'ภาพพร้อมแสกนบนอุปกรณ์ หากพื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพ', privateStorageReady ? 'success' : 'info');
         refreshIcons();
+        return true;
     }
 
     function clearImage() {
+        imageSelectionVersion += 1;
         const input = document.getElementById('dashboardImageInput');
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = '';
         selectedScanImage = null;
         selectedScanSource = 'upload';
         if (input) input.value = '';
+        document.getElementById('dashboardNativeCameraInput').value = '';
+        document.getElementById('dashboardImageMeta').textContent = '';
+        document.getElementById('dashboardSubmitScanButton').disabled = true;
         document.getElementById('dashboardImagePreview').removeAttribute('src');
         document.getElementById('dashboardImagePlaceholder').classList.remove('hidden');
         document.getElementById('dashboardImagePreviewPanel').classList.add('hidden');
@@ -232,9 +280,8 @@
     }
 
     async function preparePrivateScanImage(file) {
-        if (!window.createImageBitmap) throw new Error('เบราว์เซอร์นี้ไม่รองรับการเตรียมภาพส่วนตัว กรุณาใช้เบราว์เซอร์รุ่นใหม่');
         let bitmap;
-        try { bitmap = await createImageBitmap(file); }
+        try { bitmap = await decodeScanImage(file); }
         catch { throw new Error('ไม่สามารถอ่านรูปภาพนี้ได้ กรุณาเลือกไฟล์ภาพใหม่'); }
         try {
             const limit = 2048;
@@ -258,7 +305,7 @@
 
     async function inspectPreparedScanImage(file) {
         let bitmap;
-        try { bitmap = await createImageBitmap(file); }
+        try { bitmap = await decodeScanImage(file); }
         catch { throw new Error('ไม่สามารถแสกนข้อมูลภาพนี้ได้ กรุณาเลือกภาพใหม่'); }
         try {
             const sampleEdge = 192;
@@ -410,12 +457,14 @@
     }
 
     function stopCamera() {
+        cameraSessionVersion += 1;
         if (cameraStream) {
             cameraStream.getTracks().forEach((track) => track.stop());
             cameraStream = null;
         }
         const video = document.getElementById('dashboardCameraStream');
         if (video) video.srcObject = null;
+        document.getElementById('dashboardTakePhotoButton').disabled = true;
     }
 
     function closeCamera() {
@@ -425,48 +474,79 @@
 
     async function openCamera() {
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-            setStatus('ไม่สามารถใช้กล้องได้ โปรดเปิดผ่าน HTTPS บนอุปกรณ์ที่รองรับกล้อง', 'error');
+            document.getElementById('dashboardNativeCameraInput').click();
             return;
         }
+        stopCamera();
+        const version = cameraSessionVersion;
+        const status = document.getElementById('dashboardCameraStatus');
+        const captureButton = document.getElementById('dashboardTakePhotoButton');
+        status.textContent = 'กำลังเปิดกล้อง กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์';
+        captureButton.disabled = true;
+        showModal('dashboardCameraModal');
         try {
-            cameraStream = await navigator.mediaDevices.getUserMedia({
+            const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false,
             });
-            document.getElementById('dashboardCameraStream').srcObject = cameraStream;
-            showModal('dashboardCameraModal');
-            document.getElementById('dashboardTakePhotoButton').focus();
-        } catch {
+            if (version !== cameraSessionVersion) {
+                stream.getTracks().forEach((track) => track.stop());
+                return;
+            }
+            cameraStream = stream;
+            const video = document.getElementById('dashboardCameraStream');
+            video.srcObject = stream;
+            let timer;
+            try {
+                await Promise.race([
+                    video.play(),
+                    new Promise((_, reject) => { timer = window.setTimeout(() => reject(new Error('camera-timeout')), 12000); }),
+                ]);
+            } finally { window.clearTimeout(timer); }
+            if (version !== cameraSessionVersion) return;
+            if (!video.videoWidth || !video.videoHeight) throw new Error('camera-not-ready');
+            status.textContent = 'กล้องพร้อมแล้ว จัดรอยโรคให้อยู่กลางภาพ แล้วกดถ่ายภาพ';
+            captureButton.disabled = false;
+            captureButton.focus();
+        } catch (error) {
+            if (version !== cameraSessionVersion) return;
             stopCamera();
-            setStatus('ไม่สามารถเปิดกล้องได้ โปรดอนุญาตการใช้กล้องในเบราว์เซอร์ แล้วลองใหม่อีกครั้ง', 'error');
+            status.textContent = error.name === 'NotAllowedError'
+                ? 'ยังไม่ได้รับอนุญาตใช้กล้อง กรุณาอนุญาตในเบราว์เซอร์ หรือกดเปิดกล้องของอุปกรณ์แทน'
+                : error.name === 'NotFoundError'
+                    ? 'ไม่พบกล้องในอุปกรณ์นี้ คุณสามารถปิดหน้าต่างและเลือกไฟล์ภาพได้'
+                    : 'เปิดกล้องไม่ได้ กล้องอาจถูกใช้งานอยู่ กรุณาลองใหม่หรือกดเปิดกล้องของอุปกรณ์แทน';
         }
     }
 
-    function takePhoto() {
+    async function takePhoto() {
         const video = document.getElementById('dashboardCameraStream');
         const canvas = document.getElementById('dashboardCameraCanvas');
+        const button = document.getElementById('dashboardTakePhotoButton');
+        if (button.disabled) return;
         if (!video.videoWidth || !video.videoHeight) {
             setStatus('กล้องยังไม่พร้อมถ่ายภาพ โปรดลองอีกครั้ง', 'error');
             return;
         }
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-            if (!blob) {
-                setStatus('ไม่สามารถสร้างภาพจากกล้องได้ โปรดลองใหม่อีกครั้ง', 'error');
-                return;
-            }
+        const version = cameraSessionVersion;
+        button.disabled = true;
+        try {
+            const scale = Math.min(1, 2048 / Math.max(video.videoWidth, video.videoHeight));
+            canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+            canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+            if (version !== cameraSessionVersion) return;
+            if (!blob) throw new Error('ไม่สามารถสร้างภาพจากกล้องได้ โปรดลองใหม่อีกครั้ง');
             const photo = new File([blob], `skin-photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            const input = document.getElementById('dashboardImageInput');
-            if (typeof DataTransfer !== 'undefined') {
-                const transfer = new DataTransfer();
-                transfer.items.add(photo);
-                input.files = transfer.files;
-            }
-            presentImage(photo, 'ถ่ายจากกล้อง', 'camera');
-            closeCamera();
-        }, 'image/jpeg', 0.92);
+            const selected = await presentImage(photo, 'ถ่ายจากกล้อง', 'camera', () => version === cameraSessionVersion);
+            if (selected) closeCamera();
+        } catch (error) {
+            if (version === cameraSessionVersion) setStatus(error.message || 'ไม่สามารถถ่ายภาพได้ กรุณาลองใหม่', 'error');
+        } finally {
+            canvas.width = canvas.height = 0;
+            if (version === cameraSessionVersion) button.disabled = false;
+        }
     }
 
     function openUserMenu() {
@@ -954,7 +1034,17 @@
         refreshIcons();
         document.getElementById('dashboardImageInput').addEventListener('change', (event) => {
             const file = event.target.files?.[0];
+            event.target.value = '';
             if (file) presentImage(file, 'เลือกจากอุปกรณ์', 'upload');
+        });
+        document.getElementById('dashboardNativeCameraInput').addEventListener('change', (event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) presentImage(file, 'ถ่ายจากกล้องของอุปกรณ์', 'camera');
+        });
+        document.getElementById('dashboardNativeCameraButton').addEventListener('click', () => {
+            closeCamera();
+            document.getElementById('dashboardNativeCameraInput').click();
         });
         document.getElementById('dashboardOpenCameraButton').addEventListener('click', openCamera);
         document.getElementById('dashboardClearImageButton').addEventListener('click', clearImage);

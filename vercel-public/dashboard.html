@@ -125,7 +125,7 @@
             <div class="relative z-10 max-w-2xl">
                 <div class="inline-flex items-center gap-2 rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1.5 text-[10px] font-extrabold tracking-[.16em] text-teal-100"><span class="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_12px_rgba(94,234,212,.9)]"></span>PERSONAL SKIN IMAGE WORKSPACE</div>
                 <h1 id="scanHeroTitle" class="mt-5 max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">ส่งภาพบริเวณผิวหนัง <span class="text-teal-200">ที่ต้องการตรวจอย่างชัดเจน</span></h1>
-                <p class="mt-4 max-w-xl text-sm leading-6 text-slate-200">เลือกไฟล์หรือใช้กล้องถ่ายเฉพาะบริเวณผิวหนังที่ต้องการตรวจ ยืนยันข้อมูลภาพก่อนดูตัวอย่างในบัญชีของคุณ</p>
+                <p class="mt-4 max-w-xl text-sm leading-6 text-slate-200">เลือกไฟล์หรือถ่ายภาพสำหรับระบบวิเคราะห์และจำแนกรอยโรคผิวหนัง ผลวิเคราะห์ใช้เป็นข้อมูลเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัยทางการแพทย์</p>
                 <div class="mt-6 grid max-w-xl grid-cols-3 gap-2 text-left text-[10px] font-bold sm:text-xs">
                     <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">1</span>ส่งภาพผิวหนัง</div>
                     <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">2</span>ยืนยันข้อมูล</div>
@@ -171,7 +171,9 @@
                 </section>
 
                 <div class="relative rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/30 p-6 transition-all sm:p-8">
-                    <input id="dashboardImageInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr-only">
+                    <input id="dashboardImageInput" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" aria-label="เลือกภาพจากอุปกรณ์">
+                    <input id="dashboardNativeCameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr-only" aria-label="ถ่ายภาพด้วยกล้องของอุปกรณ์">
+                    <p class="mb-4 text-xs leading-relaxed text-slate-600">เปิดใช้การเลือกภาพ ถ่ายภาพ และตรวจคุณภาพภาพแล้ว ส่วนผลวิเคราะห์และจำแนกรอยโรคยังไม่เปิดใช้งาน</p>
                     <div id="dashboardImagePlaceholder" class="space-y-4">
                         <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-teal-100 bg-white text-teal-600 shadow-md"><i data-lucide="image-plus" class="h-8 w-8"></i></div>
                         <div><h3 class="text-sm font-bold text-slate-800">อัปโหลดหรือถ่ายภาพบริเวณผิวหนัง</h3><p class="mt-1 text-xs text-slate-400">รองรับ JPG, JPEG, PNG และ WEBP ขนาดไม่เกิน 8 MB ภาพควรชัด มีแสงพอดี และโฟกัสเฉพาะจุดหรืออาการบนผิวหนังที่ต้องการตรวจ</p></div>
@@ -180,7 +182,7 @@
                     <div id="dashboardImagePreviewPanel" class="hidden space-y-4">
                         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950"><img id="dashboardImagePreview" alt="ภาพที่เลือกเพื่อดูตัวอย่างบนอุปกรณ์" class="mx-auto max-h-[520px] w-full object-contain"></div>
                         <p id="dashboardImageMeta" class="break-words text-xs font-bold text-slate-600 font-code"></p>
-                        <div class="flex flex-col justify-center gap-2 sm:flex-row"><label for="dashboardImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-4 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label><button id="dashboardClearImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">✕ ยกเลิกและเลือกภาพใหม่</button></div>
+                        <div class="flex flex-col justify-center gap-2 sm:flex-row"><label for="dashboardImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-4 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label><button id="dashboardClearImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">ยกเลิก</button></div>
                         <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-left"><input id="dashboardLesionImageInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-cyan-500 text-cyan-700 focus:ring-cyan-500"><span class="text-xs leading-relaxed text-slate-700">ฉันยืนยันว่าภาพนี้แสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่น และไม่ใช่ภาพเอกสาร สัตว์ วัตถุ หรือภาพอื่นที่ไม่ใช่ผิวหนังมนุษย์</span></label>
                         <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-left"><input id="dashboardScanConsentInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-500 text-teal-700 focus:ring-teal-500"><span class="text-xs leading-relaxed text-slate-700">ฉันยืนยันว่ามีสิทธิ์ใช้ภาพนี้ และยินยอมให้ระบบลบข้อมูลเมตาและตรวจคุณภาพบนอุปกรณ์ เมื่อพื้นที่ส่วนตัวพร้อมจึงจะอัปโหลดภาพ หากไม่พร้อมจะบันทึกเฉพาะสถานะโดยไม่เก็บไฟล์ภาพ ผลนี้ไม่ใช่การวินิจฉัยโรค</span></label>
                         <button id="dashboardSubmitScanButton" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800"><i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ</button>
@@ -221,7 +223,9 @@
     <div id="dashboardCameraModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardCameraTitle" aria-describedby="dashboardCameraDescription">
         <div class="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
             <div class="flex items-start justify-between gap-4"><div><h2 id="dashboardCameraTitle" class="text-lg font-extrabold text-slate-900">ถ่ายภาพบริเวณผิวหนัง</h2><p id="dashboardCameraDescription" class="mt-1 text-xs leading-relaxed text-slate-500">จัดภาพให้อยู่ในแสงสว่างพอดีและเห็นบริเวณที่ต้องการชัดเจน</p></div><button id="dashboardCloseCameraButton" type="button" class="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800" aria-label="ปิดกล้อง"><i data-lucide="x" class="h-5 w-5"></i></button></div>
-            <div class="mt-5 aspect-square overflow-hidden rounded-2xl bg-slate-950"><video id="dashboardCameraStream" autoplay playsinline muted class="h-full w-full object-cover"></video><canvas id="dashboardCameraCanvas" class="hidden"></canvas></div>
+            <div class="mt-5 aspect-square overflow-hidden rounded-2xl bg-slate-950"><video id="dashboardCameraStream" autoplay playsinline muted class="h-full w-full object-contain"></video><canvas id="dashboardCameraCanvas" class="hidden"></canvas></div>
+            <p id="dashboardCameraStatus" class="mt-3 text-xs leading-relaxed text-slate-600" role="status" aria-live="polite"></p>
+            <button id="dashboardNativeCameraButton" type="button" class="mt-3 rounded-xl border border-teal-200 px-4 py-2 text-xs font-bold text-teal-700">เปิดกล้องของอุปกรณ์แทน</button>
             <div class="mt-5 flex gap-3"><button id="dashboardCancelCameraButton" type="button" class="w-1/2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200">ยกเลิก</button><button id="dashboardTakePhotoButton" type="button" class="inline-flex w-1/2 items-center justify-center gap-2 rounded-xl bg-teal-600 py-3 text-sm font-bold text-white transition hover:bg-teal-700"><i data-lucide="aperture" class="h-4 w-4"></i>ถ่ายภาพ</button></div>
         </div>
     </div>
