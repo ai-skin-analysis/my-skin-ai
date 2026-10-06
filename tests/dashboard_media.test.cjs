@@ -22,6 +22,7 @@ function environment() {
                     toggle: (name, on) => on ? classes.add(name) : classes.delete(name),
                 },
                 setAttribute() {}, removeAttribute() {}, focus() {},
+                querySelector: () => element(`${id}-text`),
                 click() { this.clicked = true; },
                 play: async () => {},
                 getContext: () => ({ drawImage() {} }),
@@ -37,7 +38,8 @@ function environment() {
             constructor() { this.width = 640; this.height = 480; }
             set src(value) { queueMicrotask(() => this.onload()); }
         },
-        document: { getElementById: element, addEventListener() {} },
+        document: { getElementById: element, addEventListener() {}, querySelectorAll: () => [],
+            createElement: tag => element(`created-${tag}`) },
         navigator: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [] }) } },
         createImageBitmap: async () => ({ width: 640, height: 480, close() {} }),
         setTimeout: (callback, ms) => ms === 7500 ? null : setTimeout(callback, ms),
@@ -47,6 +49,10 @@ function environment() {
     context.window = context;
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
+        scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage,
+        mockInspection: () => { preparePrivateScanImage = async file => file;
+            inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
+        mockStorageAndPresenter: presenter => { privateStorageReady = true; scanResultModule = Promise.resolve(presenter); },
         selected: () => selectedScanImage, source: () => selectedScanSource
     };})();`), context);
     return { context, media: context.media, element, revoked };
@@ -134,4 +140,200 @@ test('devices without streaming camera support can use native capture', async ()
     context.navigator.mediaDevices = undefined;
     await media.openCamera();
     assert.equal(element('dashboardNativeCameraInput').clicked, true);
+});
+
+test('out-of-scope guidance covers unrelated content rather than only bags', () => {
+    const { media, element } = environment();
+    const message = media.scanFailureMessage({ code: 'OUT_OF_SCOPE' });
+    assert.match(message, /ข้อมูลผิดพลาด/);
+    for (const text of ['รอยโรคผิวหนัง', 'สิ่งของ', 'สัตว์', 'อาหาร', 'เอกสาร', 'ภาพหน้าจอ', 'วิว']) assert.ok(message.includes(text));
+    media.showProcessingError(message, 'not sent', 'OUT_OF_SCOPE');
+    assert.equal(element('dashboardProcessingTitle').textContent, 'ข้อมูลผิดพลาด');
+    assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
+    assert.equal(element('dashboardProcessingModal').classList.contains('hidden'), false);
+});
+
+test('uncertain content is not presented as a confident non-lesion finding', () => {
+    const { media } = environment();
+    assert.match(media.scanFailureMessage({ code: 'UNCERTAIN_CONTENT' }), /ตรวจสอบไม่ได้อย่างมั่นใจ/);
+    assert.equal(media.scanFailureMessage({ code: 'MODEL_UNAVAILABLE', message: 'unavailable' }), 'unavailable');
+});
+
+test('unsupported lesion keeps specialist guidance distinct from invalid input and hides stale comparisons', () => {
+    const { media, element } = environment();
+    element('dashboardScanResult').classList.remove('hidden');
+    const message = media.scanFailureMessage({ code: 'UNSUPPORTED_LESION' });
+    media.showProcessingError(message, 'ภาพยังอยู่บนอุปกรณ์', 'UNSUPPORTED_LESION');
+    assert.match(message, /แพทย์ผู้เชี่ยวชาญ/);
+    assert.ok(!message.includes('ข้อมูลผิดพลาด'));
+    assert.match(element('dashboardProcessingTitle').textContent, /ขอบเขต/);
+    assert.match(element('dashboardProcessingDetail').textContent, /ไม่ได้หมายความว่าผิวปกติ/);
+    assert.equal(element('dashboardProcessingCloseButton').textContent, 'รับทราบ');
+    assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
+    assert.equal(element('dashboardScanResult').classList.contains('hidden'), true);
+});
+
+test('upload or history failure never falsely claims the image was not sent', () => {
+    const { media, element } = environment();
+    media.showProcessingError('history failed', 'ภาพถูกส่งถึงพื้นที่ส่วนตัวแล้ว แต่ยังบันทึกประวัติไม่สำเร็จ');
+    assert.ok(!element('dashboardProcessingDetail').textContent.includes('ยังอยู่บนอุปกรณ์'));
+    assert.match(element('dashboardProcessingImageState-text').textContent, /ถูกส่งถึง/);
+});
+
+test('missing image opens an actionable error modal without sending a request', async () => {
+    const { context, media, element } = environment();
+    context.fetch = () => { throw new Error('must not send'); };
+    await media.submitPrivateScan();
+    assert.match(element('dashboardProcessingError').textContent, /ไม่พบภาพ/);
+    assert.equal(element('dashboardProcessingTitle').textContent, 'ข้อมูลผิดพลาด');
+});
+
+test('missing semantic models prevent upload and false scan-success history', async () => {
+    const { context, media, element } = environment();
+    const requests = [];
+    context.fetch = async path => {
+        requests.push(path);
+        return { ok: true, json: async () => ({ ok: true, classificationAvailable: false,
+            scopeFilterAvailable: false, message: 'โมเดลยังไม่พร้อม' }) };
+    };
+    await media.presentImage(photo('anything.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = true;
+    element('dashboardScanConsentInput').checked = true;
+    media.mockInspection();
+    await media.submitPrivateScan();
+    assert.deepEqual(requests, ['/api/user/scan/research/readiness']);
+    assert.equal(element('dashboardProcessingTitle').textContent, 'ระบบวิเคราะห์ภาพยังไม่พร้อม');
+    assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
+    assert.ok(media.selected());
+});
+
+test('API error codes survive request handling for the correct modal message', async () => {
+    const { context, media } = environment();
+    context.fetch = async () => ({ ok: false, json: async () => ({ ok: false, code: 'OUT_OF_SCOPE', message: 'rejected' }) });
+    await assert.rejects(media.userRequest('/api/test'), error => error.code === 'OUT_OF_SCOPE');
+});
+
+test('a semantic rejection never falls back to a quality-only scan record', async () => {
+    const { context, media, element } = environment();
+    const requests = [];
+    context.fetch = async path => {
+        requests.push(path);
+        return { ok: true, json: async () => path.endsWith('/readiness')
+            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : { ok: false, code: 'UNSUPPORTED_LESION' } };
+    };
+    await media.presentImage(photo('image.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+    media.mockInspection(); media.mockStorageAndPresenter({});
+    await media.submitPrivateScan();
+    assert.deepEqual(requests, ['/api/user/scan/research/readiness', '/api/user/scan/research/upload']);
+    assert.match(element('dashboardProcessingTitle').textContent, /ขอบเขต/);
+    assert.ok(media.selected());
+});
+
+test('network failure during PUT shows an unknown transfer state, not a false not-uploaded claim', async () => {
+    const { context, media, element } = environment();
+    context.fetch = async path => {
+        if (path === '/test-private-upload') throw new Error('Network error');
+        return { ok: true, json: async () => path.endsWith('/readiness')
+            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : { ok: true, upload: { id: 'test', url: '/test-private-upload' } } };
+    };
+    await media.presentImage(photo('image.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+    media.mockInspection(); media.mockStorageAndPresenter({});
+    await media.submitPrivateScan();
+    assert.match(element('dashboardProcessingImageState-text').textContent, /ยังยืนยันไม่ได้/);
+    assert.ok(media.selected());
+});
+
+test('storage acknowledgement without a model result does not show classification success', async () => {
+    const { context, media, element } = environment();
+    const presenter = await import('../vercel-public/research-result.js');
+    context.fetch = async path => ({ ok: true, json: async () => path.endsWith('/readiness')
+        ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+        : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
+        : { ok: true, storedImage: true, message: 'storage only' } });
+    await media.presentImage(photo('image.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+    media.mockInspection(); media.mockStorageAndPresenter(presenter);
+    await media.submitPrivateScan();
+    assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
+    assert.match(element('dashboardProcessingImageState-text').textContent, /บันทึกรายการแล้ว/);
+    assert.match(element('dashboardProcessingError').textContent, /ผลวิเคราะห์ไม่ครบถ้วน/);
+    assert.ok(media.selected());
+});
+
+test('brightness alone does not reject a dark but detailed image as unusable', async () => {
+    const { media, element } = environment();
+    element('created-canvas').getContext = () => ({ drawImage() {}, getImageData: (_x, _y, width, height) => {
+        const data = new Uint8ClampedArray(width * height * 4);
+        for (let index = 0; index < width * height; index++) {
+            const value = 20 + (index % 7) * 4;
+            data.set([value, value, value, 255], index * 4);
+        }
+        return { data };
+    } });
+    const quality = await media.inspectPreparedScanImage(photo('dark-detailed.jpg'));
+    assert.equal(quality.status, 'ready');
+    assert.ok(quality.qualityWarning);
+    assert.match(quality.summary, /ยังไม่ได้ยืนยัน/);
+});
+
+test('a blank black image is rejected as a technical-quality failure, not as a disease finding', async () => {
+    const { media, element } = environment();
+    element('created-canvas').getContext = () => ({ drawImage() {}, getImageData: (_x, _y, width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) });
+    assert.equal((await media.inspectPreparedScanImage(photo('blank.jpg'))).status, 'retake-light');
+});
+
+test('research rejection clears server upload state, retains local preview and permits choosing a new image', async () => {
+    const { context, media, element } = environment();
+    const presenter = await import('../vercel-public/research-result.js');
+    const requests = [];
+    context.fetch = async (path, options) => {
+        requests.push(path);
+        if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-research-20261006-v1');
+        return { ok: true, json: async () => path.endsWith('/readiness')
+            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
+            : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
+                ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'derm-local-e10f89ad2ac8',
+                publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
+            } } };
+    };
+    await media.presentImage(photo('object.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+    media.mockInspection(); media.mockStorageAndPresenter(presenter);
+    await media.submitPrivateScan();
+    assert.ok(media.selected()); assert.equal(element('dashboardSubmitScanButton').disabled, false);
+    assert.match(element('dashboardProcessingTitle').textContent, /ข้อมูลภาพ?ผิดพลาด|ข้อมูลผิดพลาด/);
+    assert.match(element('dashboardProcessingImageState-text').textContent, /ลบภาพ/);
+    assert.equal(requests.length, 4); assert.equal(requests.some(path => path.endsWith('/record')), false);
+});
+
+test('upload and camera images use the same real research path and only valid model results show success', async () => {
+    const presenter = await import('../vercel-public/research-result.js');
+    const { SCAN_CLASSES } = await import('../vercel-public/scan-result.js');
+    for (const source of ['upload', 'camera']) {
+        const { context, media, element } = environment();
+        let rendered = false;
+        context.fetch = async (path, options) => {
+            if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).source, source);
+            return { ok: true, json: async () => path.endsWith('/readiness')
+                ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+                : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
+                : { ok: true, storedImage: true, message: 'experimental', analysis: {
+                    ok: true, code: 'RESEARCH_ONLY', releaseStatus: 'research_only', classificationStatus: 'experimental',
+                    modelVersion: 'derm-local-e10f89ad2ac8', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
+                    diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / 19 : 0.9 })),
+                } } };
+        };
+        await media.presentImage(photo('lesion.jpg'), source, source);
+        element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+        media.mockInspection(); media.mockStorageAndPresenter({ ...presenter, renderResearchResult: () => { rendered = true; } });
+        await media.submitPrivateScan();
+        assert.equal(rendered, true, element('dashboardProcessingError').textContent); assert.equal(media.selected(), null);
+        assert.equal(element('dashboardProcessingModal').dataset.processing, 'complete');
+        assert.match(element('dashboardProcessingTitle').textContent, /เชิงทดลอง/);
+    }
 });

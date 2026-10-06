@@ -8,6 +8,7 @@ import {
   json,
   publicError,
   publicUserById,
+  PublicAccountError,
   requestJson,
   requireGet,
   requirePost,
@@ -17,6 +18,9 @@ import {
   verifyOwnPassword,
 } from '../lib/account-auth.js';
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
+import { scanReadiness, requireScanEngine } from '../lib/scan-readiness.js';
+import { InferenceServiceError } from '../lib/research-inference.js';
+import { researchReadiness, analyzePrivateResearchScan, RESEARCH_CONSENT_VERSION } from '../lib/research-workflow.js';
 import {
   countPrivateRows,
   createPrivateDownloadUrl,
@@ -333,6 +337,19 @@ async function privateStorageStatus(req, res) {
   return json(res, 200, { ok: true, configured });
 }
 
+async function getScanReadiness(req, res) {
+  if (!requireGet(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  return json(res, 200, { ok: true, ...scanReadiness() });
+}
+
+async function getResearchReadiness(req, res) {
+  if (!requireGet(req, res)) return;
+  if (!await signedInApprovedUser(req, res)) return;
+  return json(res, 200, { ok: true, ...await researchReadiness() });
+}
+
 function scanRetentionDays() {
   const configured = Number(process.env.SMART_SKIN_SCAN_RETENTION_DAYS || 30);
   return Number.isInteger(configured) && configured >= 1 && configured <= 365 ? configured : 30;
@@ -364,6 +381,8 @@ async function recordDeviceScan(req, res) {
   if (!budget.ok) return rejectRateLimit(res, 'แสกนภาพบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  // Never record a quality-only check as a completed lesion scan.
+  if (!requireScanEngine(res, json)) return;
   let details;
   try { details = validateScanRequest(requestJson(req)); }
   catch (error) { return json(res, error.status || 400, { ok: false, message: error.message || 'ข้อมูลรูปภาพไม่ถูกต้อง' }); }
@@ -394,26 +413,34 @@ async function removeExpiredPendingScans(sql) {
   }
 }
 
-async function startScanUpload(req, res) {
+async function startScanUpload(req, res, research = false) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   const budget = takeRateBudget(req, 'user_scan');
   if (!budget.ok) return rejectRateLimit(res, 'ส่งภาพบ่อยเกินไป กรุณาลองใหม่ภายหลัง', budget);
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (!research && !requireScanEngine(res, json)) return;
   if (!isSupabasePrivateStorageConfigured()) return json(res, 503, { ok: false, message: 'ระบบจัดเก็บภาพส่วนตัวยังไม่ได้เชื่อมต่อ Supabase' });
   let details;
-  try { details = validateScanRequest(requestJson(req)); }
+  try {
+    const body = requestJson(req);
+    details = validateScanRequest(body);
+    if (research && body.researchConsentVersion !== RESEARCH_CONSENT_VERSION) {
+      throw new PublicAccountError('กรุณายืนยันความยินยอมสำหรับการวิเคราะห์เชิงทดลองก่อนส่งภาพ');
+    }
+  }
   catch (error) { return json(res, error.status || 400, { ok: false, message: error.message || 'ข้อมูลรูปภาพไม่ถูกต้อง' }); }
+  if (research) await researchReadiness();
   const sql = await database();
   await removeExpiredPendingScans(sql);
   const id = randomUUID();
   const objectPath = scanObjectPath(account.user.id, details.mimeType);
   const expiresAt = new Date(Date.now() + PENDING_SCAN_UPLOAD_TTL_MS);
   await sql`INSERT INTO smart_skin_pending_scan_uploads (
-      id, user_id, object_path, original_name, mime_type, image_size_bytes, source, expires_at
+      id, user_id, object_path, original_name, mime_type, image_size_bytes, source, expires_at, research_consent_version
     ) VALUES (
       ${id}, ${account.user.id}, ${objectPath}, ${details.originalName}, ${details.mimeType},
-      ${details.imageSizeBytes}, ${details.source}, ${expiresAt}
+      ${details.imageSizeBytes}, ${details.source}, ${expiresAt}, ${research ? RESEARCH_CONSENT_VERSION : null}
     )`;
   let upload;
   try {
@@ -428,10 +455,47 @@ async function startScanUpload(req, res) {
   });
 }
 
+async function completeResearchUpload(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  const body = requestJson(req);
+  const id = body.uploadId;
+  if (body.researchConsentVersion !== RESEARCH_CONSENT_VERSION) return json(res, 400, { ok: false, message: 'ต้องยืนยันความยินยอมสำหรับรุ่นทดลอง' });
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return json(res, 400, { ok: false, message: 'รหัสอัปโหลดไม่ถูกต้อง' });
+  const budget = takeRateBudget(req, 'user_scan');
+  if (!budget.ok) return rejectRateLimit(res, 'ประมวลผลภาพบ่อยเกินไป กรุณารอแล้วลองใหม่', budget);
+  const sql = await database();
+  await removeExpiredPendingScans(sql);
+  // Atomic claim: browser-supplied paths, other accounts, old consent and a
+  // second concurrent completion cannot start inference.
+  const rows = await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NOW()
+    WHERE id = ${id} AND user_id = ${account.user.id} AND expires_at > NOW()
+      AND analysis_started_at IS NULL AND research_consent_version = ${RESEARCH_CONSENT_VERSION}
+    RETURNING id, object_path, original_name, image_size_bytes, source, research_consent_version`;
+  const pending = rows[0];
+  if (!pending) return json(res, 409, { ok: false, code: 'MODEL_BUSY', message: 'รายการหมดอายุ ถูกประมวลผลแล้ว หรือกำลังประมวลผล กรุณาเริ่มใหม่' });
+  try {
+    const retention = new Date(Date.now() + scanRetentionDays() * 86400000).toISOString();
+    const result = await analyzePrivateResearchScan(pending, account.user.id, retention);
+    if (result.storedImage) {
+      await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE id = ${id} AND user_id = ${account.user.id}`;
+    }
+    // For rejections the locked pending row stays until signed-upload expiry:
+    // it also cleans up any late upload made with that still-valid URL.
+    return json(res, 200, { ok: true, ...result });
+  } catch (error) {
+    await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NULL
+      WHERE id = ${id} AND user_id = ${account.user.id}`;
+    throw error;
+  }
+}
+
 async function completeScanUpload(req, res) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   const account = await signedInApprovedUser(req, res);
   if (!account) return;
+  if (!requireScanEngine(res, json)) return;
   const body = requestJson(req);
   const uploadId = typeof body.uploadId === 'string' ? body.uploadId : '';
   const qualityStatus = ['ready', 'retake-light', 'retake-focus'].includes(body.qualityStatus) ? body.qualityStatus : 'ready';
@@ -763,6 +827,10 @@ export default async function handler(req, res) {
       case 'user/avatar/remove': return await removeAvatar(req, res);
       case 'user/storage-status': return await privateStorageStatus(req, res);
       case 'user/history': return await userHistory(req, res);
+      case 'user/scan/readiness': return await getScanReadiness(req, res);
+      case 'user/scan/research/readiness': return await getResearchReadiness(req, res);
+      case 'user/scan/research/upload': return await startScanUpload(req, res, true);
+      case 'user/scan/research/complete': return await completeResearchUpload(req, res);
       case 'user/scan/upload': return await startScanUpload(req, res);
       case 'user/scan/complete': return await completeScanUpload(req, res);
       case 'user/scan/record': return await recordDeviceScan(req, res);
@@ -780,6 +848,7 @@ export default async function handler(req, res) {
       default: return json(res, 404, { ok: false, message: 'ไม่พบปลายทางผู้ดูแลระบบ' });
     }
   } catch (error) {
+    if (error instanceof InferenceServiceError) return json(res, error.status, { ok: false, code: error.code, message: error.message });
     return publicError(res, error, 'admin');
   }
 }

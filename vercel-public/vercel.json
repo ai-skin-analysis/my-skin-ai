@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/admin-handler.js": { "maxDuration": 300 }
+  },
   "rewrites": [
     { "source": "/api/admin/:path*", "destination": "/api/admin-handler?path=:path*" },
     { "source": "/api/user/:path*", "destination": "/api/admin-handler?path=user/:path*" }

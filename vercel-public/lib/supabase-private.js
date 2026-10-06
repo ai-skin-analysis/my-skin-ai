@@ -179,6 +179,52 @@ export async function privateObjectExists(path) {
   return response.ok;
 }
 
+// Called only with an account-owned path read from the pending-upload table.
+// No signed/public URL supplied by the browser is ever fetched by the backend.
+export async function downloadPrivateScanObject(path, expectedSize, { fetchImpl = globalThis.fetch } = {}) {
+  if (!/^scans\/[1-9][0-9]*\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(path)
+      || !Number.isSafeInteger(expectedSize) || expectedSize < 1 || expectedSize > 8 * 1024 * 1024) {
+    throw new PublicAccountError('ข้อมูลภาพที่อัปโหลดไม่ถูกต้อง', 400);
+  }
+  const { baseUrl, secretKey } = configuration();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  let reader;
+  try {
+    const response = await fetchImpl(`${baseUrl}/storage/v1/object/${PRIVATE_BUCKET}/${objectPath(path)}`, {
+      method: 'GET', redirect: 'manual', signal: controller.signal, headers: privateHeaders(secretKey),
+    });
+    const type = (response.headers.get('content-type') || '').split(';')[0].trim();
+    const length = response.headers.get('content-length');
+    if (!response.ok || !response.body || !['image/jpeg', 'image/png', 'image/webp'].includes(type)
+        || (length !== null && Number(length) !== expectedSize)) {
+      await response.body?.cancel();
+      throw new PublicAccountError('ไม่สามารถอ่านภาพที่อัปโหลดได้ กรุณาเริ่มใหม่', 422);
+    }
+    reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > expectedSize) {
+        await reader.cancel();
+        throw new PublicAccountError('ขนาดภาพไม่ตรงกับรายการอัปโหลด', 422);
+      }
+      chunks.push(value);
+    }
+    if (total !== expectedSize) throw new PublicAccountError('ข้อมูลภาพที่อัปโหลดไม่ครบถ้วน', 422);
+    return Buffer.concat(chunks, total);
+  } catch (error) {
+    if (error instanceof PublicAccountError) throw error;
+    throw new PublicAccountError('ไม่สามารถอ่านภาพจากพื้นที่ส่วนตัวได้ กรุณาลองใหม่', 503);
+  } finally {
+    reader?.releaseLock();
+    clearTimeout(timer);
+  }
+}
+
 export async function removePrivateObjects(paths) {
   const validPaths = paths.filter((path) => typeof path === 'string' && path);
   if (!validPaths.length) return;

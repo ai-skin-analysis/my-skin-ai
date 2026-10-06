@@ -243,6 +243,9 @@ export async function database() {
       )`;
       await sql`CREATE INDEX IF NOT EXISTS smart_skin_pending_scan_uploads_expiry_idx
         ON smart_skin_pending_scan_uploads (expires_at)`;
+      await sql`ALTER TABLE smart_skin_pending_scan_uploads
+        ADD COLUMN IF NOT EXISTS research_consent_version VARCHAR(64),
+        ADD COLUMN IF NOT EXISTS analysis_started_at TIMESTAMPTZ`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,

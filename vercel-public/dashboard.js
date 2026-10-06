@@ -13,6 +13,11 @@
     let dashboardAlertTimer = null;
     let imageSelectionVersion = 0;
     let cameraSessionVersion = 0;
+    let scanResultModule;
+    const getScanResultModule = () => scanResultModule ||= import('./research-result.js').catch(error => {
+        scanResultModule = undefined;
+        throw error;
+    });
 
     function refreshIcons() {
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -56,7 +61,7 @@
         authorize: { title: 'กำลังเตรียมพื้นที่ส่วนตัว', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 2 },
         upload: { title: 'กำลังส่งภาพผ่านการเข้ารหัส', detail: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัวของบัญชีคุณ', step: 2 },
         local: { title: 'แสกนภาพบนอุปกรณ์เสร็จแล้ว', detail: 'พื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพของคุณ', step: 2 },
-        commit: { title: 'กำลังบันทึกการแสกนภาพ', detail: 'กำลังเพิ่มรายการเข้าไปในประวัติการแสกนของคุณ', step: 3 },
+        commit: { title: 'กำลังวิเคราะห์และจำแนกรอยโรค', detail: 'บริการโมเดลกำลังประมวลผลเชิงทดลอง และอาจปฏิเสธภาพที่ไม่มั่นใจ', step: 3 },
         complete: { title: 'แสกนภาพเสร็จแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการแสกน', step: 4 },
     };
 
@@ -68,6 +73,8 @@
         document.getElementById('dashboardProcessingTitle').textContent = current.title;
         document.getElementById('dashboardProcessingDetail').textContent = current.detail;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
+        document.getElementById('dashboardScanResult')?.classList.add('hidden');
+        document.getElementById('dashboardProcessingSteps')?.classList.toggle('hidden', stage === 'complete');
         const closeButton = document.getElementById('dashboardProcessingCloseButton');
         closeButton.textContent = stage === 'complete' ? 'ปิด' : 'ปิดและลองใหม่';
         closeButton.classList.toggle('hidden', stage !== 'complete');
@@ -77,7 +84,7 @@
             authorize: `${selectedImageName()} ถูกเตรียมแล้วและยังอยู่บนอุปกรณ์ กำลังขอสิทธิ์อัปโหลดเฉพาะรายการ`,
             upload: `กำลังส่ง ${selectedImageName()} ไปยังพื้นที่ส่วนตัวผ่านการเชื่อมต่อที่เข้ารหัส`,
             local: `${selectedImageName()} แสกนบนอุปกรณ์เสร็จแล้ว ไฟล์ภาพจะไม่ถูกส่งออกจากอุปกรณ์`,
-            commit: `${selectedImageName()} ถูกส่งถึงพื้นที่ส่วนตัวแล้ว กำลังบันทึกประวัติการสแกน`,
+            commit: `${selectedImageName()} อยู่ในพื้นที่ Supabase ส่วนตัว กำลังส่งผ่าน HTTPS ให้บริการโมเดลของ Smart Skin AI`,
             complete: `${selectedImageName()} ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`,
         };
         setProcessingImageState(imageStates[stage] || imageStates.prepare);
@@ -89,15 +96,38 @@
         refreshIcons();
     }
 
-    function showProcessingError(message, imageState) {
+    const LESION_IMAGE_GUIDANCE = 'ข้อมูลผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นบริเวณรอยโรคชัดเจน ไม่ใช้ภาพสิ่งของ สัตว์ อาหาร เอกสาร ภาพหน้าจอ วิว หรือภาพอื่นที่ไม่เกี่ยวข้อง';
+
+    function scanError(code, message) {
+        return Object.assign(new Error(message), { code });
+    }
+
+    function scanFailureMessage(error) {
+        if (error?.code === 'OUT_OF_SCOPE' || error?.code === 'NO_LESION_DETECTED' || error?.code === 'NON_SKIN_IMAGE') return LESION_IMAGE_GUIDANCE;
+        if (error?.code === 'UNCERTAIN_CONTENT') return 'ระบบยังตรวจสอบไม่ได้อย่างมั่นใจว่าเป็นภาพรอยโรคผิวหนัง จึงหยุดการจำแนก กรุณาถ่ายภาพรอยโรคให้ชัดเจนแล้วลองใหม่';
+        if (error?.code === 'UNSUPPORTED_LESION') return 'ขออภัย ระบบยังไม่รองรับหรือไม่สามารถจำแนกรอยโรคในภาพนี้ได้อย่างน่าเชื่อถือ จึงไม่ระบุชื่อรอยโรค โปรดพบแพทย์ผู้เชี่ยวชาญด้านผิวหนังเพื่อรับการประเมิน';
+        if (error?.code === 'UNCERTAIN_CLASSIFICATION') return 'ระบบยังแยกกลุ่มรอยโรคในภาพนี้ได้ไม่ชัดเจน จึงไม่แสดงชื่อกลุ่มที่อาจทำให้เข้าใจผิด โปรดพบแพทย์ผู้เชี่ยวชาญด้านผิวหนังเพื่อรับการประเมิน';
+        return error?.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่';
+    }
+
+    function showProcessingError(message, imageState, code) {
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
         modal.dataset.processing = 'error';
-        document.getElementById('dashboardProcessingTitle').textContent = 'ยังไม่สามารถแสกนภาพได้';
-        document.getElementById('dashboardProcessingDetail').textContent = 'ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ และยังไม่ถูกบันทึกเป็นประวัติ';
+        document.getElementById('dashboardScanResult')?.classList.add('hidden');
+        document.getElementById('dashboardProcessingTitle').textContent = ['OUT_OF_SCOPE', 'NO_LESION_DETECTED', 'NO_IMAGE', 'INVALID_IMAGE', 'NON_SKIN_IMAGE'].includes(code)
+            ? 'ข้อมูลผิดพลาด' : code === 'MODEL_UNAVAILABLE' ? 'ระบบวิเคราะห์ภาพยังไม่พร้อม'
+                : code === 'UNSUPPORTED_LESION' ? 'รอยโรคนี้ยังไม่อยู่ในขอบเขตที่ระบบจำแนกได้'
+                    : code === 'UNCERTAIN_CLASSIFICATION' ? 'ยังไม่สามารถสรุปกลุ่มรอยโรคได้' : 'ยังไม่สามารถแสกนภาพได้';
+        document.getElementById('dashboardProcessingDetail').textContent = code === 'NO_IMAGE'
+            ? 'ยังไม่ได้รับภาพ กรุณาเลือกภาพหรือถ่ายภาพรอยโรคใหม่'
+            : ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code)
+                ? 'ผลนี้ไม่ได้หมายความว่าผิวปกติหรือไม่มีโรค และไม่ใช่ผลวินิจฉัยทางการแพทย์'
+                : 'ยังไม่สามารถดำเนินการให้เสร็จได้ โปรดตรวจสถานะรูปภาพด้านล่าง';
         document.getElementById('dashboardProcessingError').textContent = message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่';
         document.getElementById('dashboardProcessingError').classList.remove('hidden');
         document.getElementById('dashboardProcessingCloseButton').classList.remove('hidden');
+        document.getElementById('dashboardProcessingCloseButton').textContent = ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code) ? 'รับทราบ' : 'ปิดและลองใหม่';
         setProcessingImageState(imageState || `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกบันทึกเป็นประวัติ`, 'error');
         document.querySelectorAll('[data-processing-step]').forEach((item) => { item.dataset.state = 'error'; });
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
@@ -181,13 +211,13 @@
         const response = await fetch(path, requestOptions);
         let data;
         try { data = await response.json(); } catch { data = {}; }
-        if (!response.ok || !data.ok) throw new Error(data.message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่อีกครั้ง');
+        if (!response.ok || !data.ok) throw scanError(data.code, data.message || 'ไม่สามารถดำเนินการได้ กรุณาลองใหม่อีกครั้ง');
         return data;
     }
 
     function isAllowedImage(file) {
         if (!file || !(IMAGE_TYPES.has(file.type) || (!file.type && /\.(jpe?g|png|webp)$/i.test(file.name)))) {
-            setStatus('กรุณาเลือกภาพ JPG, JPEG, PNG หรือ WEBP เท่านั้น', 'error');
+            setStatus('ข้อมูลผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังในรูปแบบ JPG, JPEG, PNG หรือ WEBP เท่านั้น', 'error');
             return false;
         }
         if (!file.size || file.size > MAX_IMAGE_BYTES) {
@@ -320,10 +350,14 @@
             const pixels = context.getImageData(0, 0, width, height).data;
             const luminance = new Float32Array(width * height);
             let sum = 0;
+            let clippedDark = 0;
+            let clippedLight = 0;
             for (let pixel = 0, index = 0; pixel < pixels.length; pixel += 4, index += 1) {
                 const value = (pixels[pixel] * 0.2126) + (pixels[pixel + 1] * 0.7152) + (pixels[pixel + 2] * 0.0722);
                 luminance[index] = value;
                 sum += value;
+                if (value < 5) clippedDark += 1;
+                if (value > 250) clippedLight += 1;
             }
             const mean = sum / luminance.length;
             let variance = 0;
@@ -340,39 +374,34 @@
             }
             const contrast = Math.sqrt(variance / Math.max(1, (width - 2) * (height - 2)));
             const edgeScore = edgeTotal / Math.max(1, edgeCount);
-            if (mean < 45 || mean > 225) {
-                return { status: 'retake-light', summary: 'แสกนสำเร็จ แต่ภาพมืดหรือสว่างเกินไป แนะนำให้ถ่ายใหม่ในแสงธรรมชาติ' };
+            // Average brightness alone can penalize naturally dark skin. Only
+            // nearly blank/clipped images are rejected by this technical check.
+            // None of these measurements determine whether a lesion is present.
+            if (clippedDark / luminance.length > 0.95 || clippedLight / luminance.length > 0.95) {
+                return { status: 'retake-light', summary: 'ภาพมืดหรือสว่างเกินไป ยังไม่สามารถวิเคราะห์รอยโรคได้ กรุณาถ่ายใหม่ด้วยแสงที่พอดี' };
             }
-            if (contrast < 18 || edgeScore < 4.5) {
-                return { status: 'retake-focus', summary: 'แสกนสำเร็จ แต่ภาพอาจไม่คมชัด แนะนำให้ถ่ายใหม่โดยถือกล้องให้นิ่งและโฟกัสบริเวณผิว' };
+            if (contrast < 2 && edgeScore < 0.5) {
+                return { status: 'retake-focus', summary: 'ภาพไม่คมชัดเพียงพอ ยังไม่สามารถวิเคราะห์รอยโรคได้ กรุณาถ่ายใหม่โดยโฟกัสบริเวณรอยโรค' };
             }
-            return { status: 'ready', summary: 'แสกนสำเร็จ ภาพมีความสว่างและความคมชัดเพียงพอสำหรับการตรวจทาน' };
+            return { status: 'ready', summary: 'ตรวจข้อมูลภาพเบื้องต้นแล้ว ยังไม่ได้ยืนยันว่าเป็นภาพรอยโรคผิวหนัง',
+                qualityWarning: mean < 45 || mean > 225 || contrast < 18 || edgeScore < 4.5
+                    ? 'หากรายละเอียดรอยโรคไม่ชัด แนะนำให้ปรับแสงและโฟกัสแล้วถ่ายใหม่' : null };
         } finally {
             bitmap.close?.();
         }
     }
 
-    function recordDeviceScan(preparedImage, qualityStatus) {
-        return userRequest('/api/user/scan/record', {
-            method: 'POST',
-            body: JSON.stringify({
-                consent: true,
-                originalName: preparedImage.name,
-                mimeType: preparedImage.type,
-                imageSizeBytes: preparedImage.size,
-                source: selectedScanSource,
-                qualityStatus,
-            }),
-        });
-    }
-
     async function submitPrivateScan() {
         if (!selectedScanImage) {
-            setStatus('ไม่พบภาพสำหรับส่ง ระบบยังไม่ได้รับไฟล์จากอุปกรณ์ของคุณ กรุณาเลือกภาพใหม่', 'error');
+            const message = 'ข้อมูลผิดพลาด ไม่พบภาพ กรุณาอัปโหลดหรือถ่ายภาพรอยโรคผิวหนังที่เห็นบริเวณรอยโรคชัดเจน';
+            setStatus(message, 'error');
+            showProcessingError(message, 'ยังไม่มีภาพถูกส่งหรือบันทึก', 'NO_IMAGE');
             return;
         }
         if (!document.getElementById('dashboardLesionImageInput').checked) {
-            setStatus('กรุณายืนยันว่าภาพแสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่น ก่อนเริ่มแสกนภาพ', 'error');
+            const message = 'กรุณายืนยันว่าภาพแสดงรอยโรคผิวหนังของมนุษย์ก่อนเริ่มแสกน การยืนยันนี้ไม่ใช่ผลการตรวจจากโมเดล';
+            setStatus(message, 'error');
+            showProcessingError(message);
             return;
         }
         if (!document.getElementById('dashboardScanConsentInput').checked) {
@@ -381,6 +410,7 @@
         }
         const button = document.getElementById('dashboardSubmitScanButton');
         const imageName = selectedScanImage.name || 'รูปภาพที่เลือก';
+        let uploadAttempted = false;
         let uploadedToPrivateStorage = false;
         let storedImage = false;
         button.disabled = true;
@@ -391,46 +421,61 @@
             button.textContent = 'กำลังแสกนคุณภาพของภาพ…';
             setProcessingStage('inspect');
             const inspection = await inspectPreparedScanImage(preparedImage);
-            let completed;
-            if (privateStorageReady) {
-                try {
-                    setProcessingStage('authorize');
-                    const uploadRequest = await userRequest('/api/user/scan/upload', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            consent: true,
-                            originalName: preparedImage.name,
-                            mimeType: preparedImage.type,
-                            imageSizeBytes: preparedImage.size,
-                            source: selectedScanSource,
-                            qualityStatus: inspection.status,
-                        }),
-                    });
-                    button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
-                    setProcessingStage('upload');
-                    const uploadResponse = await fetch(uploadRequest.upload.url, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
-                        body: preparedImage,
-                    });
-                    if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้');
-                    uploadedToPrivateStorage = true;
-                    button.textContent = 'กำลังบันทึกการแสกนภาพ…';
-                    setProcessingStage('commit');
-                    completed = await userRequest('/api/user/scan/complete', {
-                        method: 'POST',
-                        body: JSON.stringify({ uploadId: uploadRequest.upload.id, qualityStatus: inspection.status }),
-                    });
-                    storedImage = true;
-                } catch (storageError) {
-                    if (uploadedToPrivateStorage) throw storageError;
-                    privateStorageReady = false;
-                    setProcessingStage('local');
-                    completed = await recordDeviceScan(preparedImage, inspection.status);
-                }
-            } else {
-                setProcessingStage('local');
-                completed = await recordDeviceScan(preparedImage, inspection.status);
+            if (inspection.status !== 'ready') throw scanError('POOR_QUALITY', inspection.summary);
+            // Do not upload, record success, or silently downgrade to quality-only
+            // scanning when the actual semantic detector/classifier is unavailable.
+            const readiness = await userRequest('/api/user/scan/research/readiness');
+            if (readiness.researchAvailable !== true || readiness.releaseStatus !== 'research_only') {
+                throw scanError('MODEL_UNAVAILABLE', readiness.message || 'ระบบวิเคราะห์และคัดกรองภาพรอยโรคยังไม่พร้อมใช้งาน');
+            }
+            if (!privateStorageReady) {
+                throw scanError('PRIVATE_STORAGE_UNAVAILABLE', 'พื้นที่ส่วนตัวสำหรับส่งภาพยังไม่พร้อม ระบบยังไม่ได้ส่งภาพหรือบันทึกผล กรุณาลองใหม่ภายหลัง');
+            }
+            // Load presentation before sending a private image; failed storage
+            // or semantic checks must never fall back to a quality-only record.
+            const resultPresenter = await getScanResultModule();
+            setProcessingStage('authorize');
+            const uploadRequest = await userRequest('/api/user/scan/research/upload', {
+                method: 'POST',
+                body: JSON.stringify({
+                    consent: true,
+                    researchConsentVersion: 'skin-research-20261006-v1',
+                    originalName: preparedImage.name,
+                    mimeType: preparedImage.type,
+                    imageSizeBytes: preparedImage.size,
+                    source: selectedScanSource,
+                    qualityStatus: inspection.status,
+                }),
+            });
+            button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
+            setProcessingStage('upload');
+            uploadAttempted = true;
+            const uploadResponse = await fetch(uploadRequest.upload.url, {
+                method: 'PUT',
+                headers: { 'Content-Type': preparedImage.type, 'x-upsert': 'false' },
+                body: preparedImage,
+            });
+            if (!uploadResponse.ok) throw new Error('ไม่สามารถอัปโหลดภาพไปยังพื้นที่ส่วนตัวได้');
+            uploadedToPrivateStorage = true;
+            button.textContent = 'กำลังวิเคราะห์และจำแนกรอยโรค…';
+            setProcessingStage('commit');
+            const completed = await userRequest('/api/user/scan/research/complete', {
+                method: 'POST',
+                body: JSON.stringify({ uploadId: uploadRequest.upload.id, researchConsentVersion: 'skin-research-20261006-v1' }),
+            });
+            storedImage = completed.storedImage === true;
+            // Storage acknowledgement / brightness is not a classification.
+            // A future inference adapter must return an authoritative result.
+            const resultView = resultPresenter.researchResultView(completed?.analysis);
+            if (['NON_SKIN_IMAGE', 'UNCERTAIN_CLASSIFICATION'].includes(resultView.code)) {
+                showProcessingError(resultView.message,
+                    completed.temporaryUploadDeleted === true
+                        ? 'ลบภาพที่ส่งชั่วคราวออกจากพื้นที่ส่วนตัวแล้ว ไม่บันทึกเป็นผลจำแนก ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ'
+                        : 'ภาพถูกส่งไปประมวลผลแล้ว โปรดตรวจสถานะพื้นที่ส่วนตัว', resultView.code);
+                return;
+            }
+            if (resultView.code !== 'RESEARCH_ONLY') {
+                throw scanError(resultView.code, resultView.message);
             }
             selectedScanImage = null;
             document.getElementById('dashboardImageInput').value = '';
@@ -439,20 +484,34 @@
             button.textContent = 'แสกนภาพเสร็จแล้ว';
             setStatus(`${inspection.summary} · ${completed.message}`, 'success');
             setProcessingStage('complete');
+            document.getElementById('dashboardProcessingTitle').textContent = resultView.title;
+            document.getElementById('dashboardProcessingDetail').textContent = 'อ่านผลจัดกลุ่มและข้อจำกัดด้านล่าง ผลนี้ไม่ใช่การวินิจฉัยโดยแพทย์';
+            resultPresenter.renderResearchResult(document.getElementById('dashboardScanResult'), completed.analysis);
             setProcessingImageState(storedImage
                 ? `${inspection.summary} ภาพ “${imageName}” ถูกเก็บในพื้นที่ส่วนตัวแล้ว`
                 : `${inspection.summary} ไฟล์ภาพ “${imageName}” ยังอยู่บนอุปกรณ์และไม่ถูกอัปโหลด`);
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
-            setStatus(error.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่', 'error');
+            const message = scanFailureMessage(error);
+            setStatus(message, 'error');
             showProcessingError(
-                error.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่',
-                uploadedToPrivateStorage
-                    ? `ภาพ “${imageName}” ถูกส่งถึงพื้นที่ส่วนตัวแล้ว แต่ยังบันทึกประวัติไม่สำเร็จ ระบบจะไม่แสดงรายการนี้จนกว่าจะยืนยันการบันทึกได้`
-                    : `ภาพ “${imageName}” ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกจัดเก็บในพื้นที่ส่วนตัว`,
+                message,
+                storedImage
+                    ? `ภาพ “${imageName}” ถูกเก็บในพื้นที่ส่วนตัวและบันทึกรายการแล้ว แต่ยังไม่มีผลจำแนกที่ตรวจสอบได้`
+                    : uploadedToPrivateStorage
+                        ? `ภาพ “${imageName}” ถูกส่งถึงพื้นที่ส่วนตัวแล้ว แต่ยังยืนยันการบันทึกประวัติไม่ได้`
+                        : uploadAttempted
+                            ? `การส่งภาพ “${imageName}” ขัดข้อง ระบบยังยืนยันไม่ได้ว่าภาพถึงพื้นที่ส่วนตัวหรือไม่ ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ`
+                            : `ภาพ “${imageName}” ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกจัดเก็บในพื้นที่ส่วนตัว`,
+                error.code,
             );
             refreshIcons();
+        } finally {
+            if (selectedScanImage) {
+                button.disabled = false;
+                button.textContent = 'เริ่มสแกนภาพเชิงทดลอง';
+            }
         }
     }
 
@@ -872,7 +931,7 @@
             appendAccountInfoSection(content, 'วัตถุประสงค์ในการใช้ข้อมูล', 'ใช้เพื่อยืนยันบัญชี ให้บริการฟังก์ชันที่คุณเลือก แสดงประวัติส่วนบุคคล รักษาความปลอดภัย และตอบคำขอของผู้ใช้ ระบบไม่ขายข้อมูลส่วนบุคคลและไม่ใช้ภาพผิวหนังเพื่อการโฆษณา');
             appendAccountInfoSection(content, 'ความยินยอมและการถอนความยินยอม', 'ฟังก์ชันแสกนภาพและเรดาร์จะขอความยินยอมแยกกันก่อนส่งข้อมูล คุณถอนความยินยอมและขอลบข้อมูลได้ทุกเมื่อผ่านเมนูบัญชีหรือส่งข้อความถึงผู้ดูแล การถอนความยินยอมไม่กระทบการประมวลผลที่ชอบด้วยกฎหมายก่อนถอน');
             appendAccountInfoSection(content, 'ระยะเวลาเก็บรักษา', 'ภาพและประวัติการแสกนมีรอบหมดอายุของระบบ โดยค่าเริ่มต้นไม่เกิน 30 วัน บริบทตำแหน่งโดยประมาณเก็บเฉพาะรายการล่าสุดไม่เกิน 24 ชั่วโมง รูปโปรไฟล์เก็บจนกว่าคุณจะเปลี่ยน ลบ หรือปิดบัญชี เมื่อหมดความจำเป็นระบบจะลบหรือทำให้ไม่สามารถเชื่อมโยงกลับมาหาคุณได้ตามความเหมาะสม');
-            appendAccountInfoSection(content, 'การเข้าถึงและผู้ให้บริการภายนอก', 'เฉพาะผู้ดูแลที่ได้รับสิทธิ์และผู้ให้บริการโครงสร้างพื้นฐานที่จำเป็นต่อการทำงานของระบบเท่านั้นที่อาจประมวลผลข้อมูล ระบบใช้พื้นที่จัดเก็บส่วนตัวสำหรับภาพ และจะติดต่อ Open-Meteo เพื่อเรียกข้อมูลอากาศเมื่อคุณอนุญาตตำแหน่งโดยประมาณเท่านั้น');
+            appendAccountInfoSection(content, 'การเข้าถึงและผู้ให้บริการภายนอก', 'เมื่อกดสแกน ภาพที่ลบข้อมูลเมตาบนอุปกรณ์แล้วจะถูกส่งผ่าน HTTPS ไป Supabase ส่วนตัว ผ่านแบ็กเอนด์ Vercel และบริการโมเดล Smart Skin AI บนเซิร์ฟเวอร์ที่ผู้ดูแลได้รับสิทธิ์ใช้ บริการโมเดลประมวลผลในหน่วยความจำ ไม่บันทึกไฟล์และไม่ส่งภาพต่อ Google หรือ Hugging Face ภาพและผลที่ยอมรับเก็บใน Supabase สำหรับประวัติส่วนตัว ภาพที่ถูกปฏิเสธจะถูกลบ ไม่ใช้ภาพของคุณฝึกโมเดล ส่วน Open-Meteo ได้รับเฉพาะพิกัดโดยประมาณเมื่อคุณยินยอมใช้เรดาร์');
             appendAccountInfoSection(content, 'สิทธิของคุณตาม PDPA', 'ภายใต้เงื่อนไขของกฎหมาย คุณอาจขอเข้าถึงหรือรับสำเนาข้อมูล ขอแก้ไข ขอให้ลบหรือจำกัดการใช้ คัดค้าน ขอรับหรือโอนข้อมูล ถอนความยินยอม และร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคลได้');
             appendAccountInfoSection(content, 'การรักษาความปลอดภัย', 'ระบบใช้การเชื่อมต่อแบบเข้ารหัส จำกัดสิทธิ์ตามบัญชี ลบข้อมูลเมตาที่ไม่จำเป็นจากภาพก่อนส่ง และไม่แสดงรหัสผ่านแก่ผู้ดูแล อย่างไรก็ตามไม่มีระบบออนไลน์ใดรับประกันความปลอดภัยได้ทั้งหมด จึงควรหลีกเลี่ยงการส่งข้อมูลที่ไม่จำเป็น');
             appendAccountInfoSection(content, 'การลบข้อมูลและปิดบัญชี', 'คุณลบรูปโปรไฟล์ บริบทพื้นที่ และปิดบัญชีพร้อมข้อมูลที่เกี่ยวข้องได้จากเมนูบัญชี การปิดบัญชีเป็นการดำเนินการถาวร หากต้องการลบเฉพาะรายการหรือใช้สิทธิอื่น ให้ส่งคำขอถึงผู้ดูแล');
