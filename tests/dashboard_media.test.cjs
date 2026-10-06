@@ -21,7 +21,7 @@ function environment() {
                     contains: name => classes.has(name),
                     toggle: (name, on) => on ? classes.add(name) : classes.delete(name),
                 },
-                setAttribute() {}, removeAttribute() {}, focus() {},
+                setAttribute() {}, removeAttribute() {}, focus() {}, replaceChildren() {}, append() {},
                 querySelector: () => element(`${id}-text`),
                 click() { this.clicked = true; },
                 play: async () => {},
@@ -32,7 +32,7 @@ function environment() {
         return nodes.get(id);
     };
     const context = vm.createContext({
-        Blob, File, console,
+        Blob, File, console, AbortController,
         URL: { createObjectURL: () => `blob:${++nextUrl}`, revokeObjectURL: url => revoked.push(url) },
         Image: class {
             constructor() { this.width = 640; this.height = 480; }
@@ -49,7 +49,7 @@ function environment() {
     context.window = context;
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
-        scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage,
+        scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage, requireSession,
         mockInspection: () => { preparePrivateScanImage = async file => file;
             inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
         mockStorageAndPresenter: presenter => { privateStorageReady = true; scanResultModule = Promise.resolve(presenter); },
@@ -58,6 +58,47 @@ function environment() {
     return { context, media: context.media, element, revoked };
 }
 const photo = name => new File(['image'], name, { type: 'image/jpeg' });
+
+test('valid user session opens dashboard despite optional profile/storage outages', async () => {
+    const { context, media, element } = environment();
+    const redirects = [];
+    context.location = { replace: path => redirects.push(path) };
+    context.fetch = async path => path === '/api/account/me'
+        ? { ok: true, status: 200, json: async () => ({ user: { role: 'user', name: 'test', email: '' } }) }
+        : { ok: false, status: 503, json: async () => ({ message: 'storage unavailable' }) };
+    await media.requireSession();
+    assert.deepEqual(redirects, []);
+    assert.equal(element('dashboardMain').classList.contains('hidden'), false);
+});
+
+test('session service errors show retry without sending a valid cookie back into a loop', async () => {
+    for (const failure of ['network', '503', 'invalid-json']) {
+        const { context, media, element } = environment();
+        const redirects = [];
+        context.location = { replace: path => redirects.push(path) };
+        context.fetch = async () => {
+            if (failure === 'network') throw new Error('offline');
+            return { ok: failure !== '503', status: failure === '503' ? 503 : 200,
+                json: async () => { if (failure === 'invalid-json') throw new Error('not json'); return {}; } };
+        };
+        await media.requireSession();
+        assert.deepEqual(redirects, []);
+        assert.equal(element('dashboardSessionError').classList.contains('hidden'), false);
+        assert.equal(element('dashboardMain').classList.contains('hidden'), true);
+        assert.equal(element('dashboardSessionRetryButton').disabled, false);
+    }
+});
+
+test('explicitly rejected session returns to sign-in with automatic restore suppressed', async () => {
+    for (const status of [401, 403]) {
+        const { context, media } = environment();
+        const redirects = [];
+        context.location = { replace: path => redirects.push(path) };
+        context.fetch = async () => ({ ok: false, status, json: async () => ({ user: null }) });
+        await media.requireSession();
+        assert.deepEqual(redirects, ['/?signin=1']);
+    }
+});
 
 test('select, replace and cancel an image without sending it to a server', async () => {
     const { media, element, revoked } = environment();

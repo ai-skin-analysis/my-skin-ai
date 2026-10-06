@@ -1026,6 +1026,12 @@
         }
 
         async function restoreAccountSession() {
+            // A rejected protected-page request must not be auto-routed straight
+            // back to that page using a still-readable session cookie.
+            if (new URLSearchParams(window.location.search).get('signin') === '1') {
+                setAccountStatus('กรุณาเข้าสู่ระบบอีกครั้งเพื่อยืนยันสิทธิ์ใช้งาน', 'info');
+                return;
+            }
             try {
                 const result = await accountRequest('/api/account/me');
                 if (result.user?.role === 'admin') {

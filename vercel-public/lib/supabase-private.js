@@ -93,7 +93,7 @@ function bucketMissing(error) {
   return error?.upstreamStatus === 404 || /bucket.+not found|bucket not found/i.test(String(error?.upstreamReason || ''));
 }
 
-async function request(path, { method = 'GET', body, headers = {}, accept = 'application/json' } = {}) {
+async function request(path, { method = 'GET', body, headers = {}, accept = 'application/json', signal } = {}) {
   const { baseUrl, secretKey } = configuration();
   let response;
   try {
@@ -105,6 +105,7 @@ async function request(path, { method = 'GET', body, headers = {}, accept = 'app
         ...headers,
       },
       body,
+      signal,
     });
   } catch {
     throw new PublicAccountError('ไม่สามารถติดต่อพื้นที่จัดเก็บข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง', 503);
@@ -248,19 +249,22 @@ export async function createPrivateDownloadUrl(path, expiresIn = 60) {
   return signedPath.startsWith('http') ? signedPath : `${baseUrl}/storage/v1${signedPath}`;
 }
 
-export async function selectPrivateRows(table, query = '') {
+export async function selectPrivateRows(table, query = '', { signal } = {}) {
   const data = await request(`/rest/v1/${encodeURIComponent(table)}${query}`, {
     headers: { Accept: 'application/json' },
+    signal,
   });
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) throw new PublicAccountError('ไม่สามารถอ่านข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง', 503);
+  return data;
 }
 
-export async function countPrivateRows(table, query = '') {
+export async function countPrivateRows(table, query = '', { signal } = {}) {
   const { baseUrl, secretKey } = configuration();
   let response;
   try {
     response = await fetch(`${baseUrl}/rest/v1/${encodeURIComponent(table)}${query}`, {
       method: 'HEAD',
+      signal,
       headers: {
         ...privateHeaders(secretKey),
         Prefer: 'count=exact',
@@ -274,7 +278,8 @@ export async function countPrivateRows(table, query = '') {
     throw new PublicAccountError('ไม่สามารถอ่านข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง', response.status >= 500 ? 503 : 502);
   }
   const match = /\/(\d+)$/.exec(response.headers.get('content-range') || '');
-  return match ? Number(match[1]) : 0;
+  if (!match || !Number.isSafeInteger(Number(match[1]))) throw new PublicAccountError('ไม่สามารถอ่านข้อมูลส่วนตัวได้ กรุณาลองใหม่ภายหลัง', 503);
+  return Number(match[1]);
 }
 
 export async function insertPrivateRow(table, values) {

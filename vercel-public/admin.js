@@ -1,4 +1,5 @@
 (() => {
+  let adminLoadPending = false;
   const formatDate = (value) => {
     if (!value) return 'ยังไม่มีบันทึกการเข้าใช้';
     const date = new Date(value);
@@ -74,12 +75,12 @@
     });
   }
 
-  function renderFeedbacks(feedbacks) {
+  function renderFeedbacks(feedbacks, available = true) {
     const target = document.getElementById('feedbackList');
     target.replaceChildren();
     if (!feedbacks.length) {
       target.className = 'mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-5 text-center font-mono text-xs text-slate-400';
-      target.textContent = 'ยังไม่มีข้อเสนอแนะในฐานข้อมูล';
+      target.textContent = available ? 'ยังไม่มีข้อเสนอแนะในฐานข้อมูล' : 'ยังโหลดข้อเสนอแนะไม่ได้ กรุณาลองใหม่ภายหลัง';
       return;
     }
     target.className = 'mt-6 space-y-3';
@@ -150,33 +151,52 @@
   }
 
   async function loadAdmin() {
+    if (adminLoadPending) return;
+    adminLoadPending = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    document.getElementById('adminLoadError').classList.add('hidden');
+    document.getElementById('adminReloadButton').disabled = true;
     try {
-      const response = await fetch('/api/admin/overview', { credentials: 'same-origin' });
-      const data = await response.json();
+      const response = await fetch('/api/admin/overview', { credentials: 'same-origin', signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {
         if (data.code === 'mfa_enrollment_required') return window.location.replace('/admin-mfa-enroll.html');
-        throw new Error('not-admin');
+        if (response.status === 401 || response.status === 403) return window.location.replace('/?signin=1');
+        throw new Error('overview-unavailable');
       }
       setText('adminName', data.admin.name);
       setText('pendingUserCount', data.counts.pendingUsers);
       setText('approvedUserCount', data.counts.users);
-      setText('scanCount', data.counts.scans);
+      setText('scanCount', data.counts.scans ?? '—');
       setText('radarAccountCount', `${data.counts.users} ACTIVE`);
       setText('radarUserText', data.counts.users ? `ผู้ใช้ทั่วไป ${data.counts.users} บัญชีในระบบ` : 'ยังไม่มีผู้ใช้ทั่วไปในระบบขณะนี้');
       setText('latestScanResult', 'ยังไม่มีข้อมูล');
       setText('latestScanConfidence', '0.0%');
-      setText('feedbackCount', `${data.counts.feedbacks || 0} ข้อความ`);
+      setText('feedbackCount', data.counts.feedbacks === null ? 'ยังโหลดไม่ได้' : `${data.counts.feedbacks ?? 0} ข้อความ`);
       renderUsers(data.users || []);
-      renderFeedbacks(data.feedbacks || []);
+      renderFeedbacks(data.feedbacks || [], data.feedbacksAvailable !== false);
+      const warning = document.getElementById('adminStorageWarning');
+      warning.textContent = data.warning || '';
+      warning.classList.toggle('hidden', !data.warning);
+      document.getElementById('adminDataStatus').textContent = data.privateSummaryAvailable === false ? 'ข้อมูลส่วนจัดเก็บบางส่วนยังไม่พร้อม' : 'DATABASE SECURE SYNC: ACTIVE';
       document.getElementById('adminLoading').classList.add('hidden');
       document.getElementById('adminMain').classList.remove('hidden');
       if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch {
-      window.location.replace('/');
+      // A network, storage or rendering failure does not invalidate the cookie.
+      document.getElementById('adminLoading').classList.add('hidden');
+      document.getElementById('adminLoadError').classList.remove('hidden');
+    } finally {
+      clearTimeout(timer);
+      adminLoadPending = false;
+      document.getElementById('adminReloadButton').disabled = false;
     }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('adminRetryButton').addEventListener('click', loadAdmin);
+    document.getElementById('adminReloadButton').addEventListener('click', loadAdmin);
     document.getElementById('adminLogoutButton').addEventListener('click', openLogoutModal);
     document.getElementById('adminLogoutCancelButton').addEventListener('click', closeLogoutModal);
     document.getElementById('adminLogoutConfirmButton').addEventListener('click', logout);

@@ -14,6 +14,7 @@
     let imageSelectionVersion = 0;
     let cameraSessionVersion = 0;
     let scanResultModule;
+    let sessionCheckPending = false;
     const getScanResultModule = () => scanResultModule ||= import('./research-result.js').catch(error => {
         scanResultModule = undefined;
         throw error;
@@ -1036,10 +1037,18 @@
     }
 
     async function requireSession() {
+        if (sessionCheckPending) return;
+        sessionCheckPending = true;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20_000);
+        document.getElementById('dashboardSessionError').classList.add('hidden');
+        document.getElementById('dashboardSessionRetryButton').disabled = true;
         try {
-            const response = await fetch('/api/account/me', { credentials: 'same-origin' });
-            const data = await response.json();
+            const response = await fetch('/api/account/me', { credentials: 'same-origin', signal: controller.signal });
+            const data = await response.json().catch(() => ({}));
+            if (response.status === 401 || response.status === 403) return window.location.replace('/?signin=1');
             if (!response.ok || !data.user) throw new Error('missing session');
+            clearTimeout(timer);
             currentUser = data.user;
             if (data.user.role === 'admin') {
                 document.getElementById('dashboardAdminLink').classList.remove('hidden');
@@ -1062,7 +1071,12 @@
             document.getElementById('dashboardLoading').classList.add('hidden');
             document.getElementById('dashboardMain').classList.remove('hidden');
         } catch {
-            window.location.replace('/');
+            document.getElementById('dashboardLoading').classList.add('hidden');
+            document.getElementById('dashboardSessionError').classList.remove('hidden');
+        } finally {
+            clearTimeout(timer);
+            sessionCheckPending = false;
+            document.getElementById('dashboardSessionRetryButton').disabled = false;
         }
     }
 
@@ -1090,6 +1104,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('dashboardSessionRetryButton').addEventListener('click', requireSession);
         refreshIcons();
         document.getElementById('dashboardImageInput').addEventListener('change', (event) => {
             const file = event.target.files?.[0];

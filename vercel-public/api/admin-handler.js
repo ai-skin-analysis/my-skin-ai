@@ -20,6 +20,7 @@ import {
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
 import { scanReadiness, requireScanEngine } from '../lib/scan-readiness.js';
 import { InferenceServiceError } from '../lib/research-inference.js';
+import { adminPrivateSummary } from '../lib/admin-private-summary.js';
 import { researchReadiness, analyzePrivateResearchScan, RESEARCH_CONSENT_VERSION } from '../lib/research-workflow.js';
 import {
   countPrivateRows,
@@ -96,16 +97,16 @@ async function overview(req, res) {
   let scanCount = legacyScanCount[0].value;
   let feedbackCount = legacyFeedbackCount[0].value;
   let feedbacks = legacyFeedbacks;
+  let privateSummaryAvailable = true;
+  let feedbacksAvailable = true;
   if (isSupabasePrivateStorageConfigured()) {
-    const [privateScans, privateFeedbacks, privateFeedbackRows] = await Promise.all([
-      countPrivateRows('smart_skin_scan_logs', '?select=id'),
-      countPrivateRows('smart_skin_feedback', '?select=id'),
-      selectPrivateRows('smart_skin_feedback', '?select=id,user_id,message,created_at&order=created_at.desc&limit=30'),
-    ]);
-    scanCount = privateScans;
-    feedbackCount = privateFeedbacks;
+    const summary = await adminPrivateSummary();
+    scanCount = summary.scans;
+    feedbackCount = summary.feedbacks;
+    privateSummaryAvailable = summary.available;
+    feedbacksAvailable = summary.feedbackRowsAvailable;
     const usersById = new Map(users.map((user) => [String(user.id), user.display_name]));
-    feedbacks = privateFeedbackRows.map((feedback) => ({
+    feedbacks = summary.feedbackRows.map((feedback) => ({
       id: feedback.id,
       message: feedback.message,
       created_at: feedback.created_at,
@@ -114,6 +115,9 @@ async function overview(req, res) {
   }
   return json(res, 200, {
     ok: true,
+    privateSummaryAvailable,
+    feedbacksAvailable,
+    warning: privateSummaryAvailable ? null : 'เข้าสู่ระบบแล้ว แต่ข้อมูลสถิติการสแกนหรือข้อเสนอแนะบางส่วนยังโหลดไม่ได้จากพื้นที่จัดเก็บส่วนตัว คุณยังจัดการบัญชีผู้ใช้ได้ โปรดลองโหลดข้อมูลใหม่ภายหลัง',
     admin: { name: admin.user.name, email: admin.user.email },
     counts: {
       accounts: accountCount[0].value,
