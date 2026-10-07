@@ -50,9 +50,10 @@ function environment() {
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
         scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage, requireSession,
+        refreshPrivateStorageStatus,
         mockInspection: () => { preparePrivateScanImage = async file => file;
             inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
-        mockStorageAndPresenter: presenter => { privateStorageReady = true; scanResultModule = Promise.resolve(presenter); },
+        mockStorageAndPresenter: (presenter, ready = true) => { privateStorageReady = ready; scanResultModule = Promise.resolve(presenter); },
         selected: () => selectedScanImage, source: () => selectedScanSource
     };})();`), context);
     return { context, media: context.media, element, revoked };
@@ -254,6 +255,50 @@ test('API error codes survive request handling for the correct modal message', a
     await assert.rejects(media.userRequest('/api/test'), error => error.code === 'OUT_OF_SCOPE');
 });
 
+test('storage readiness can recover without discarding the selected image', async () => {
+    const { context, media } = environment();
+    const image = photo('lesion.jpg');
+    await media.presentImage(image, 'upload');
+    let configured = false;
+    context.fetch = async (path, options) => {
+        assert.equal(path, '/api/user/storage-status');
+        assert.equal(options.cache, 'no-store');
+        return { ok: true, json: async () => ({ ok: true, configured }) };
+    };
+    assert.equal(await media.refreshPrivateStorageStatus(), false);
+    configured = true;
+    assert.equal(await media.refreshPrivateStorageStatus(), true);
+    assert.equal(media.selected(), image);
+});
+
+test('a fresh unavailable or failed storage check blocks upload despite cached readiness', async () => {
+    for (const failure of ['unconfigured', 'network', 'http', 'invalid-json', 'non-boolean']) {
+        const { context, media, element } = environment();
+        const image = photo('lesion.jpg');
+        await media.presentImage(image, 'upload');
+        element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+        media.mockInspection(); media.mockStorageAndPresenter({});
+        const requests = [];
+        context.fetch = async path => {
+            requests.push(path);
+            if (path.endsWith('/readiness')) return { ok: true, json: async () => ({ ok: true, researchAvailable: true, releaseStatus: 'research_only' }) };
+            assert.equal(path, '/api/user/storage-status');
+            if (failure === 'network') throw new Error('offline');
+            return { ok: failure !== 'http', json: async () => {
+                if (failure === 'invalid-json') throw new Error('not json');
+                return { ok: true, configured: failure === 'non-boolean' ? 'true' : false };
+            } };
+        };
+        await media.submitPrivateScan();
+        assert.deepEqual(requests, ['/api/user/scan/research/readiness', '/api/user/storage-status']);
+        assert.equal(media.selected(), image);
+        assert.equal(element('dashboardSubmitScanButton').disabled, false);
+        assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
+        assert.match(element('dashboardProcessingError').textContent, /พื้นที่ส่วนตัว/);
+        assert.match(element('dashboardProcessingImageState-text').textContent, /ยังไม่ได้ถูกจัดเก็บ/);
+    }
+});
+
 test('a semantic rejection never falls back to a quality-only scan record', async () => {
     const { context, media, element } = environment();
     const requests = [];
@@ -261,13 +306,14 @@ test('a semantic rejection never falls back to a quality-only scan record', asyn
         requests.push(path);
         return { ok: true, json: async () => path.endsWith('/readiness')
             ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : { ok: false, code: 'UNSUPPORTED_LESION' } };
     };
     await media.presentImage(photo('image.jpg'), 'upload');
     element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
     media.mockInspection(); media.mockStorageAndPresenter({});
     await media.submitPrivateScan();
-    assert.deepEqual(requests, ['/api/user/scan/research/readiness', '/api/user/scan/research/upload']);
+    assert.deepEqual(requests, ['/api/user/scan/research/readiness', '/api/user/storage-status', '/api/user/scan/research/upload']);
     assert.match(element('dashboardProcessingTitle').textContent, /ขอบเขต/);
     assert.ok(media.selected());
 });
@@ -278,6 +324,7 @@ test('network failure during PUT shows an unknown transfer state, not a false no
         if (path === '/test-private-upload') throw new Error('Network error');
         return { ok: true, json: async () => path.endsWith('/readiness')
             ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : { ok: true, upload: { id: 'test', url: '/test-private-upload' } } };
     };
     await media.presentImage(photo('image.jpg'), 'upload');
@@ -293,6 +340,7 @@ test('storage acknowledgement without a model result does not show classificatio
     const presenter = await import('../vercel-public/research-result.js');
     context.fetch = async path => ({ ok: true, json: async () => path.endsWith('/readiness')
         ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+        : path === '/api/user/storage-status' ? { ok: true, configured: true }
         : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
         : { ok: true, storedImage: true, message: 'storage only' } });
     await media.presentImage(photo('image.jpg'), 'upload');
@@ -336,6 +384,7 @@ test('research rejection clears server upload state, retains local preview and p
         if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-research-20261006-v1');
         return { ok: true, json: async () => path.endsWith('/readiness')
             ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
             : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
                 ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'derm-local-e10f89ad2ac8',
@@ -349,7 +398,7 @@ test('research rejection clears server upload state, retains local preview and p
     assert.ok(media.selected()); assert.equal(element('dashboardSubmitScanButton').disabled, false);
     assert.match(element('dashboardProcessingTitle').textContent, /ข้อมูลภาพ?ผิดพลาด|ข้อมูลผิดพลาด/);
     assert.match(element('dashboardProcessingImageState-text').textContent, /ลบภาพ/);
-    assert.equal(requests.length, 4); assert.equal(requests.some(path => path.endsWith('/record')), false);
+    assert.equal(requests.length, 5); assert.equal(requests.some(path => path.endsWith('/record')), false);
 });
 
 test('upload and camera images use the same real research path and only valid model results show success', async () => {
@@ -362,6 +411,7 @@ test('upload and camera images use the same real research path and only valid mo
             if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).source, source);
             return { ok: true, json: async () => path.endsWith('/readiness')
                 ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+                : path === '/api/user/storage-status' ? { ok: true, configured: true }
                 : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
                 : { ok: true, storedImage: true, message: 'experimental', analysis: {
                     ok: true, code: 'RESEARCH_ONLY', releaseStatus: 'research_only', classificationStatus: 'experimental',
@@ -371,7 +421,9 @@ test('upload and camera images use the same real research path and only valid mo
         };
         await media.presentImage(photo('lesion.jpg'), source, source);
         element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
-        media.mockInspection(); media.mockStorageAndPresenter({ ...presenter, renderResearchResult: () => { rendered = true; } });
+        // Both media sources must recover from the unavailable status cached
+        // when the dashboard first loaded, using a new check before upload.
+        media.mockInspection(); media.mockStorageAndPresenter({ ...presenter, renderResearchResult: () => { rendered = true; } }, false);
         await media.submitPrivateScan();
         assert.equal(rendered, true, element('dashboardProcessingError').textContent); assert.equal(media.selected(), null);
         assert.equal(element('dashboardProcessingModal').dataset.processing, 'complete');

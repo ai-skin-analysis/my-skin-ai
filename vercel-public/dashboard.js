@@ -216,6 +216,20 @@
         return data;
     }
 
+    async function refreshPrivateStorageStatus() {
+        // A dashboard can remain open across a storage outage or configuration
+        // change. Never use its initial status to authorize a later upload.
+        privateStorageReady = false;
+        try {
+            const storage = await userRequest('/api/user/storage-status', { cache: 'no-store' });
+            privateStorageReady = storage.configured === true;
+        } catch {
+            // A failed check must not retain a previously successful status.
+            privateStorageReady = false;
+        }
+        return privateStorageReady;
+    }
+
     function isAllowedImage(file) {
         if (!file || !(IMAGE_TYPES.has(file.type) || (!file.type && /\.(jpe?g|png|webp)$/i.test(file.name)))) {
             setStatus('ข้อมูลผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังในรูปแบบ JPG, JPEG, PNG หรือ WEBP เท่านั้น', 'error');
@@ -429,7 +443,7 @@
             if (readiness.researchAvailable !== true || readiness.releaseStatus !== 'research_only') {
                 throw scanError('MODEL_UNAVAILABLE', readiness.message || 'ระบบวิเคราะห์และคัดกรองภาพรอยโรคยังไม่พร้อมใช้งาน');
             }
-            if (!privateStorageReady) {
+            if (!await refreshPrivateStorageStatus()) {
                 throw scanError('PRIVATE_STORAGE_UNAVAILABLE', 'พื้นที่ส่วนตัวสำหรับส่งภาพยังไม่พร้อม ระบบยังไม่ได้ส่งภาพหรือบันทึกผล กรุณาลองใหม่ภายหลัง');
             }
             // Load presentation before sending a private image; failed storage
@@ -1061,12 +1075,7 @@
                 document.getElementById('userAccountControl').classList.remove('hidden');
                 applyAvatar(null);
                 try { await loadProfile(); } catch { /* Account menu remains usable even if avatar is unavailable. */ }
-                try {
-                    const storage = await userRequest('/api/user/storage-status');
-                    privateStorageReady = storage.configured === true;
-                } catch {
-                    privateStorageReady = false;
-                }
+                await refreshPrivateStorageStatus();
             }
             document.getElementById('dashboardLoading').classList.add('hidden');
             document.getElementById('dashboardMain').classList.remove('hidden');
