@@ -24,8 +24,8 @@ function adminEnvironment(fetch) {
         window: { location: { replace: path => redirects.push(path) } },
     });
     const source = readFileSync(join(__dirname, '../vercel-public/admin.js'), 'utf8');
-    vm.runInContext(source.replace(/\}\)\(\);\s*$/, 'globalThis.testAdmin = { loadAdmin };})();'), context);
-    return { context, element, redirects, load: context.testAdmin.loadAdmin };
+    vm.runInContext(source.replace(/\}\)\(\);\s*$/, 'globalThis.testAdmin = { loadAdmin, loadAiStatus };})();'), context);
+    return { context, element, redirects, load: context.testAdmin.loadAdmin, loadAi: context.testAdmin.loadAiStatus };
 }
 
 const response = (status, data) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
@@ -82,6 +82,32 @@ test('real authorization rejection and MFA enrollment still protect admin access
     const e = adminEnvironment(async () => response(403, { code: 'mfa_enrollment_required' }));
     await e.load();
     assert.deepEqual(e.redirects, ['/admin-mfa-enroll.html']);
+});
+
+test('admin AI panel reports only actual research readiness, clears stale metadata on failure and never logs out', async () => {
+    const ready = { ok: true, researchAvailable: true, classCount: 20, releaseStatus: 'research_only',
+        publicReleaseApproved: false, scopeValidated: false, unsupportedValidated: false,
+        modelVersion: 'derm-local-e10f89ad2ac8', checkedAt: '2026-10-07T16:00:00Z' };
+    const e = adminEnvironment(async (path, options) => {
+        assert.equal(path, '/api/admin/model/readiness');
+        assert.equal(options.cache, 'no-store');
+        return response(200, ready);
+    });
+    await e.loadAi();
+    assert.equal(e.element('adminAiVersion').textContent, ready.modelVersion);
+    assert.match(e.element('adminAiClassCount').textContent, /20 กลุ่ม/);
+    assert.match(e.element('adminAiStatus').textContent, /ไม่ใช่การอนุมัติเปิดทั่วไป/);
+    for (const invalid of [{ ...ready, classCount: 19 }, { ...ready, publicReleaseApproved: true }, { ...ready, modelVersion: 'fake' }]) {
+        e.context.fetch = async () => response(200, invalid);
+        await e.loadAi();
+        assert.equal(e.element('adminAiVersion').textContent, '—');
+        assert.match(e.element('adminAiStatus').textContent, /ยังติดต่อหรือยืนยัน/);
+    }
+    e.context.fetch = async () => { throw new Error('secret upstream details'); };
+    await e.loadAi();
+    assert.doesNotMatch(e.element('adminAiStatus').textContent, /secret/);
+    assert.equal(e.element('adminAiRefreshButton').disabled, false);
+    assert.deepEqual(e.redirects, []);
 });
 
 function landingRestoreEnvironment(search, result) {

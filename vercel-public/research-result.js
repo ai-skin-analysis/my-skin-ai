@@ -48,15 +48,55 @@ export function renderResearchResult(container, result) {
   container.append(node('h3', view.title, 'text-base font-extrabold text-white'),
     node('p', view.message, 'mt-2 text-xs leading-relaxed text-slate-200'));
   if (view.candidates.length) {
-    container.append(card(view.candidates[0], 'กลุ่มที่ได้คะแนนอันดับแรก'));
-    const details = node('details', '', 'mt-3');
-    details.append(node('summary', 'ดูคำอธิบายเปรียบเทียบกับกลุ่มคะแนนอันดับสอง', 'cursor-pointer text-xs font-bold text-cyan-200'),
-      node('p', 'ใช้เปรียบเทียบความรู้ทั่วไปเท่านั้น อันดับสองไม่ได้หมายความว่าพบรอยโรคอีกชนิด และระบบยังไม่ได้ผ่านการทดสอบการแยกรอยโรคคู่นี้', 'mt-2 text-xs leading-relaxed text-slate-300'),
-      card(view.candidates[1], 'กลุ่มคะแนนอันดับสอง — ไม่ใช่ข้อสรุปว่าพบในภาพ'));
-    container.append(details);
+    const comparison = node('div', '', 'mt-4 grid gap-3 md:grid-cols-2');
+    comparison.append(card(view.candidates[0], 'อันดับ 1 · กลุ่มที่โมเดลจัดไว้ใกล้เคียง'),
+      card(view.candidates[1], 'อันดับ 2 · กลุ่มสำหรับเปรียบเทียบ'));
+    container.append(comparison,
+      node('p', 'ใช้เปรียบเทียบความรู้ทั่วไปเท่านั้น อันดับสองไม่ได้หมายความว่าพบรอยโรคอีกชนิด และระบบยังไม่ได้ผ่านการทดสอบการแยกรอยโรคคู่นี้', 'mt-3 text-xs leading-relaxed text-slate-300'));
   }
   container.append(node('p', 'รุ่นทดลองยังไม่พร้อมสำหรับการประเมินสุขภาพทั่วไป ผลทดสอบภายในชุดเพิ่มเติมถูก 112 จาก 338 ภาพ (33.1%) และครอบคลุมเพียง 11 กลุ่ม จึงอาจจำแนกผิดหรือพลาดรอยโรคนอกขอบเขตได้', 'mt-4 rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100'),
     node('p', SCAN_DISCLAIMER, 'mt-3 text-xs leading-relaxed text-slate-300'));
   container.classList.remove('hidden');
+  return view;
+}
+
+// This is a separate, owner-facing screen in the authenticated dashboard.
+// It consumes an actual completion response, not query parameters, fixture
+// scores, localStorage or a second inference call. Abstention remains distinct
+// from an accepted experimental result.
+export function renderAnalysisScreen(doc, completed, { imageName = '', previewUrl = '' } = {}) {
+  const view = researchResultView(completed?.analysis);
+  const accepted = view.code === 'RESEARCH_ONLY';
+  const uncertain = view.code === 'UNCERTAIN_CLASSIFICATION';
+  if ((!accepted && !uncertain)
+      || (accepted && (completed.storedImage !== true || !completed.scan?.id))
+      || (uncertain && (completed.storedImage !== false || completed.temporaryUploadDeleted !== true))) {
+    throw new Error('ยังไม่มีผลประมวลผลที่ตรวจสอบได้ จึงไม่เปิดหน้าผล AI');
+  }
+  renderResearchResult(doc.getElementById('dashboardAnalysisResult'), completed.analysis);
+  const image = doc.getElementById('dashboardAnalysisImage');
+  // The preview is the existing local object URL, never a browser-supplied
+  // external URL or a new public/signed link to private storage.
+  image.removeAttribute('src');
+  image.classList.add('hidden');
+  if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+    image.src = previewUrl;
+    image.classList.remove('hidden');
+  }
+  doc.getElementById('dashboardAnalysisImageName').textContent = imageName;
+  doc.getElementById('dashboardAnalysisModel').textContent = completed.analysis.modelVersion;
+  const created = new Date(completed.scan?.createdAt || Date.now());
+  doc.getElementById('dashboardAnalysisTime').textContent = Number.isNaN(created.getTime()) ? 'ไม่ได้ระบุเวลา'
+    : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(created);
+  doc.getElementById('dashboardAnalysisStatus').textContent = accepted
+    ? 'ผลจัดกลุ่มเชิงทดลอง · ยังไม่ใช่ผลวินิจฉัย' : 'ประมวลผลแล้ว · ยังไม่สามารถสรุปกลุ่มได้';
+  doc.getElementById('dashboardAnalysisPrivacy').textContent = accepted
+    ? 'บันทึกผลเชิงทดลองในพื้นที่ส่วนตัวตามรอบหมดอายุที่บัญชีกำหนด ลบได้จากเมนูบัญชี'
+    : 'ลบภาพชั่วคราวแล้ว ไม่บันทึกเป็นผลจำแนกสำเร็จ ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ';
+  doc.getElementById('dashboardAnalysisView').dataset.resultCode = view.code;
+  doc.getElementById('dashboardScanView').classList.add('hidden');
+  doc.getElementById('dashboardAnalysisView').classList.remove('hidden');
+  doc.title = 'ผลวิเคราะห์และจำแนกโดย AI | Smart Skin AI';
+  doc.getElementById('dashboardAnalysisTitle').focus();
   return view;
 }

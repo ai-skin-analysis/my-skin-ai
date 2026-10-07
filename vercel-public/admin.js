@@ -1,5 +1,6 @@
 (() => {
   let adminLoadPending = false;
+  let aiLoadPending = false;
   const formatDate = (value) => {
     if (!value) return 'ยังไม่มีบันทึกการเข้าใช้';
     const date = new Date(value);
@@ -8,6 +9,41 @@
   };
 
   const setText = (id, value) => { document.getElementById(id).textContent = String(value); };
+
+  async function loadAiStatus() {
+    if (aiLoadPending) return;
+    aiLoadPending = true;
+    const button = document.getElementById('adminAiRefreshButton');
+    const status = document.getElementById('adminAiStatus');
+    button.disabled = true;
+    status.textContent = 'กำลังตรวจบริการโมเดลจริง…';
+    setText('adminAiVersion', '—');
+    setText('adminAiClassCount', '—');
+    setText('adminAiCheckedAt', '—');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const response = await fetch('/api/admin/model/readiness', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok !== true || data.researchAvailable !== true || data.classCount !== 20
+          || data.releaseStatus !== 'research_only' || data.publicReleaseApproved !== false
+          || data.scopeValidated !== false || data.unsupportedValidated !== false
+          || !/^derm-local-[0-9a-f]{12}$/.test(data.modelVersion || '')) {
+        throw new Error(data.code === 'mfa_required' ? data.message : 'ยังยืนยันความพร้อมของ AI ไม่ได้ กรุณาลองตรวจใหม่');
+      }
+      status.textContent = 'เชื่อมต่อโมเดลจริงแล้ว · พร้อมประมวลผลเชิงทดลอง ไม่ใช่การอนุมัติเปิดทั่วไป';
+      setText('adminAiVersion', data.modelVersion);
+      setText('adminAiClassCount', `${data.classCount} กลุ่ม · 1 โมเดลจำแนก`);
+      setText('adminAiCheckedAt', formatDate(data.checkedAt));
+    } catch (error) {
+      status.textContent = error.message === 'กรุณายืนยัน MFA ของผู้ดูแลก่อนตรวจสถานะโมเดล'
+        ? error.message : 'ยังติดต่อหรือยืนยันสถานะโมเดลไม่ได้ ไม่ได้ออกจากบัญชีของคุณ กรุณาลองตรวจใหม่';
+    } finally {
+      clearTimeout(timer);
+      aiLoadPending = false;
+      button.disabled = false;
+    }
+  }
 
   function setActionStatus(message, tone = 'success') {
     const target = document.getElementById('adminActionStatus');
@@ -171,8 +207,10 @@
       setText('scanCount', data.counts.scans ?? '—');
       setText('radarAccountCount', `${data.counts.users} ACTIVE`);
       setText('radarUserText', data.counts.users ? `ผู้ใช้ทั่วไป ${data.counts.users} บัญชีในระบบ` : 'ยังไม่มีผู้ใช้ทั่วไปในระบบขณะนี้');
-      setText('latestScanResult', 'ยังไม่มีข้อมูล');
-      setText('latestScanConfidence', '0.0%');
+      setText('latestScanResult', 'ผลส่วนตัวของเจ้าของบัญชี');
+      setText('latestScanConfidence', 'ไม่แสดงเป็น % โรค');
+      setText('adminSavedScanSummary', data.counts.scans === null ? 'ยังโหลดจำนวนรายการไม่ได้'
+        : `ผลที่บันทึกในระบบ ${data.counts.scans} รายการ · ไม่นับภาพที่ถูกปฏิเสธเป็นผลสำเร็จ`);
       setText('feedbackCount', data.counts.feedbacks === null ? 'ยังโหลดไม่ได้' : `${data.counts.feedbacks ?? 0} ข้อความ`);
       renderUsers(data.users || []);
       renderFeedbacks(data.feedbacks || [], data.feedbacksAvailable !== false);
@@ -182,6 +220,7 @@
       document.getElementById('adminDataStatus').textContent = data.privateSummaryAvailable === false ? 'ข้อมูลส่วนจัดเก็บบางส่วนยังไม่พร้อม' : 'DATABASE SECURE SYNC: ACTIVE';
       document.getElementById('adminLoading').classList.add('hidden');
       document.getElementById('adminMain').classList.remove('hidden');
+      void loadAiStatus();
       if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch {
       // A network, storage or rendering failure does not invalidate the cookie.
@@ -197,6 +236,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('adminRetryButton').addEventListener('click', loadAdmin);
     document.getElementById('adminReloadButton').addEventListener('click', loadAdmin);
+    document.getElementById('adminAiRefreshButton').addEventListener('click', loadAiStatus);
     document.getElementById('adminLogoutButton').addEventListener('click', openLogoutModal);
     document.getElementById('adminLogoutCancelButton').addEventListener('click', closeLogoutModal);
     document.getElementById('adminLogoutConfirmButton').addEventListener('click', logout);

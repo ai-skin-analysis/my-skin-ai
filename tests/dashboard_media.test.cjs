@@ -9,6 +9,7 @@ function environment() {
     const nodes = new Map();
     const revoked = [];
     let nextUrl = 0;
+    let nextElement = 0;
     const element = (id) => {
         if (!nodes.has(id)) {
             const classes = new Set(['hidden']);
@@ -29,7 +30,9 @@ function environment() {
                 toBlob: callback => callback(new Blob(['camera'], { type: 'image/jpeg' })),
             });
         }
-        return nodes.get(id);
+        const node = nodes.get(id);
+        node.ownerDocument = context.document;
+        return node;
     };
     const context = vm.createContext({
         Blob, File, console, AbortController,
@@ -39,7 +42,7 @@ function environment() {
             set src(value) { queueMicrotask(() => this.onload()); }
         },
         document: { getElementById: element, addEventListener() {}, querySelectorAll: () => [],
-            createElement: tag => element(`created-${tag}`) },
+            createElement: tag => element(tag === 'canvas' ? 'created-canvas' : `created-${tag}-${++nextElement}`) },
         navigator: { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [] }) } },
         createImageBitmap: async () => ({ width: 640, height: 480, close() {} }),
         setTimeout: (callback, ms) => ms === 7500 ? null : setTimeout(callback, ms),
@@ -50,7 +53,7 @@ function environment() {
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
         scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage, requireSession,
-        refreshPrivateStorageStatus,
+        refreshPrivateStorageStatus, returnToScan,
         mockInspection: () => { preparePrivateScanImage = async file => file;
             inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
         mockStorageAndPresenter: (presenter, ready = true) => { privateStorageReady = ready; scanResultModule = Promise.resolve(presenter); },
@@ -413,7 +416,7 @@ test('upload and camera images use the same real research path and only valid mo
                 ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
                 : path === '/api/user/storage-status' ? { ok: true, configured: true }
                 : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
-                : { ok: true, storedImage: true, message: 'experimental', analysis: {
+                : { ok: true, storedImage: true, scan: { id: 'saved-id', createdAt: '2026-10-07T16:00:00Z' }, message: 'experimental', analysis: {
                     ok: true, code: 'RESEARCH_ONLY', releaseStatus: 'research_only', classificationStatus: 'experimental',
                     modelVersion: 'derm-local-e10f89ad2ac8', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
                     diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / 19 : 0.9 })),
@@ -423,10 +426,48 @@ test('upload and camera images use the same real research path and only valid mo
         element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
         // Both media sources must recover from the unavailable status cached
         // when the dashboard first loaded, using a new check before upload.
-        media.mockInspection(); media.mockStorageAndPresenter({ ...presenter, renderResearchResult: () => { rendered = true; } }, false);
+        media.mockInspection(); media.mockStorageAndPresenter({ ...presenter, renderAnalysisScreen: (...args) => {
+            rendered = true; return presenter.renderAnalysisScreen(...args);
+        } }, false);
         await media.submitPrivateScan();
         assert.equal(rendered, true, element('dashboardProcessingError').textContent); assert.equal(media.selected(), null);
-        assert.equal(element('dashboardProcessingModal').dataset.processing, 'complete');
-        assert.match(element('dashboardProcessingTitle').textContent, /เชิงทดลอง/);
+        assert.equal(element('dashboardProcessingModal').classList.contains('hidden'), true);
+        assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), false);
+        assert.equal(element('dashboardScanView').classList.contains('hidden'), true);
+        assert.match(element('dashboardAnalysisStatus').textContent, /เชิงทดลอง/);
+        assert.match(element('dashboardAnalysisModel').textContent, /^derm-local-/);
+        media.returnToScan();
+        assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), true);
+        assert.equal(element('dashboardScanView').classList.contains('hidden'), false);
+        assert.equal(element('dashboardScanConsentInput').checked, false);
+        assert.equal(element('dashboardSubmitScanButton').disabled, true);
     }
+});
+
+test('a completed abstention opens the next AI screen without becoming accepted history or resubmitting', async () => {
+    const { context, media, element } = environment();
+    const presenter = await import('../vercel-public/research-result.js');
+    const requests = [];
+    context.fetch = async path => {
+        requests.push(path);
+        return { ok: true, json: async () => path.endsWith('/readiness')
+            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            : path === '/api/user/storage-status' ? { ok: true, configured: true }
+            : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
+            : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
+                ok: false, code: 'UNCERTAIN_CLASSIFICATION', releaseStatus: 'research_only', modelVersion: 'derm-local-e10f89ad2ac8',
+                publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
+            } } };
+    };
+    await media.presentImage(photo('uncertain.jpg'), 'upload');
+    element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
+    media.mockInspection(); media.mockStorageAndPresenter(presenter);
+    await media.submitPrivateScan();
+    assert.equal(element('dashboardAnalysisView').dataset.resultCode, 'UNCERTAIN_CLASSIFICATION');
+    assert.match(element('dashboardAnalysisStatus').textContent, /ยังไม่สามารถสรุป/);
+    assert.match(element('dashboardAnalysisPrivacy').textContent, /ไม่บันทึกเป็นผลจำแนกสำเร็จ/);
+    assert.equal(element('dashboardProcessingModal').classList.contains('hidden'), true);
+    assert.equal(media.selected(), null);
+    assert.equal(requests.filter(path => path.endsWith('/research/complete')).length, 1);
+    assert.equal(requests.some(path => path.endsWith('/record')), false);
 });

@@ -58,8 +58,8 @@
 
     const PROCESSING_STAGES = {
         prepare: { title: 'กำลังตรวจความพร้อมของภาพ', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
-        inspect: { title: 'กำลังแสกนภาพบนอุปกรณ์', detail: 'กำลังตรวจความสว่าง ความคมชัด และความพร้อมสำหรับการตรวจทาน', step: 1 },
-        authorize: { title: 'กำลังเตรียมพื้นที่ส่วนตัว', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 2 },
+        inspect: { title: 'กำลังแสกนภาพบนอุปกรณ์', detail: 'กำลังตรวจความสว่าง ความคมชัด และความพร้อมสำหรับการตรวจทาน', step: 0 },
+        authorize: { title: 'กำลังเตรียมพื้นที่ส่วนตัว', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
         upload: { title: 'กำลังส่งภาพผ่านการเข้ารหัส', detail: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัวของบัญชีคุณ', step: 2 },
         local: { title: 'แสกนภาพบนอุปกรณ์เสร็จแล้ว', detail: 'พื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพของคุณ', step: 2 },
         commit: { title: 'กำลังวิเคราะห์และจำแนกรอยโรค', detail: 'บริการโมเดลกำลังประมวลผลเชิงทดลอง และอาจปฏิเสธภาพที่ไม่มั่นใจ', step: 3 },
@@ -321,7 +321,7 @@
         document.getElementById('dashboardImagePreviewPanel').classList.add('hidden');
         document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
-        setStatus('ล้างภาพจากหน้าปัจจุบันแล้ว ไม่มีภาพถูกเก็บหรือส่งออกจากอุปกรณ์', 'info');
+        setStatus('ล้างภาพออกจากหน้าปัจจุบันแล้ว ไม่ส่งภาพใหม่ และไม่ลบประวัติที่บันทึกไว้ก่อนหน้า', 'info');
     }
 
     async function preparePrivateScanImage(file) {
@@ -482,29 +482,28 @@
             // Storage acknowledgement / brightness is not a classification.
             // A future inference adapter must return an authoritative result.
             const resultView = resultPresenter.researchResultView(completed?.analysis);
-            if (['NON_SKIN_IMAGE', 'UNCERTAIN_CLASSIFICATION'].includes(resultView.code)) {
+            if (resultView.code === 'NON_SKIN_IMAGE') {
                 showProcessingError(resultView.message,
                     completed.temporaryUploadDeleted === true
                         ? 'ลบภาพที่ส่งชั่วคราวออกจากพื้นที่ส่วนตัวแล้ว ไม่บันทึกเป็นผลจำแนก ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ'
                         : 'ภาพถูกส่งไปประมวลผลแล้ว โปรดตรวจสถานะพื้นที่ส่วนตัว', resultView.code);
                 return;
             }
-            if (resultView.code !== 'RESEARCH_ONLY') {
+            if (!['RESEARCH_ONLY', 'UNCERTAIN_CLASSIFICATION'].includes(resultView.code)) {
                 throw scanError(resultView.code, resultView.message);
             }
+            closeModal('dashboardProcessingModal');
+            resultPresenter.renderAnalysisScreen(document, completed, {
+                imageName,
+                previewUrl: document.getElementById('dashboardImagePreview').src,
+            });
             selectedScanImage = null;
             document.getElementById('dashboardImageInput').value = '';
             document.getElementById('dashboardLesionImageInput').checked = false;
             document.getElementById('dashboardScanConsentInput').checked = false;
-            button.textContent = 'แสกนภาพเสร็จแล้ว';
-            setStatus(`${inspection.summary} · ${completed.message}`, 'success');
-            setProcessingStage('complete');
-            document.getElementById('dashboardProcessingTitle').textContent = resultView.title;
-            document.getElementById('dashboardProcessingDetail').textContent = 'อ่านผลจัดกลุ่มและข้อจำกัดด้านล่าง ผลนี้ไม่ใช่การวินิจฉัยโดยแพทย์';
-            resultPresenter.renderResearchResult(document.getElementById('dashboardScanResult'), completed.analysis);
-            setProcessingImageState(storedImage
-                ? `${inspection.summary} ภาพ “${imageName}” ถูกเก็บในพื้นที่ส่วนตัวแล้ว`
-                : `${inspection.summary} ไฟล์ภาพ “${imageName}” ยังอยู่บนอุปกรณ์และไม่ถูกอัปโหลด`);
+            button.textContent = 'ประมวลผลภาพแล้ว';
+            setStatus(completed.message || resultView.message, resultView.code === 'RESEARCH_ONLY' ? 'success' : 'info');
+            window.scrollTo?.({ top: 0, behavior: 'auto' });
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
@@ -528,6 +527,17 @@
                 button.textContent = 'เริ่มสแกนภาพเชิงทดลอง';
             }
         }
+    }
+
+    function returnToScan() {
+        document.getElementById('dashboardAnalysisImage').removeAttribute('src');
+        document.getElementById('dashboardAnalysisResult').replaceChildren();
+        document.getElementById('dashboardAnalysisView').classList.add('hidden');
+        document.getElementById('dashboardScanView').classList.remove('hidden');
+        clearImage();
+        document.title = 'หน้าสแกนภาพผิวหนัง | Smart Skin AI';
+        document.getElementById('scanHeroTitle').focus();
+        window.scrollTo?.({ top: 0, behavior: 'auto' });
     }
 
     function stopCamera() {
@@ -1132,6 +1142,8 @@
         document.getElementById('dashboardOpenCameraButton').addEventListener('click', openCamera);
         document.getElementById('dashboardClearImageButton').addEventListener('click', clearImage);
         document.getElementById('dashboardSubmitScanButton').addEventListener('click', submitPrivateScan);
+        document.getElementById('dashboardAnalysisNewButton').addEventListener('click', returnToScan);
+        document.getElementById('dashboardAnalysisHistoryButton').addEventListener('click', openTimeline);
         document.getElementById('dashboardCloseCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardCancelCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardTakePhotoButton').addEventListener('click', takePhoto);

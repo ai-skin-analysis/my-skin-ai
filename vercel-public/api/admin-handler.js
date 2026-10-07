@@ -354,6 +354,18 @@ async function getResearchReadiness(req, res) {
   return json(res, 200, { ok: true, ...await researchReadiness() });
 }
 
+async function getAdminModelReadiness(req, res) {
+  if (!requireGet(req, res)) return;
+  const admin = await signedInAdmin(req, res);
+  if (!admin) return;
+  if (!admin.user.mfaEnrolled || admin.claims.mfaVerified !== true) {
+    return json(res, 403, { ok: false, code: 'mfa_required', message: 'กรุณายืนยัน MFA ของผู้ดูแลก่อนตรวจสถานะโมเดล' });
+  }
+  // Same authenticated inference service used by the user scan workflow.
+  // Only readiness metadata is returned, never keys, URLs or patient data.
+  return json(res, 200, { ok: true, ...await researchReadiness(), checkedAt: new Date().toISOString() });
+}
+
 function scanRetentionDays() {
   const configured = Number(process.env.SMART_SKIN_SCAN_RETENTION_DAYS || 30);
   return Number.isInteger(configured) && configured >= 1 && configured <= 365 ? configured : 30;
@@ -825,6 +837,7 @@ export default async function handler(req, res) {
   try {
     switch (requestPath(req)) {
       case 'overview': return await overview(req, res);
+      case 'model/readiness': return await getAdminModelReadiness(req, res);
       case 'approve-user': return await approveUser(req, res);
       case 'user/profile': return await userProfile(req, res);
       case 'user/avatar': return await updateAvatar(req, res);

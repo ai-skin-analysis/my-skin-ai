@@ -121,10 +121,11 @@
     </header>
 
     <main id="dashboardMain" class="relative z-10 mx-auto hidden max-w-7xl px-4 py-6 sm:py-8">
+        <div id="dashboardScanView">
         <section class="scan-hero relative rounded-[2rem] px-6 py-7 text-white sm:px-9 sm:py-10 lg:min-h-[330px] lg:px-12" aria-labelledby="scanHeroTitle">
             <div class="relative z-10 max-w-2xl">
                 <div class="inline-flex items-center gap-2 rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1.5 text-[10px] font-extrabold tracking-[.16em] text-teal-100"><span class="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_12px_rgba(94,234,212,.9)]"></span>PERSONAL SKIN IMAGE WORKSPACE</div>
-                <h1 id="scanHeroTitle" class="mt-5 max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">ส่งภาพบริเวณผิวหนัง <span class="text-teal-200">ที่ต้องการตรวจอย่างชัดเจน</span></h1>
+                <h1 id="scanHeroTitle" tabindex="-1" class="mt-5 max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">ส่งภาพบริเวณผิวหนัง <span class="text-teal-200">ที่ต้องการตรวจอย่างชัดเจน</span></h1>
                 <p class="mt-4 max-w-xl text-sm leading-6 text-slate-200">เลือกไฟล์หรือถ่ายภาพสำหรับระบบวิเคราะห์และจำแนกรอยโรคผิวหนัง ผลวิเคราะห์ใช้เป็นข้อมูลเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัยทางการแพทย์</p>
                 <div class="mt-6 grid max-w-xl grid-cols-3 gap-2 text-left text-[10px] font-bold sm:text-xs">
                     <div class="rounded-2xl border border-white/15 bg-white/10 p-3"><span class="mb-2 flex h-6 w-6 items-center justify-center rounded-lg bg-teal-300 font-code text-slate-950">1</span>ส่งภาพผิวหนัง</div>
@@ -191,6 +192,45 @@
                 <p id="dashboardImageStatus" class="sr-only" aria-live="polite">ยังไม่ได้เลือกภาพ</p>
             </section>
         </div>
+        </div>
+
+        <section id="dashboardAnalysisView" class="hidden space-y-6" aria-labelledby="dashboardAnalysisTitle">
+            <header class="scan-hero relative rounded-[2rem] p-6 text-white sm:p-9">
+                <div class="relative flex flex-wrap items-center justify-between gap-3">
+                    <p class="font-code text-xs font-bold tracking-widest text-teal-200">SMART SKIN AI · IMAGE ANALYSIS</p>
+                    <span id="dashboardAnalysisStatus" role="status" class="rounded-full border border-teal-200/40 bg-slate-950/40 px-4 py-2 text-xs font-bold"></span>
+                </div>
+                <h1 id="dashboardAnalysisTitle" tabindex="-1" class="relative mt-5 text-2xl font-extrabold leading-tight sm:text-4xl">ผลวิเคราะห์และจำแนกรอยโรคโดย AI</h1>
+                <p class="relative mt-3 max-w-3xl text-sm leading-7 text-slate-200">ประมวลผลจากภาพด้วยโมเดล 20 กลุ่ม เป็นข้อมูลประกอบความเข้าใจเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัย และไม่ทดแทนการตรวจโดยแพทย์</p>
+            </header>
+
+            <div class="grid items-start gap-6 lg:grid-cols-12">
+                <aside class="scan-workbench space-y-5 rounded-3xl p-5 sm:p-6 lg:col-span-4">
+                    <div class="flex items-center justify-between gap-3"><h2 class="font-extrabold text-slate-900">ภาพที่ใช้ประมวลผล</h2><span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">เฉพาะบัญชีคุณ</span></div>
+                    <img id="dashboardAnalysisImage" alt="ภาพที่ใช้ประมวลผล AI แสดงจากอุปกรณ์ของคุณ" class="hidden max-h-96 w-full rounded-2xl border border-slate-200 bg-slate-950 object-contain">
+                    <p id="dashboardAnalysisImageName" class="break-words text-sm font-semibold text-slate-700"></p>
+                    <dl class="space-y-4 border-t border-slate-200 pt-5 text-xs">
+                        <div><dt class="text-slate-500">โมเดลที่ประมวลผลจริง</dt><dd id="dashboardAnalysisModel" class="font-code mt-1 break-all font-bold text-slate-800"></dd></div>
+                        <div><dt class="text-slate-500">เวลาประมวลผล</dt><dd id="dashboardAnalysisTime" class="mt-1 font-semibold text-slate-800"></dd></div>
+                        <div><dt class="text-slate-500">สถานะข้อมูลส่วนตัว</dt><dd id="dashboardAnalysisPrivacy" class="mt-1 leading-6 text-slate-700"></dd></div>
+                    </dl>
+                    <p class="rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-600">ไม่ใช้ภาพนี้ฝึกโมเดล ภาพตัวอย่างบนหน้านี้แสดงจากอุปกรณ์ของคุณ ผู้ดูแลไม่ได้รับสิทธิ์ดูภาพส่วนตัวเพิ่มจากหน้านี้</p>
+                </aside>
+
+                <div class="space-y-5 lg:col-span-8">
+                    <section id="dashboardAnalysisResult" class="processing-console rounded-3xl p-5 text-white sm:p-7" aria-live="polite" aria-label="คำอธิบายผลวิเคราะห์ AI"></section>
+                    <section class="scan-workbench rounded-3xl p-5 sm:p-6" aria-labelledby="dashboardAnalysisNextTitle">
+                        <h2 id="dashboardAnalysisNextTitle" class="font-extrabold text-slate-900">ทำอย่างไรต่อ</h2>
+                        <p class="mt-2 text-sm leading-7 text-slate-600">นำภาพและข้อมูลอาการไปปรึกษาแพทย์หากมีข้อกังวล อย่าใช้ชื่อกลุ่มจาก AI เพื่อเลือกยาหรือรักษาด้วยตนเอง</p>
+                        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                            <button id="dashboardAnalysisNewButton" type="button" class="rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-800">สแกนภาพใหม่</button>
+                            <button id="dashboardAnalysisHistoryButton" type="button" class="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">ดูประวัติของฉัน</button>
+                        </div>
+                        <p class="mt-3 text-xs leading-6 text-slate-500">เฉพาะผลที่ระบบรับไว้จะอยู่ในประวัติ หากไม่มั่นใจจะไม่มีรายการผลจำแนกสำเร็จ</p>
+                    </section>
+                </div>
+            </div>
+        </section>
     </main>
 
     <div id="dashboardLoading" class="relative z-10 mx-auto flex max-w-7xl items-center gap-3 px-6 py-16 text-sm font-semibold text-slate-600"><i data-lucide="loader-circle" class="h-5 w-5 animate-spin text-teal-600"></i> กำลังตรวจสอบการเข้าสู่ระบบ…</div>
@@ -199,7 +239,7 @@
     <div id="dashboardProcessingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardProcessingTitle" aria-describedby="dashboardProcessingDetail">
         <div class="processing-console max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 text-left text-white shadow-2xl sm:p-7">
             <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="scan-line" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">ขั้นตอนแสกนภาพเพื่อการตรวจทาน</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">กำลังแสกนภาพอย่างปลอดภัย</h2><p id="dashboardProcessingDetail" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังตรวจความพร้อม ลบข้อมูลเมตา และปรับขนาดภาพบนอุปกรณ์ของคุณ</p></div></div>
-            <div id="dashboardProcessingSteps" class="relative mt-6 space-y-2"><div class="processing-step" data-processing-step="0" data-state="active"><span>01</span><p>เตรียมภาพบนอุปกรณ์</p></div><div class="processing-step" data-processing-step="1" data-state="pending"><span>02</span><p>แสกนความสว่างและความคมชัด</p></div><div class="processing-step" data-processing-step="2" data-state="pending"><span>03</span><p>จัดเก็บส่วนตัวเมื่อระบบพร้อม</p></div><div class="processing-step" data-processing-step="3" data-state="pending"><span>04</span><p>บันทึกสถานะในประวัติการแสกน</p></div></div>
+            <div id="dashboardProcessingSteps" class="relative mt-6 space-y-2"><div class="processing-step" data-processing-step="0" data-state="active"><span>01</span><p>เตรียมภาพและตรวจคุณภาพบนอุปกรณ์</p></div><div class="processing-step" data-processing-step="1" data-state="pending"><span>02</span><p>ตรวจความพร้อมและสิทธิ์การส่งภาพ</p></div><div class="processing-step" data-processing-step="2" data-state="pending"><span>03</span><p>ส่งภาพไปยังพื้นที่ส่วนตัวผ่าน HTTPS</p></div><div class="processing-step" data-processing-step="3" data-state="pending"><span>04</span><p>AI วิเคราะห์และจำแนก · เปิดหน้าผล</p></div></div>
             <div id="dashboardProcessingImageState" class="processing-image-state" data-tone="info"><span>สถานะรูปภาพของคุณ</span><p>ภาพยังอยู่บนอุปกรณ์ของคุณ ระบบจะเริ่มส่งเมื่อผ่านทุกขั้นตอน</p></div>
             <section id="dashboardScanResult" class="relative mt-5 hidden" aria-live="polite" aria-label="ผลวิเคราะห์และเปรียบเทียบกลุ่มรอยโรค"></section>
             <p class="relative mt-4 text-[11px] leading-relaxed text-slate-400">การตรวจความสว่างและความคมชัดอย่างเดียวไม่ใช่ผลจำแนกรอยโรค ผลวิเคราะห์ไม่ใช่การวินิจฉัยโดยแพทย์</p>
