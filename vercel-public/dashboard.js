@@ -15,6 +15,8 @@
     let cameraSessionVersion = 0;
     let scanResultModule;
     let sessionCheckPending = false;
+    let scanRequestPending = false;
+    let pendingAnalysisScreen = null;
     const getScanResultModule = () => scanResultModule ||= import('./research-result.js').catch(error => {
         scanResultModule = undefined;
         throw error;
@@ -73,13 +75,48 @@
         document.getElementById('dashboardProcessingTitle').textContent = 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์';
         document.getElementById('dashboardProcessingDetail').textContent = ANALYSIS_PROGRESS[stage] || ANALYSIS_PROGRESS.prepare;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
-        document.getElementById('dashboardScanResult')?.classList.add('hidden');
+        document.getElementById('dashboardProcessingResultButton').classList.add('hidden');
         document.getElementById('dashboardProcessingImageState').classList.add('hidden');
         const closeButton = document.getElementById('dashboardProcessingCloseButton');
         closeButton.textContent = 'ปิดและลองใหม่';
         closeButton.classList.add('hidden');
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
         refreshIcons();
+    }
+
+    function showProcessingComplete(completed, presenter, options) {
+        // Validate the same response as the next screen before claiming that
+        // processing finished. Completion is not a successful classification.
+        presenter.completedAnalysisView(completed);
+        pendingAnalysisScreen = { completed, presenter, options };
+        const modal = document.getElementById('dashboardProcessingModal');
+        modal.dataset.processing = 'complete';
+        document.getElementById('dashboardProcessingTitle').textContent = 'ประมวลผลภาพเสร็จแล้ว';
+        document.getElementById('dashboardProcessingDetail').textContent = 'กด “ดูผลวิเคราะห์และจำแนก” เพื่อเปิดหน้าผลถัดไป การประมวลผลเสร็จไม่ได้หมายความว่า AI จำแนกรอยโรคได้แน่นอน';
+        document.getElementById('dashboardProcessingImageState').classList.add('hidden');
+        document.getElementById('dashboardProcessingError').classList.add('hidden');
+        document.getElementById('dashboardProcessingCloseButton').classList.add('hidden');
+        const next = document.getElementById('dashboardProcessingResultButton');
+        next.classList.remove('hidden');
+        if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
+        next.focus();
+    }
+
+    function openCompletedAnalysis() {
+        if (!pendingAnalysisScreen || document.getElementById('dashboardProcessingModal').dataset.processing !== 'complete') return;
+        const { completed, presenter, options } = pendingAnalysisScreen;
+        try {
+            // Presentation only: no upload, re-scan, storage or model call.
+            presenter.renderAnalysisScreen(document, completed, options);
+            closeModal('dashboardProcessingModal');
+            document.getElementById('dashboardAnalysisTitle').focus();
+            window.scrollTo?.({ top: 0, behavior: 'auto' });
+        } catch {
+            // Keep the completed response in memory so this button can retry
+            // opening the view without retransmitting the private image.
+            document.getElementById('dashboardProcessingError').textContent = 'ยังเปิดหน้าผลไม่ได้ กรุณากดดูผลอีกครั้ง ระบบจะไม่ส่งภาพหรือสแกนซ้ำ';
+            document.getElementById('dashboardProcessingError').classList.remove('hidden');
+        }
     }
 
     const LESION_IMAGE_GUIDANCE = 'ข้อมูลผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นบริเวณรอยโรคชัดเจน ไม่ใช้ภาพสิ่งของ สัตว์ อาหาร เอกสาร ภาพหน้าจอ วิว หรือภาพอื่นที่ไม่เกี่ยวข้อง';
@@ -99,8 +136,9 @@
     function showProcessingError(message, imageState, code) {
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
+        pendingAnalysisScreen = null;
         modal.dataset.processing = 'error';
-        document.getElementById('dashboardScanResult')?.classList.add('hidden');
+        document.getElementById('dashboardProcessingResultButton').classList.add('hidden');
         document.getElementById('dashboardProcessingImageState').classList.remove('hidden');
         document.getElementById('dashboardProcessingTitle').textContent = ['OUT_OF_SCOPE', 'NO_LESION_DETECTED', 'NO_IMAGE', 'INVALID_IMAGE', 'NON_SKIN_IMAGE'].includes(code)
             ? 'ข้อมูลผิดพลาด' : code === 'MODEL_UNAVAILABLE' ? 'ระบบวิเคราะห์ภาพยังไม่พร้อม'
@@ -117,6 +155,7 @@
         document.getElementById('dashboardProcessingCloseButton').textContent = ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code) ? 'รับทราบ' : 'ปิดและลองใหม่';
         setProcessingImageState(imageState || `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกบันทึกเป็นประวัติ`, 'error');
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
+        document.getElementById('dashboardProcessingCloseButton').focus();
         refreshIcons();
     }
 
@@ -176,12 +215,21 @@
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         modal.setAttribute('aria-hidden', 'false');
+        if (id === 'dashboardProcessingModal') {
+            document.getElementById('dashboardMain').inert = true;
+            document.getElementById('dashboardProcessingTitle').focus();
+        }
     }
 
     function closeModal(id) {
         const modal = document.getElementById(id);
         if (!modal) return;
-        if (id === 'dashboardProcessingModal') modal.dataset.processing = 'idle';
+        if (id === 'dashboardProcessingModal') {
+            modal.dataset.processing = 'idle';
+            pendingAnalysisScreen = null;
+            document.getElementById('dashboardProcessingResultButton').classList.add('hidden');
+            document.getElementById('dashboardMain').inert = false;
+        }
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         modal.setAttribute('aria-hidden', 'true');
@@ -246,6 +294,7 @@
     }
 
     async function presentImage(file, source, scanSource = 'upload', stillCurrent = () => true) {
+        if (scanRequestPending) return false;
         const version = ++imageSelectionVersion;
         const submit = document.getElementById('dashboardSubmitScanButton');
         if (!isAllowedImage(file)) {
@@ -271,6 +320,7 @@
             if (version === imageSelectionVersion) submit.disabled = !selectedScanImage;
             return false;
         }
+        if (pendingAnalysisScreen) closeModal('dashboardProcessingModal');
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = URL.createObjectURL(file);
         selectedScanImage = file;
@@ -291,6 +341,8 @@
     }
 
     function clearImage() {
+        if (scanRequestPending) return;
+        if (pendingAnalysisScreen) closeModal('dashboardProcessingModal');
         imageSelectionVersion += 1;
         const input = document.getElementById('dashboardImageInput');
         if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -392,6 +444,7 @@
     }
 
     async function submitPrivateScan() {
+        if (scanRequestPending || pendingAnalysisScreen) return;
         if (!selectedScanImage) {
             const message = 'ข้อมูลผิดพลาด ไม่พบภาพ กรุณาอัปโหลดหรือถ่ายภาพรอยโรคผิวหนังที่เห็นบริเวณรอยโรคชัดเจน';
             setStatus(message, 'error');
@@ -413,6 +466,7 @@
         let uploadAttempted = false;
         let uploadedToPrivateStorage = false;
         let storedImage = false;
+        scanRequestPending = true;
         button.disabled = true;
         button.textContent = 'กำลังวิเคราะห์และจำแนกด้วยปัญญาประดิษฐ์…';
         try {
@@ -424,7 +478,8 @@
             // Do not upload, record success, or silently downgrade to quality-only
             // scanning when the actual semantic detector/classifier is unavailable.
             const readiness = await userRequest('/api/user/scan/research/readiness');
-            if (readiness.researchAvailable !== true || readiness.releaseStatus !== 'research_only') {
+            if (readiness.researchAvailable !== true || readiness.releaseStatus !== 'research_only'
+                || readiness.classCount !== 6 || !/^pad6-local-[0-9a-f]{12}$/.test(readiness.modelVersion || '')) {
                 throw scanError('MODEL_UNAVAILABLE', readiness.message || 'ระบบวิเคราะห์และคัดกรองภาพรอยโรคยังไม่พร้อมใช้งาน');
             }
             if (!await refreshPrivateStorageStatus()) {
@@ -438,7 +493,7 @@
                 method: 'POST',
                 body: JSON.stringify({
                     consent: true,
-                    researchConsentVersion: 'skin-research-20261006-v1',
+                    researchConsentVersion: 'skin-research-pad6-20261008-v1',
                     originalName: preparedImage.name,
                     mimeType: preparedImage.type,
                     imageSizeBytes: preparedImage.size,
@@ -459,7 +514,7 @@
             setProcessingStage('commit');
             const completed = await userRequest('/api/user/scan/research/complete', {
                 method: 'POST',
-                body: JSON.stringify({ uploadId: uploadRequest.upload.id, researchConsentVersion: 'skin-research-20261006-v1' }),
+                body: JSON.stringify({ uploadId: uploadRequest.upload.id, researchConsentVersion: 'skin-research-pad6-20261008-v1' }),
             });
             storedImage = completed.storedImage === true;
             // Storage acknowledgement / brightness is not a classification.
@@ -475,8 +530,7 @@
             if (!['RESEARCH_ONLY', 'UNCERTAIN_CLASSIFICATION'].includes(resultView.code)) {
                 throw scanError(resultView.code, resultView.message);
             }
-            closeModal('dashboardProcessingModal');
-            resultPresenter.renderAnalysisScreen(document, completed, {
+            showProcessingComplete(completed, resultPresenter, {
                 imageName,
                 previewUrl: document.getElementById('dashboardImagePreview').src,
             });
@@ -486,7 +540,6 @@
             document.getElementById('dashboardScanConsentInput').checked = false;
             button.textContent = 'ประมวลผลภาพแล้ว';
             setStatus(completed.message || resultView.message, resultView.code === 'RESEARCH_ONLY' ? 'success' : 'info');
-            window.scrollTo?.({ top: 0, behavior: 'auto' });
         } catch (error) {
             button.disabled = false;
             button.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
@@ -505,6 +558,7 @@
             );
             refreshIcons();
         } finally {
+            scanRequestPending = false;
             if (selectedScanImage) {
                 button.disabled = false;
                 button.textContent = 'เริ่มสแกนภาพเชิงทดลอง';
@@ -513,6 +567,8 @@
     }
 
     function returnToScan() {
+        if (scanRequestPending) return;
+        closeModal('dashboardProcessingModal');
         document.getElementById('dashboardAnalysisImage').removeAttribute('src');
         document.getElementById('dashboardAnalysisResult').replaceChildren();
         document.getElementById('dashboardAnalysisView').classList.add('hidden');
@@ -1140,6 +1196,7 @@
         document.getElementById('dashboardLogoutConfirmButton').addEventListener('click', logout);
         document.getElementById('dashboardLogoutModal').addEventListener('click', (event) => { if (event.target === event.currentTarget) closeLogoutModal(); });
         document.getElementById('dashboardProcessingCloseButton').addEventListener('click', () => closeModal('dashboardProcessingModal'));
+        document.getElementById('dashboardProcessingResultButton').addEventListener('click', openCompletedAnalysis);
 
         document.getElementById('userAccountButton').addEventListener('click', openUserMenu);
         document.getElementById('profileAvatarMenuItem').addEventListener('click', openAvatarModal);
@@ -1175,6 +1232,18 @@
             if (control && !control.contains(event.target)) closeUserMenu();
         });
         document.addEventListener('keydown', (event) => {
+            if (!document.getElementById('dashboardProcessingModal').classList.contains('hidden')) {
+                if (event.key === 'Escape') event.preventDefault();
+                if (event.key === 'Tab') {
+                    event.preventDefault();
+                    const target = document.getElementById('dashboardProcessingModal').dataset.processing === 'complete'
+                        ? 'dashboardProcessingResultButton'
+                        : document.getElementById('dashboardProcessingModal').dataset.processing === 'error'
+                            ? 'dashboardProcessingCloseButton' : 'dashboardProcessingTitle';
+                    document.getElementById(target).focus();
+                }
+                return;
+            }
             if (event.key !== 'Escape') return;
             if (!document.getElementById('dashboardLogoutModal').classList.contains('hidden')) return closeLogoutModal();
             closeUserMenu();

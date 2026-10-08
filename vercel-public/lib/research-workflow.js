@@ -1,10 +1,10 @@
 // An opt-in, authenticated experiment. This deliberately never returns the
 // CLASSIFIED / supported_skin_lesion public-release contract.
-import { SCAN_CLASSES } from '../scan-result.js';
+import { researchClassesForVersion } from '../research-catalog.js';
 import { researchInferenceFromEnvironment } from './research-inference.js';
 import { downloadPrivateScanObject, removePrivateObjects, upsertPrivateRow } from './supabase-private.js';
 
-export const RESEARCH_CONSENT_VERSION = 'skin-research-20261006-v1';
+export const RESEARCH_CONSENT_VERSION = 'skin-research-pad6-20261008-v1';
 
 export async function researchReadiness(client = researchInferenceFromEnvironment()) {
   const ready = await client.readiness();
@@ -32,7 +32,8 @@ export async function analyzePrivateResearchScan(pending, userId, retentionExpir
       message: analysis.message };
   }
   const ranking = [...analysis.diagnostics].sort((a, b) => b.score - a.score);
-  const first = SCAN_CLASSES.find(row => row.id === ranking[0].id);
+  const first = researchClassesForVersion(analysis.modelVersion)?.find(row => row.id === ranking[0].id);
+  if (!first) throw new Error('Research class/version mismatch');
   const label = `ผลเชิงทดลอง · ${first.name} (ไม่ใช่การวินิจฉัย)`;
   // A stable server-created ID makes retry after an interrupted save idempotent.
   const saved = await save('smart_skin_scan_logs', {

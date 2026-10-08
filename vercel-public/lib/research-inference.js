@@ -1,11 +1,10 @@
 // Server-side transport for the authenticated research service. Do not import
 // this module into dashboard.js. It does NOT enable the public release gate.
-import { SCAN_CLASSES } from '../scan-result.js';
+import { researchClassesForVersion } from '../research-catalog.js';
 import { validatedResearchComparison } from '../research-comparison.js';
 
 const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_RESPONSE = 256 * 1024;
-const CLASS_IDS = SCAN_CLASSES.map(row => row.id);
 const SAFE_MESSAGES = {
   MODEL_UNAVAILABLE: 'บริการวิเคราะห์ภาพยังไม่พร้อม กรุณาลองใหม่ภายหลัง',
   INVALID_MODEL_RESULT: 'ผลจากบริการโมเดลไม่ครบถ้วน จึงไม่แสดงชื่อกลุ่มรอยโรค',
@@ -74,13 +73,15 @@ async function readBoundedJson(response) {
 }
 
 export function createResearchInferenceClient({ url, apiKey, modelVersion, fetchImpl = globalThis.fetch }) {
+  const classes = researchClassesForVersion(modelVersion);
+  const CLASS_IDS = classes?.map(row => row.id) || [];
   let base;
   try { base = new URL(url); } catch { throw new InferenceServiceError(); }
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash
       || base.pathname !== '/' || (base.port && base.port !== '443')
       || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/.test(base.hostname)
       || !/^[A-Za-z0-9_-]{43,128}$/.test(apiKey || '')
-      || !/^derm-local-[0-9a-f]{12}$/.test(modelVersion || '') || typeof fetchImpl !== 'function') {
+      || !classes || typeof fetchImpl !== 'function') {
     throw new InferenceServiceError();
   }
 
@@ -114,12 +115,12 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
     async readiness() {
       const { value, status } = await call('/v1/readiness');
       validateEnvelope(value, modelVersion);
-      if (status !== 200 || value.ok !== true || value.modelLoaded !== true || value.classCount !== 20
-          || !Array.isArray(value.classIds) || value.classIds.length !== 20
+      if (status !== 200 || value.ok !== true || value.modelLoaded !== true || value.classCount !== CLASS_IDS.length
+          || !Array.isArray(value.classIds) || value.classIds.length !== CLASS_IDS.length
           || value.classIds.some((id, index) => id !== CLASS_IDS[index])
           || value.objectFilterAvailable !== true || value.objectFilterStatus !== 'experimental'
           || value.uncertaintyAbstentionAvailable !== true) invalid();
-      return Object.freeze({ modelLoaded: true, modelVersion, classCount: 20,
+      return Object.freeze({ modelLoaded: true, modelVersion, classCount: CLASS_IDS.length,
         releaseStatus: 'research_only', scopeValidated: false, unsupportedValidated: false,
         publicDeployment: false, imageStored: false,
         comparisonAvailable: value.comparisonContract === 'research-ranking-v1' });
@@ -151,7 +152,7 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
       if (value.ok !== true || value.code !== 'RESEARCH_ONLY' || value.analysisStatus !== 'completed'
           || value.classificationStatus !== 'experimental' || value.inputCheck.status !== 'experimental_continue'
           || value.comparison !== undefined
-          || !Array.isArray(value.diagnostics) || value.diagnostics.length !== 20) invalid();
+          || !Array.isArray(value.diagnostics) || value.diagnostics.length !== CLASS_IDS.length) invalid();
       let mass = 0;
       const diagnostics = value.diagnostics.map((row, index) => {
         if (row.id !== CLASS_IDS[index] || typeof row.score !== 'number' || !Number.isFinite(row.score)

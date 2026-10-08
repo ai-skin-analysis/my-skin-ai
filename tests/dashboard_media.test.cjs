@@ -53,7 +53,7 @@ function environment() {
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
         scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage, requireSession,
-        refreshPrivateStorageStatus, returnToScan, setProcessingStage,
+        refreshPrivateStorageStatus, returnToScan, setProcessingStage, openCompletedAnalysis,
         mockInspection: () => { preparePrivateScanImage = async file => file;
             inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
         mockStorageAndPresenter: (presenter, ready = true) => { privateStorageReady = ready; scanResultModule = Promise.resolve(presenter); },
@@ -61,6 +61,7 @@ function environment() {
     };})();`), context);
     return { context, media: context.media, element, revoked };
 }
+const pad6Ready = { ok: true, researchAvailable: true, releaseStatus: 'research_only', classCount: 6, modelVersion: 'pad6-local-aaaaaaaaaaaa' };
 const photo = name => new File(['image'], name, { type: 'image/jpeg' });
 
 test('scan dialog shows AI analysis instead of the technical checklist without inventing a result', () => {
@@ -73,7 +74,7 @@ test('scan dialog shows AI analysis instead of the technical checklist without i
         assert.equal(element('dashboardProcessingTitle').textContent, 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์');
         assert.equal(element('dashboardProcessingModal').dataset.processing, 'active');
         assert.equal(element('dashboardProcessingImageState').classList.contains('hidden'), true);
-        assert.equal(element('dashboardScanResult').classList.contains('hidden'), true);
+        assert.equal(element('dashboardProcessingResultButton').classList.contains('hidden'), true);
         assert.equal(element('dashboardProcessingCloseButton').classList.contains('hidden'), true);
     }
     assert.match(element('dashboardProcessingDetail').textContent, /โมเดล AI กำลังวิเคราะห์/);
@@ -227,7 +228,7 @@ test('uncertain content is not presented as a confident non-lesion finding', () 
 
 test('unsupported lesion keeps specialist guidance distinct from invalid input and hides stale comparisons', () => {
     const { media, element } = environment();
-    element('dashboardScanResult').classList.remove('hidden');
+    element('dashboardProcessingResultButton').classList.remove('hidden');
     const message = media.scanFailureMessage({ code: 'UNSUPPORTED_LESION' });
     media.showProcessingError(message, 'ภาพยังอยู่บนอุปกรณ์', 'UNSUPPORTED_LESION');
     assert.match(message, /แพทย์ผู้เชี่ยวชาญ/);
@@ -236,7 +237,7 @@ test('unsupported lesion keeps specialist guidance distinct from invalid input a
     assert.match(element('dashboardProcessingDetail').textContent, /ไม่ได้หมายความว่าผิวปกติ/);
     assert.equal(element('dashboardProcessingCloseButton').textContent, 'รับทราบ');
     assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
-    assert.equal(element('dashboardScanResult').classList.contains('hidden'), true);
+    assert.equal(element('dashboardProcessingResultButton').classList.contains('hidden'), true);
 });
 
 test('upload or history failure never falsely claims the image was not sent', () => {
@@ -305,7 +306,7 @@ test('a fresh unavailable or failed storage check blocks upload despite cached r
         const requests = [];
         context.fetch = async path => {
             requests.push(path);
-            if (path.endsWith('/readiness')) return { ok: true, json: async () => ({ ok: true, researchAvailable: true, releaseStatus: 'research_only' }) };
+            if (path.endsWith('/readiness')) return { ok: true, json: async () => (pad6Ready) };
             assert.equal(path, '/api/user/storage-status');
             if (failure === 'network') throw new Error('offline');
             return { ok: failure !== 'http', json: async () => {
@@ -329,7 +330,7 @@ test('a semantic rejection never falls back to a quality-only scan record', asyn
     context.fetch = async path => {
         requests.push(path);
         return { ok: true, json: async () => path.endsWith('/readiness')
-            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            ? pad6Ready
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : { ok: false, code: 'UNSUPPORTED_LESION' } };
     };
@@ -347,7 +348,7 @@ test('network failure during PUT shows an unknown transfer state, not a false no
     context.fetch = async path => {
         if (path === '/test-private-upload') throw new Error('Network error');
         return { ok: true, json: async () => path.endsWith('/readiness')
-            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            ? pad6Ready
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : { ok: true, upload: { id: 'test', url: '/test-private-upload' } } };
     };
@@ -363,7 +364,7 @@ test('storage acknowledgement without a model result does not show classificatio
     const { context, media, element } = environment();
     const presenter = await import('../vercel-public/research-result.js');
     context.fetch = async path => ({ ok: true, json: async () => path.endsWith('/readiness')
-        ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+        ? pad6Ready
         : path === '/api/user/storage-status' ? { ok: true, configured: true }
         : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
         : { ok: true, storedImage: true, message: 'storage only' } });
@@ -405,13 +406,13 @@ test('research rejection clears server upload state, retains local preview and p
     const requests = [];
     context.fetch = async (path, options) => {
         requests.push(path);
-        if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-research-20261006-v1');
+        if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-research-pad6-20261008-v1');
         return { ok: true, json: async () => path.endsWith('/readiness')
-            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            ? pad6Ready
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
             : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
-                ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'derm-local-e10f89ad2ac8',
+                ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'pad6-local-aaaaaaaaaaaa',
                 publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
             } } };
     };
@@ -427,20 +428,20 @@ test('research rejection clears server upload state, retains local preview and p
 
 test('upload and camera images use the same real research path and only valid model results show success', async () => {
     const presenter = await import('../vercel-public/research-result.js');
-    const { SCAN_CLASSES } = await import('../vercel-public/scan-result.js');
+    const { PAD6_CLASSES: SCAN_CLASSES } = await import('../vercel-public/research-catalog.js');
     for (const source of ['upload', 'camera']) {
         const { context, media, element } = environment();
         let rendered = false;
         context.fetch = async (path, options) => {
             if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).source, source);
             return { ok: true, json: async () => path.endsWith('/readiness')
-                ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+                ? pad6Ready
                 : path === '/api/user/storage-status' ? { ok: true, configured: true }
                 : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
                 : { ok: true, storedImage: true, scan: { id: 'saved-id', createdAt: '2026-10-07T16:00:00Z' }, message: 'experimental', analysis: {
                     ok: true, code: 'RESEARCH_ONLY', releaseStatus: 'research_only', classificationStatus: 'experimental',
-                    modelVersion: 'derm-local-e10f89ad2ac8', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
-                    diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / 19 : 0.9 })),
+                    modelVersion: 'pad6-local-aaaaaaaaaaaa', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
+                    diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / 5 : 0.9 })),
                 } } };
         };
         await media.presentImage(photo('lesion.jpg'), source, source);
@@ -451,12 +452,16 @@ test('upload and camera images use the same real research path and only valid mo
             rendered = true; return presenter.renderAnalysisScreen(...args);
         } }, false);
         await media.submitPrivateScan();
+        assert.equal(rendered, false, 'No result before completion dialog');
+        assert.equal(element('dashboardProcessingModal').dataset.processing, 'complete', element('dashboardProcessingError').textContent);
+        assert.equal(element('dashboardProcessingResultButton').classList.contains('hidden'), false);
+        media.openCompletedAnalysis();
         assert.equal(rendered, true, element('dashboardProcessingError').textContent); assert.equal(media.selected(), null);
         assert.equal(element('dashboardProcessingModal').classList.contains('hidden'), true);
         assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), false);
         assert.equal(element('dashboardScanView').classList.contains('hidden'), true);
         assert.match(element('dashboardAnalysisStatus').textContent, /เชิงทดลอง/);
-        assert.match(element('dashboardAnalysisModel').textContent, /^derm-local-/);
+        assert.match(element('dashboardAnalysisModel').textContent, /^pad6-local-/);
         media.returnToScan();
         assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), true);
         assert.equal(element('dashboardScanView').classList.contains('hidden'), false);
@@ -472,11 +477,11 @@ test('a completed abstention opens the next AI screen without becoming accepted 
     context.fetch = async path => {
         requests.push(path);
         return { ok: true, json: async () => path.endsWith('/readiness')
-            ? { ok: true, researchAvailable: true, releaseStatus: 'research_only' }
+            ? pad6Ready
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
             : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
-                ok: false, code: 'UNCERTAIN_CLASSIFICATION', releaseStatus: 'research_only', modelVersion: 'derm-local-e10f89ad2ac8',
+                ok: false, code: 'UNCERTAIN_CLASSIFICATION', releaseStatus: 'research_only', modelVersion: 'pad6-local-aaaaaaaaaaaa',
                 publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
             } } };
     };
@@ -484,6 +489,9 @@ test('a completed abstention opens the next AI screen without becoming accepted 
     element('dashboardLesionImageInput').checked = element('dashboardScanConsentInput').checked = true;
     media.mockInspection(); media.mockStorageAndPresenter(presenter);
     await media.submitPrivateScan();
+    assert.equal(element('dashboardProcessingModal').dataset.processing, 'complete');
+    assert.equal(element('dashboardAnalysisView').dataset.resultCode, undefined);
+    media.openCompletedAnalysis();
     assert.equal(element('dashboardAnalysisView').dataset.resultCode, 'UNCERTAIN_CLASSIFICATION');
     assert.match(element('dashboardAnalysisStatus').textContent, /ยังไม่สามารถสรุป/);
     assert.match(element('dashboardAnalysisPrivacy').textContent, /ไม่บันทึกเป็นผลจำแนกสำเร็จ/);

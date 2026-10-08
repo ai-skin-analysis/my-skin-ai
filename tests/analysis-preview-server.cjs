@@ -17,14 +17,14 @@ const resultPage = `<!doctype html><html lang="th"><head>${head(dashboard)}<titl
 <div class="mx-auto flex max-w-7xl flex-wrap gap-3 px-4 pt-4"><button id="fixtureAccepted" class="rounded-xl border bg-white p-3">ตัวอย่างผลสำเร็จ (จำลอง)</button><button id="fixtureUncertain" class="rounded-xl border bg-white p-3">ตัวอย่างไม่มั่นใจ (จำลอง)</button><button id="fixtureComparison" class="rounded-xl border bg-white p-3">ตัวอย่างเปรียบเทียบ (จำลอง)</button><label class="rounded-xl bg-white p-3">กลุ่มตัวอย่าง <select id="fixtureClass" class="max-w-full"></select></label><a href="/admin" class="rounded-xl border bg-white p-3">ตัวอย่างหน้าแอดมิน (จำลอง)</a></div>
 <main class="mx-auto max-w-7xl p-4 sm:p-8"><div id="dashboardScanView" class="hidden">พื้นที่เลือกภาพใหม่ — ทดสอบ UI เท่านั้น</div>${analysis}</main>
 <script type="module">
-import { SCAN_CLASSES } from '/scan-result.js';
+import { PAD6_CLASSES as SCAN_CLASSES } from '/research-catalog.js';
 import { renderAnalysisScreen } from '/research-result.js';
 const selection = document.getElementById('fixtureClass');
 for (const item of SCAN_CLASSES) { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; selection.append(option); }
 function show(accepted, comparison=false) {
-  const analysis = { ok: accepted, code: accepted ? 'RESEARCH_ONLY' : 'UNCERTAIN_CLASSIFICATION', releaseStatus:'research_only',classificationStatus:accepted?'experimental':'abstained',modelVersion:'derm-local-e10f89ad2ac8',publicDeployment:false,scopeValidated:false,unsupportedValidated:false };
-  if(accepted) analysis.diagnostics=SCAN_CLASSES.map(row=>({id:row.id,score:row.id===selection.value?0.9:0.1/19}));
-  if(comparison) analysis.comparison={contract:'research-ranking-v1',method:'classifier_score_order',status:'educational_only',clinicallyValidated:false,modelVersion:analysis.modelVersion,classCount:20,classIds:['rosacea','acne_vulgaris']};
+  const analysis = { ok: accepted, code: accepted ? 'RESEARCH_ONLY' : 'UNCERTAIN_CLASSIFICATION', releaseStatus:'research_only',classificationStatus:accepted?'experimental':'abstained',modelVersion:'pad6-local-aaaaaaaaaaaa',publicDeployment:false,scopeValidated:false,unsupportedValidated:false };
+  if(accepted) analysis.diagnostics=SCAN_CLASSES.map(row=>({id:row.id,score:row.id===selection.value?0.9:0.1/5}));
+  if(comparison) analysis.comparison={contract:'research-ranking-v1',method:'classifier_score_order',status:'educational_only',clinicallyValidated:false,modelVersion:analysis.modelVersion,classCount:6,classIds:['actinic_keratosis','basal_cell_carcinoma']};
   renderAnalysisScreen(document,{analysis,storedImage:accepted,temporaryUploadDeleted:!accepted,scan:accepted?{id:'fixture-only',createdAt:'2026-10-07T16:00:00Z'}:undefined},{imageName:'ข้อมูลทดสอบ UI — ไม่ใช่ภาพผู้ใช้'});
 }
 document.getElementById('fixtureAccepted').onclick=()=>show(true);
@@ -54,7 +54,7 @@ http.createServer((req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (['/', '/admin', '/progress'].includes(req.url)) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(req.url === '/' ? resultPage : req.url === '/admin' ? adminPage : progressPage);
-  } else if (['/scan-result.js', '/research-result.js', '/research-comparison.js'].includes(req.url)) {
+  } else if (['/scan-result.js', '/research-result.js', '/research-comparison.js', '/research-catalog.js'].includes(req.url)) {
     res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(fs.readFileSync(path.join(base, req.url.slice(1))));
   } else if (['/assets/scan-hero-medical-tech-v3.png', '/assets/admin-computer-engineering-bg-v1.png'].includes(req.url)) {
     res.setHeader('Content-Type', 'image/png'); res.end(fs.readFileSync(path.join(base, req.url.slice(1))));

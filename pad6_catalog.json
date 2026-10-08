@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "dataset_id": "pad-ufes-20-v1",
+  "source": "https://data.mendeley.com/datasets/zr7vgbcyr2/1",
+  "doi": "10.17632/zr7vgbcyr2.1",
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "license_name": "CC BY 4.0",
+  "input_domain": "smartphone_clinical_photograph",
+  "status": "research_only_not_clinically_validated",
+  "notes": "Six labels from a different dataset, not six of the old SCIN twenty. SCC includes Bowen disease/SCC in situ as published. This catalog is not a diagnosis or a release approval.",
+  "classes": [
+    {"id": "actinic_keratosis", "source_label": "ACK", "name_th": "กระแดด (Actinic keratosis)"},
+    {"id": "basal_cell_carcinoma", "source_label": "BCC", "name_th": "กลุ่มมะเร็งผิวหนังชนิดเบซัลเซลล์ (BCC)"},
+    {"id": "melanoma", "source_label": "MEL", "name_th": "กลุ่มเมลาโนมา (Melanoma)"},
+    {"id": "melanocytic_nevus", "source_label": "NEV", "name_th": "ไฝ (Nevus)"},
+    {"id": "squamous_cell_carcinoma", "source_label": "SCC", "name_th": "กลุ่มมะเร็งผิวหนังชนิดสความัสเซลล์ (SCC)"},
+    {"id": "seborrheic_keratosis", "source_label": "SEK", "name_th": "กระเนื้อ (Seborrheic keratosis)"}
+  ]
+}
