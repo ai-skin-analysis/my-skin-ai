@@ -53,7 +53,7 @@ function environment() {
     vm.runInContext(source.replace(/\}\)\(\);\s*$/, `globalThis.media = {
         presentImage, clearImage, openCamera, closeCamera, takePhoto, decodeScanImage,
         scanFailureMessage, showProcessingError, submitPrivateScan, userRequest, inspectPreparedScanImage, requireSession,
-        refreshPrivateStorageStatus, returnToScan,
+        refreshPrivateStorageStatus, returnToScan, setProcessingStage,
         mockInspection: () => { preparePrivateScanImage = async file => file;
             inspectPreparedScanImage = async () => ({ status: 'ready', summary: 'quality only' }); },
         mockStorageAndPresenter: (presenter, ready = true) => { privateStorageReady = ready; scanResultModule = Promise.resolve(presenter); },
@@ -62,6 +62,27 @@ function environment() {
     return { context, media: context.media, element, revoked };
 }
 const photo = name => new File(['image'], name, { type: 'image/jpeg' });
+
+test('scan dialog shows AI analysis instead of the technical checklist without inventing a result', () => {
+    const { media, element } = environment();
+    const html = readFileSync(join(__dirname, '../vercel-public/dashboard.html'), 'utf8');
+    assert.doesNotMatch(html, /dashboardProcessingSteps|data-processing-step|ขั้นตอนแสกนภาพเพื่อการตรวจทาน/);
+    assert.match(html, /id="scanWorkspaceTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI/);
+    for (const stage of ['prepare', 'inspect', 'authorize', 'upload', 'commit']) {
+        media.setProcessingStage(stage);
+        assert.equal(element('dashboardProcessingTitle').textContent, 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI');
+        assert.equal(element('dashboardProcessingModal').dataset.processing, 'active');
+        assert.equal(element('dashboardProcessingImageState').classList.contains('hidden'), true);
+        assert.equal(element('dashboardScanResult').classList.contains('hidden'), true);
+        assert.equal(element('dashboardProcessingCloseButton').classList.contains('hidden'), true);
+    }
+    assert.match(element('dashboardProcessingDetail').textContent, /โมเดล AI กำลังวิเคราะห์/);
+    media.showProcessingError('พื้นที่ส่วนตัวยังไม่พร้อม', 'ยังไม่ได้ส่งภาพ');
+    assert.equal(element('dashboardProcessingImageState').classList.contains('hidden'), false);
+    media.setProcessingStage('prepare');
+    assert.equal(element('dashboardProcessingImageState').classList.contains('hidden'), true);
+    assert.equal(element('dashboardProcessingError').classList.contains('hidden'), true);
+});
 
 test('valid user session opens dashboard despite optional profile/storage outages', async () => {
     const { context, media, element } = environment();

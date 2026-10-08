@@ -56,18 +56,6 @@
         .processing-orbit { transform-origin: center; }
         #dashboardProcessingModal[data-processing="active"] .processing-orbit { animation: processingOrbit 2.8s linear infinite; }
         @keyframes processingOrbit { to { transform: rotate(360deg); } }
-        .processing-step { display: flex; align-items: center; gap: .65rem; border: 1px solid rgba(148,163,184,.16); border-radius: .75rem; background: rgba(2,6,23,.28); padding: .65rem .75rem; transition: .2s ease; }
-        .processing-step > span { display: flex; height: 1.45rem; width: 1.45rem; flex: none; align-items: center; justify-content: center; border: 1px solid rgba(148,163,184,.35); border-radius: .4rem; font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .57rem; font-weight: 700; color: #94a3b8; }
-        .processing-step > p { font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .62rem; font-weight: 700; letter-spacing: .045em; color: #94a3b8; }
-        .processing-step[data-state="active"] { border-color: rgba(94,234,212,.62); background: rgba(20,184,166,.12); box-shadow: inset 0 0 18px rgba(45,212,191,.06); }
-        .processing-step[data-state="active"] > span { border-color: #5eead4; color: #99f6e4; box-shadow: 0 0 10px rgba(94,234,212,.55); }
-        .processing-step[data-state="active"] > p { color: #e6fffb; }
-        .processing-step[data-state="complete"] { border-color: rgba(74,222,128,.36); background: rgba(22,163,74,.1); }
-        .processing-step[data-state="complete"] > span { border-color: #86efac; color: #bbf7d0; }
-        .processing-step[data-state="complete"] > p { color: #d1fae5; }
-        .processing-step[data-state="error"] { border-color: rgba(251,113,133,.34); background: rgba(190,24,93,.1); }
-        .processing-step[data-state="error"] > span { border-color: #fda4af; color: #fecdd3; }
-        .processing-step[data-state="error"] > p { color: #ffe4e6; }
         .processing-image-state { position: relative; margin-top: 1rem; border: 1px solid rgba(94,234,212,.28); border-radius: .8rem; background: rgba(2,6,23,.22); padding: .7rem .8rem; }
         .processing-image-state > span { display: block; font-family: 'JetBrains Mono', 'Anuphan', monospace; font-size: .57rem; font-weight: 700; letter-spacing: .08em; color: #5eead4; }
         .processing-image-state > p { margin-top: .3rem; font-size: .7rem; line-height: 1.5; color: #dbeafe; }
@@ -162,13 +150,13 @@
 
             <section class="scan-workbench space-y-5 rounded-[2rem] p-5 text-center sm:p-8 lg:col-span-10 lg:col-start-2" aria-labelledby="scanWorkspaceTitle">
                 <div class="mb-6 border-b border-slate-100 pb-5">
-                    <div class="font-code inline-flex items-center space-x-2 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-bold tracking-wide text-teal-400 shadow-inner"><span class="h-2 w-2 rounded-full bg-teal-300"></span><span>SKIN IMAGE SCAN · PRIVATE REVIEW</span></div>
-                    <h2 id="scanWorkspaceTitle" class="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">ส่งภาพบริเวณผิวหนังที่ต้องการตรวจ</h2>
-                    <p class="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">ใช้ภาพที่มีแสงพอดีและโฟกัสบริเวณผิวหนังที่ต้องการตรวจ ระบบจะตรวจความพร้อมทางเทคนิคของภาพ แล้วบันทึกไว้ในบัญชีเพื่อการตรวจทาน</p>
+                    <div class="font-code inline-flex items-center space-x-2 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-bold tracking-wide text-teal-400 shadow-inner"><span class="h-2 w-2 rounded-full bg-teal-300"></span><span>AI SKIN LESION ANALYSIS</span></div>
+                    <h2 id="scanWorkspaceTitle" class="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI</h2>
+                    <p class="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">เลือกหรือถ่ายภาพรอยโรค ยืนยันความยินยอม แล้วกดสแกนเพื่อให้โมเดล AI วิเคราะห์และจำแนกลักษณะจากภาพ จากนั้นระบบจะเปิดหน้าผลพร้อมคำอธิบายเบื้องต้น</p>
                 </div>
 
                 <section class="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 text-left">
-                    <div class="flex items-start gap-3"><span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white"><i data-lucide="scan-line" class="h-4 w-4"></i></span><div><h3 class="text-xs font-extrabold text-cyan-950">ตรวจความพร้อมของภาพก่อนเริ่มแสกน</h3><p class="mt-1 text-xs leading-relaxed text-cyan-900">ตรวจทานว่าเป็นภาพผิวหนังของตนเอง เห็นบริเวณสำคัญชัดเจน และไม่มีข้อมูลส่วนบุคคลที่ไม่จำเป็น ก่อนเริ่มขั้นตอนแสกนภาพ</p></div></div>
+                    <div class="flex items-start gap-3"><span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white"><i data-lucide="scan-line" class="h-4 w-4"></i></span><div><h3 class="text-xs font-extrabold text-cyan-950">ผลวิเคราะห์และจำแนกจาก AI</h3><p class="mt-1 text-xs leading-relaxed text-cyan-900">อ่านกลุ่มที่โมเดลจัดไว้ใกล้เคียงและคำอธิบายประกอบ หาก AI ไม่มั่นใจ ระบบจะแจ้งว่าไม่สามารถสรุปกลุ่มได้ ผลนี้ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์</p></div></div>
                 </section>
 
                 <div class="relative rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/30 p-6 transition-all sm:p-8">
@@ -238,11 +226,10 @@
 
     <div id="dashboardProcessingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardProcessingTitle" aria-describedby="dashboardProcessingDetail">
         <div class="processing-console max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 text-left text-white shadow-2xl sm:p-7">
-            <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="scan-line" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">ขั้นตอนแสกนภาพเพื่อการตรวจทาน</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">กำลังแสกนภาพอย่างปลอดภัย</h2><p id="dashboardProcessingDetail" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังตรวจความพร้อม ลบข้อมูลเมตา และปรับขนาดภาพบนอุปกรณ์ของคุณ</p></div></div>
-            <div id="dashboardProcessingSteps" class="relative mt-6 space-y-2"><div class="processing-step" data-processing-step="0" data-state="active"><span>01</span><p>เตรียมภาพและตรวจคุณภาพบนอุปกรณ์</p></div><div class="processing-step" data-processing-step="1" data-state="pending"><span>02</span><p>ตรวจความพร้อมและสิทธิ์การส่งภาพ</p></div><div class="processing-step" data-processing-step="2" data-state="pending"><span>03</span><p>ส่งภาพไปยังพื้นที่ส่วนตัวผ่าน HTTPS</p></div><div class="processing-step" data-processing-step="3" data-state="pending"><span>04</span><p>AI วิเคราะห์และจำแนก · เปิดหน้าผล</p></div></div>
-            <div id="dashboardProcessingImageState" class="processing-image-state" data-tone="info"><span>สถานะรูปภาพของคุณ</span><p>ภาพยังอยู่บนอุปกรณ์ของคุณ ระบบจะเริ่มส่งเมื่อผ่านทุกขั้นตอน</p></div>
+            <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="scan-line" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">SMART SKIN AI · ANALYSIS</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI</h2><p id="dashboardProcessingDetail" role="status" aria-live="polite" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังเริ่มต้นคำขอวิเคราะห์ภาพของคุณ</p></div></div>
+            <div id="dashboardProcessingImageState" class="processing-image-state hidden" data-tone="info"><span>สถานะรูปภาพของคุณ</span><p></p></div>
             <section id="dashboardScanResult" class="relative mt-5 hidden" aria-live="polite" aria-label="ผลวิเคราะห์และเปรียบเทียบกลุ่มรอยโรค"></section>
-            <p class="relative mt-4 text-[11px] leading-relaxed text-slate-400">การตรวจความสว่างและความคมชัดอย่างเดียวไม่ใช่ผลจำแนกรอยโรค ผลวิเคราะห์ไม่ใช่การวินิจฉัยโดยแพทย์</p>
+            <p class="relative mt-4 text-[11px] leading-relaxed text-slate-400">ผลจาก AI เป็นการวิเคราะห์และจำแนกเชิงทดลอง อาจผิดพลาด ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์</p>
             <p id="dashboardProcessingError" class="relative mt-4 hidden rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2.5 text-xs font-semibold leading-relaxed text-rose-100" role="alert"></p>
             <button id="dashboardProcessingCloseButton" type="button" class="relative mt-5 hidden w-full rounded-xl border border-slate-500/50 bg-slate-800/70 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-slate-700">ปิดและลองใหม่</button>
         </div>

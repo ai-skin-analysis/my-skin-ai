@@ -56,43 +56,28 @@
         if (text) text.textContent = message;
     }
 
-    const PROCESSING_STAGES = {
-        prepare: { title: 'กำลังตรวจความพร้อมของภาพ', detail: 'กำลังลบข้อมูลเมตาและปรับขนาดภาพบนอุปกรณ์ของคุณ', step: 0 },
-        inspect: { title: 'กำลังแสกนภาพบนอุปกรณ์', detail: 'กำลังตรวจความสว่าง ความคมชัด และความพร้อมสำหรับการตรวจทาน', step: 0 },
-        authorize: { title: 'กำลังเตรียมพื้นที่ส่วนตัว', detail: 'กำลังสร้างสิทธิ์อัปโหลดชั่วคราวสำหรับบัญชีของคุณ', step: 1 },
-        upload: { title: 'กำลังส่งภาพผ่านการเข้ารหัส', detail: 'กำลังส่งภาพไปยังพื้นที่ส่วนตัวของบัญชีคุณ', step: 2 },
-        local: { title: 'แสกนภาพบนอุปกรณ์เสร็จแล้ว', detail: 'พื้นที่ส่วนตัวยังไม่พร้อม ระบบจะไม่ส่งหรือเก็บไฟล์ภาพของคุณ', step: 2 },
-        commit: { title: 'กำลังวิเคราะห์และจำแนกรอยโรค', detail: 'บริการโมเดลกำลังประมวลผลเชิงทดลอง และอาจปฏิเสธภาพที่ไม่มั่นใจ', step: 3 },
-        complete: { title: 'แสกนภาพเสร็จแล้ว', detail: 'คุณสามารถเปิดดูรายการนี้ได้จากเมนูโปรไฟล์ → ประวัติการแสกน', step: 4 },
+    // A single user-facing analysis dialog replaces the technical checklist.
+    // Preparation, consent, quality and authorization still run before inference.
+    const ANALYSIS_PROGRESS = {
+        prepare: 'กำลังเริ่มต้นคำขอวิเคราะห์ภาพของคุณ',
+        inspect: 'กำลังเตรียมภาพสำหรับการวิเคราะห์ด้วย AI',
+        authorize: 'กำลังเชื่อมต่อบริการวิเคราะห์อย่างปลอดภัย',
+        upload: 'กำลังส่งภาพที่คุณยินยอมให้บริการ AI ผ่านการเชื่อมต่อที่เข้ารหัส',
+        commit: 'โมเดล AI กำลังวิเคราะห์ลักษณะและจำแนกกลุ่มรอยโรคจากภาพ กรุณารอสักครู่',
     };
 
     function setProcessingStage(stage) {
-        const current = PROCESSING_STAGES[stage] || PROCESSING_STAGES.prepare;
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
-        modal.dataset.processing = stage === 'complete' ? 'complete' : 'active';
-        document.getElementById('dashboardProcessingTitle').textContent = current.title;
-        document.getElementById('dashboardProcessingDetail').textContent = current.detail;
+        modal.dataset.processing = 'active';
+        document.getElementById('dashboardProcessingTitle').textContent = 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI';
+        document.getElementById('dashboardProcessingDetail').textContent = ANALYSIS_PROGRESS[stage] || ANALYSIS_PROGRESS.prepare;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
         document.getElementById('dashboardScanResult')?.classList.add('hidden');
-        document.getElementById('dashboardProcessingSteps')?.classList.toggle('hidden', stage === 'complete');
+        document.getElementById('dashboardProcessingImageState').classList.add('hidden');
         const closeButton = document.getElementById('dashboardProcessingCloseButton');
-        closeButton.textContent = stage === 'complete' ? 'ปิด' : 'ปิดและลองใหม่';
-        closeButton.classList.toggle('hidden', stage !== 'complete');
-        const imageStates = {
-            prepare: `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ ระบบกำลังเตรียมข้อมูลก่อนส่ง`,
-            inspect: `กำลังแสกนคุณภาพของ ${selectedImageName()} ภายในอุปกรณ์ของคุณ`,
-            authorize: `${selectedImageName()} ถูกเตรียมแล้วและยังอยู่บนอุปกรณ์ กำลังขอสิทธิ์อัปโหลดเฉพาะรายการ`,
-            upload: `กำลังส่ง ${selectedImageName()} ไปยังพื้นที่ส่วนตัวผ่านการเชื่อมต่อที่เข้ารหัส`,
-            local: `${selectedImageName()} แสกนบนอุปกรณ์เสร็จแล้ว ไฟล์ภาพจะไม่ถูกส่งออกจากอุปกรณ์`,
-            commit: `${selectedImageName()} อยู่ในพื้นที่ Supabase ส่วนตัว กำลังส่งผ่าน HTTPS ให้บริการโมเดลของ Smart Skin AI`,
-            complete: `${selectedImageName()} ถูกจัดเก็บและบันทึกในประวัติการสแกนเรียบร้อยแล้ว`,
-        };
-        setProcessingImageState(imageStates[stage] || imageStates.prepare);
-        document.querySelectorAll('[data-processing-step]').forEach((item) => {
-            const itemStep = Number(item.dataset.processingStep);
-            item.dataset.state = itemStep < current.step ? 'complete' : itemStep === current.step ? 'active' : 'pending';
-        });
+        closeButton.textContent = 'ปิดและลองใหม่';
+        closeButton.classList.add('hidden');
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
         refreshIcons();
     }
@@ -116,6 +101,7 @@
         if (!modal) return;
         modal.dataset.processing = 'error';
         document.getElementById('dashboardScanResult')?.classList.add('hidden');
+        document.getElementById('dashboardProcessingImageState').classList.remove('hidden');
         document.getElementById('dashboardProcessingTitle').textContent = ['OUT_OF_SCOPE', 'NO_LESION_DETECTED', 'NO_IMAGE', 'INVALID_IMAGE', 'NON_SKIN_IMAGE'].includes(code)
             ? 'ข้อมูลผิดพลาด' : code === 'MODEL_UNAVAILABLE' ? 'ระบบวิเคราะห์ภาพยังไม่พร้อม'
                 : code === 'UNSUPPORTED_LESION' ? 'รอยโรคนี้ยังไม่อยู่ในขอบเขตที่ระบบจำแนกได้'
@@ -130,7 +116,6 @@
         document.getElementById('dashboardProcessingCloseButton').classList.remove('hidden');
         document.getElementById('dashboardProcessingCloseButton').textContent = ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code) ? 'รับทราบ' : 'ปิดและลองใหม่';
         setProcessingImageState(imageState || `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกบันทึกเป็นประวัติ`, 'error');
-        document.querySelectorAll('[data-processing-step]').forEach((item) => { item.dataset.state = 'error'; });
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
         refreshIcons();
     }
@@ -429,11 +414,10 @@
         let uploadedToPrivateStorage = false;
         let storedImage = false;
         button.disabled = true;
-        button.textContent = 'กำลังเริ่มแสกนภาพ…';
+        button.textContent = 'กำลังวิเคราะห์และจำแนกด้วย AI…';
         try {
             setProcessingStage('prepare');
             const preparedImage = await preparePrivateScanImage(selectedScanImage);
-            button.textContent = 'กำลังแสกนคุณภาพของภาพ…';
             setProcessingStage('inspect');
             const inspection = await inspectPreparedScanImage(preparedImage);
             if (inspection.status !== 'ready') throw scanError('POOR_QUALITY', inspection.summary);
@@ -462,7 +446,6 @@
                     qualityStatus: inspection.status,
                 }),
             });
-            button.textContent = 'กำลังส่งภาพผ่านการเข้ารหัส…';
             setProcessingStage('upload');
             uploadAttempted = true;
             const uploadResponse = await fetch(uploadRequest.upload.url, {
