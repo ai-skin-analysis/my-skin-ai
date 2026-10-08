@@ -1,6 +1,7 @@
 // Server-side transport for the authenticated research service. Do not import
 // this module into dashboard.js. It does NOT enable the public release gate.
 import { SCAN_CLASSES } from '../scan-result.js';
+import { validatedResearchComparison } from '../research-comparison.js';
 
 const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_RESPONSE = 256 * 1024;
@@ -90,7 +91,8 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
       const response = await fetchImpl(new URL(path, base), {
         method: body ? 'POST' : 'GET', redirect: 'manual', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json',
-          ...(body ? { 'Content-Type': 'application/octet-stream', 'X-Image-Consent': 'yes' } : {}) },
+          ...(body ? { 'Content-Type': 'application/octet-stream', 'X-Image-Consent': 'yes',
+            'X-Research-Comparison': 'research-ranking-v1' } : {}) },
         ...(body ? { body } : {}),
       });
       // Never follow redirects with the credential, nor reflect remote HTML,
@@ -119,7 +121,8 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
           || value.uncertaintyAbstentionAvailable !== true) invalid();
       return Object.freeze({ modelLoaded: true, modelVersion, classCount: 20,
         releaseStatus: 'research_only', scopeValidated: false, unsupportedValidated: false,
-        publicDeployment: false, imageStored: false });
+        publicDeployment: false, imageStored: false,
+        comparisonAvailable: value.comparisonContract === 'research-ranking-v1' });
     },
     async analyze(bytes, { consent } = {}) {
       if (consent !== true || !Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > MAX_IMAGE) {
@@ -133,12 +136,21 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
         const uncertain = value.code === 'UNCERTAIN_CLASSIFICATION' && value.inputCheck.status === 'experimental_continue'
           && value.analysisStatus === 'completed' && value.classificationStatus === 'abstained';
         if (value.ok !== false || (!object && !uncertain) || value.diagnostics !== undefined) invalid();
+        let comparison;
+        if (value.comparison !== undefined) {
+          if (!uncertain) invalid();
+          comparison = validatedResearchComparison(value.comparison, modelVersion);
+          if (!comparison) invalid();
+        }
         return Object.freeze({ ok: false, code: value.code, message: SAFE_MESSAGES[value.code],
           releaseStatus: 'research_only', publicDeployment: false, scopeValidated: false,
-          unsupportedValidated: false, imageStored: false, modelVersion });
+          unsupportedValidated: false, imageStored: false, modelVersion,
+          classificationStatus: uncertain ? 'abstained' : 'not_run',
+          ...(comparison ? { comparison } : {}) });
       }
       if (value.ok !== true || value.code !== 'RESEARCH_ONLY' || value.analysisStatus !== 'completed'
           || value.classificationStatus !== 'experimental' || value.inputCheck.status !== 'experimental_continue'
+          || value.comparison !== undefined
           || !Array.isArray(value.diagnostics) || value.diagnostics.length !== 20) invalid();
       let mass = 0;
       const diagnostics = value.diagnostics.map((row, index) => {

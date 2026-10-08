@@ -84,7 +84,7 @@ test('uncertainty clears a prior accepted name and class-specific advice instead
   const treeText = node => [node.textContent, ...node.children.map(treeText)].join(' ');
   const text = treeText(doc.getElementById('dashboardAnalysisResult'));
   assert.doesNotMatch(text, /สิว|โรซาเซีย|หลีกเลี่ยงการบีบหรือแกะตุ่ม/);
-  assert.match(text, /เหตุผลที่ไม่มีชื่อรอยโรค/);
+  assert.match(text, /เหตุผลที่ยังไม่สรุปชื่อรอยโรค/);
   assert.match(text, /คำแนะนำเบื้องต้น/);
   assert.match(text, /ส่งภาพสำเร็จจึงไม่เท่ากับจำแนกสำเร็จ/);
   assert.match(doc.getElementById('dashboardAnalysisNextMessage').textContent, /ไม่รับประกัน/);
@@ -104,6 +104,49 @@ test('visible model catalogue contains exactly the 20 ordered curated labels and
   assert.match(html, /ไม่ใช่ 20 โมเดลหรือภาพฝึกเพียง 20 ภาพ/);
   assert.match(html, /id="dashboardProcessingTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์/);
   assert.match(html, /id="dashboardAnalysisTitle"[^>]*>ผลวิเคราะห์และจำแนกรอยโรคด้วยปัญญาประดิษฐ์/);
+});
+
+test('uncertain educational comparison shows two curated groups but no diagnosis, percentage or treatment', async () => {
+  const f = await fixture(); const doc = documentFixture();
+  const comparison = { contract: 'research-ranking-v1', method: 'classifier_score_order',
+    status: 'educational_only', clinicallyValidated: false, classCount: 20,
+    modelVersion: f.analysis.modelVersion, classIds: ['rosacea', 'acne_vulgaris'], name: 'injected diagnosis' };
+  const analysis = { ...f.analysis, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined,
+    classificationStatus: 'abstained', comparison };
+  const view = f.renderAnalysisScreen(doc, { analysis, storedImage: false, temporaryUploadDeleted: true });
+  assert.equal(view.candidates.length, 0);
+  assert.deepEqual(view.comparisonCandidates.map(row => row.name), ['โรซาเซีย', 'สิว']);
+  const container = doc.getElementById('dashboardAnalysisResult');
+  assert.equal(container.children.some(node => node.dataset.analysisSummary === 'accepted'), false);
+  const section = container.children.find(node => node.dataset.educationalComparison === 'abstained');
+  const treeText = node => [node.textContent, ...node.children.map(treeText)].join(' ');
+  const text = treeText(section);
+  assert.match(text, /ยังจำแนกไม่ได้/); assert.match(text, /ไม่ใช่การวัดความเหมือนกับภาพฝึก/);
+  assert.match(text, /ทั้งสองกลุ่มจึงอาจไม่ตรง/);
+  assert.match(text, /โรซาเซีย/); assert.match(text, /สิว/);
+  assert.doesNotMatch(text, /injected diagnosis|[0-9]+%|หลีกเลี่ยงการบีบหรือแกะตุ่ม/);
+  assert.match(doc.getElementById('dashboardAnalysisPrivacy').textContent, /ไม่บันทึกเป็นผลจำแนกสำเร็จ/);
+  assert.match(doc.getElementById('dashboardAnalysisStatus').textContent, /ยังไม่สามารถสรุป/);
+  f.renderAnalysisScreen(doc, { analysis: { ...analysis, comparison: undefined },
+    storedImage: false, temporaryUploadDeleted: true });
+  assert.doesNotMatch(treeText(container), /โรซาเซีย|สิว/);
+  assert.match(treeText(container), /จึงไม่เลือกกลุ่มขึ้นมาแทน/);
+});
+
+test('forged educational comparisons cannot open an owner-facing result screen', async () => {
+  const f = await fixture();
+  const comparison = { contract: 'research-ranking-v1', method: 'classifier_score_order',
+    status: 'educational_only', clinicallyValidated: false, classCount: 20,
+    modelVersion: f.analysis.modelVersion, classIds: ['rosacea', 'acne_vulgaris'] };
+  const analysis = { ...f.analysis, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined,
+    classificationStatus: 'abstained', comparison };
+  for (const changes of [{ code: 'NON_SKIN_IMAGE' }, { classificationStatus: 'classified' },
+    { comparison: { ...comparison, clinicallyValidated: true } },
+    { comparison: { ...comparison, classIds: ['untrained', 'acne_vulgaris'] } },
+    { comparison: { ...comparison, classIds: ['rosacea', 'rosacea'] } }]) {
+    assert.throws(() => f.renderAnalysisScreen(documentFixture(), { analysis: { ...analysis, ...changes },
+      storedImage: false, temporaryUploadDeleted: true }));
+  }
 });
 
 test('uncertain completion has no candidate names and explicitly confirms no classified history', async () => {

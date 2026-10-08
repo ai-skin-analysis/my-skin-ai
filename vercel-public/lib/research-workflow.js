@@ -10,6 +10,7 @@ export async function researchReadiness(client = researchInferenceFromEnvironmen
   const ready = await client.readiness();
   return { researchAvailable: ready.modelLoaded === true, releaseStatus: 'research_only',
     classCount: ready.classCount, modelVersion: ready.modelVersion,
+    comparisonAvailable: ready.comparisonAvailable === true,
     classificationAvailable: false, scopeFilterAvailable: false,
     publicReleaseApproved: false, scopeValidated: false, unsupportedValidated: false };
 }

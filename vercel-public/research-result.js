@@ -1,4 +1,5 @@
 import { SCAN_CLASSES, SCAN_DISCLAIMER } from './scan-result.js';
+import { validatedResearchComparison } from './research-comparison.js';
 
 const FAILURES = {
   NON_SKIN_IMAGE: 'ข้อมูลภาพผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นชัดเจน ตัวกรองเชิงทดลองอาจผิดพลาดได้',
@@ -12,11 +13,18 @@ export function researchResultView(result) {
       || result.scopeValidated !== false || result.unsupportedValidated !== false
       || !/^derm-local-[0-9a-f]{12}$/.test(result.modelVersion || '')) return invalid;
   if (result.ok === false && Object.hasOwn(FAILURES, result.code) && result.diagnostics === undefined) {
+    let comparison;
+    if (result.comparison !== undefined) {
+      if (result.code !== 'UNCERTAIN_CLASSIFICATION' || result.classificationStatus !== 'abstained') return invalid;
+      comparison = validatedResearchComparison(result.comparison, result.modelVersion);
+      if (!comparison) return invalid;
+    }
     return { code: result.code, title: result.code === 'NON_SKIN_IMAGE' ? 'ข้อมูลภาพผิดพลาด' : 'ยังไม่สามารถจำแนกรอยโรคได้',
-      message: FAILURES[result.code], candidates: [] };
+      message: FAILURES[result.code], candidates: [],
+      comparisonCandidates: comparison ? comparison.classIds.map(id => SCAN_CLASSES.find(item => item.id === id)) : [] };
   }
   if (result.ok !== true || result.code !== 'RESEARCH_ONLY' || result.classificationStatus !== 'experimental'
-      || result.diagnostics?.length !== 20) return invalid;
+      || result.comparison !== undefined || !Array.isArray(result.diagnostics) || result.diagnostics.length !== 20) return invalid;
   let total = 0;
   for (const [index, row] of result.diagnostics.entries()) {
     if (row.id !== SCAN_CLASSES[index].id || !Number.isFinite(row.score) || row.score < 0 || row.score > 1) return invalid;
@@ -71,10 +79,25 @@ export function renderResearchResult(container, result) {
     container.append(comparison,
       node('p', 'ใช้เปรียบเทียบความรู้ทั่วไปเท่านั้น อันดับสองไม่ได้หมายความว่าพบรอยโรคอีกชนิด และระบบยังไม่ได้ผ่านการทดสอบการแยกรอยโรคคู่นี้', 'mt-3 text-xs leading-relaxed text-slate-300'));
   } else if (view.code === 'UNCERTAIN_CLASSIFICATION') {
-    container.append(node('p', 'เหตุผลที่ไม่มีชื่อรอยโรค', 'mt-5 text-sm font-bold text-teal-100'),
+    container.append(node('p', 'เหตุผลที่ยังไม่สรุปชื่อรอยโรค', 'mt-5 text-sm font-bold text-teal-100'),
       node('p', 'ประมวลผลภาพแล้ว แต่ผลยังไม่ผ่านเกณฑ์ความมั่นใจของโมเดล การส่งภาพสำเร็จจึงไม่เท่ากับจำแนกสำเร็จ ระบบไม่เดาชื่อโรคและไม่ระบุว่าเป็นรอยโรคนอกกลุ่มอย่างแน่นอน', 'mt-2 text-sm leading-7 text-slate-200'),
       node('p', 'คำแนะนำเบื้องต้น', 'mt-5 text-sm font-bold text-teal-100'),
       node('p', 'ถ้าภาพไม่ชัด ให้ถ่ายเฉพาะบริเวณรอยโรคในแสงพอดีและไม่ใช้ฟิลเตอร์ หากยังสรุปไม่ได้หรือมีข้อกังวล ให้นำภาพพร้อมประวัติอาการไปพบแพทย์ผู้เชี่ยวชาญ ไม่จำเป็นต้องรอให้สแกนผ่าน', 'mt-2 text-sm leading-7 text-slate-200'));
+    if (view.comparisonCandidates.length) {
+      const comparison = node('section', '', 'mt-6 rounded-2xl border border-amber-200/40 bg-slate-950/30 p-4 sm:p-5');
+      comparison.dataset.educationalComparison = 'abstained';
+      comparison.append(node('p', 'เปรียบเทียบประกอบเท่านั้น · ยังจำแนกไม่ได้', 'text-xs font-bold text-amber-100'),
+        node('h4', '2 กลุ่มจากโมเดลสำหรับเปรียบเทียบ', 'mt-2 text-xl font-extrabold text-white'),
+        node('p', 'ระบบใช้ลำดับคะแนนจาก 20 กลุ่มที่ฝึกไว้ เลือก 2 กลุ่มอันดับแรกมาให้อ่านเทียบกัน ไม่ใช่การวัดความเหมือนกับภาพฝึก และไม่ใช่การยืนยันว่าภาพนี้เป็นกลุ่มใดกลุ่มหนึ่ง', 'mt-3 text-sm leading-7 text-slate-200'),
+        node('p', 'ระบบยังบอกไม่ได้แน่นอนว่ารอยโรคนี้อยู่นอกชุดฝึกหรือไม่ ภาพของรอยโรคที่ไม่รองรับอาจถูกจัดอันดับใกล้กลุ่มที่มีอยู่ได้ ทั้งสองกลุ่มจึงอาจไม่ตรงกับภาพของคุณ', 'mt-3 text-sm leading-7 text-amber-100'));
+      const grid = node('div', '', 'mt-3 grid gap-3 md:grid-cols-2');
+      view.comparisonCandidates.forEach((item, index) => grid.append(card(item, `ลำดับคะแนน ${index + 1} · ข้อมูลกลุ่มที่ฝึกไว้ ไม่ใช่ผลจำแนก`)));
+      comparison.append(grid,
+        node('p', 'คำอธิบายเป็นข้อมูลทั่วไป ไม่ได้ยืนยันว่าพบลักษณะเหล่านี้ในภาพของคุณ ไม่ใช้เลือกยา รักษา หรือยืนยัน/ตัดโรคออก ควรพบแพทย์ผู้เชี่ยวชาญหากต้องการประเมินรอยโรค', 'mt-4 text-sm leading-7 text-amber-100'));
+      container.append(comparison);
+    } else {
+      container.append(node('p', 'ยังไม่มีลำดับคะแนนที่ใช้เปรียบเทียบได้ จึงไม่เลือกกลุ่มขึ้นมาแทนผลที่ไม่แน่ใจ', 'mt-4 text-sm leading-7 text-slate-300'));
+    }
   }
   container.append(node('p', 'โมเดลมี 20 กลุ่ม แต่ชุดทดสอบภายในเพิ่มเติมมีตัวอย่างเพียง 11 จาก 20 กลุ่ม และตอบถูก 112 จาก 338 ภาพ (33.1%) ยังไม่ใช่การประเมินอิสระครบทุกกลุ่ม รุ่นทดลองจึงยังไม่พร้อมสำหรับการประเมินสุขภาพทั่วไป และอาจจำแนกผิดหรือพลาดรอยโรคนอกขอบเขตได้', 'mt-4 rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100'),
     node('p', SCAN_DISCLAIMER, 'mt-3 text-xs leading-relaxed text-slate-300'));
@@ -123,7 +146,8 @@ export function renderAnalysisScreen(doc, completed, { imageName = '', previewUr
   doc.getElementById('dashboardAnalysisTime').textContent = Number.isNaN(created.getTime()) ? 'ไม่ได้ระบุเวลา'
     : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(created);
   doc.getElementById('dashboardAnalysisStatus').textContent = accepted
-    ? 'ผลจัดกลุ่มเชิงทดลอง · ยังไม่ใช่ผลวินิจฉัย' : 'ประมวลผลแล้ว · ยังไม่สามารถสรุปกลุ่มได้';
+    ? 'ผลจัดกลุ่มเชิงทดลอง · ยังไม่ใช่ผลวินิจฉัย'
+    : view.comparisonCandidates.length ? 'ยังไม่สามารถสรุปกลุ่ม · มีข้อมูลเปรียบเทียบเท่านั้น' : 'ประมวลผลแล้ว · ยังไม่สามารถสรุปกลุ่มได้';
   doc.getElementById('dashboardAnalysisNextMessage').textContent = accepted
     ? 'อ่านชื่อกลุ่ม ผลวิเคราะห์ และคำแนะนำเบื้องต้นข้างต้นร่วมกับประวัติอาการ นำข้อมูลไปปรึกษาแพทย์หากมีข้อกังวล อย่าใช้ผลปัญญาประดิษฐ์เลือกยาหรือรักษาด้วยตนเอง'
     : 'หากภาพไม่ชัดสามารถถ่ายใหม่ได้ แต่การถ่ายซ้ำไม่รับประกันว่าจะจำแนกได้ หากยังไม่มั่นใจหรือกังวลเกี่ยวกับรอยโรค ควรให้แพทย์ตรวจโดยตรง';

@@ -57,6 +57,16 @@ test('malformed readiness or different versions cannot enable the service', asyn
   }
 });
 
+test('educational comparison readiness is advertised only by the matching runtime contract', async () => {
+  const { createResearchInferenceClient, ready, respond } = await fixtures();
+  for (const [contract, expected] of [[undefined, false], ['research-ranking-v1', true], ['other', false]]) {
+    const client = createResearchInferenceClient({ ...settings,
+      fetchImpl: async () => respond({ ...ready, comparisonContract: contract }) });
+    const status = await client.readiness();
+    assert.equal(status.comparisonAvailable, expected); assert.equal(status.publicDeployment, false);
+  }
+});
+
 test('image calls require explicit consent and bounded binary data before any request', async () => {
   const { createResearchInferenceClient } = await fixtures();
   let requests = 0;
@@ -119,6 +129,51 @@ test('rejected response with group names cannot leak predictions', async () => {
   const client = createResearchInferenceClient({ ...settings, fetchImpl: async () => respond({ ...result,
     ok: false, code: 'UNCERTAIN_CLASSIFICATION', classificationStatus: 'abstained' }, 422) });
   await assert.rejects(client.analyze(Buffer.from('x'), { consent: true }), { code: 'INVALID_MODEL_RESULT' });
+});
+
+test('opt-in educational comparison preserves abstention, only curated IDs and no scores', async () => {
+  const { createResearchInferenceClient, result, respond } = await fixtures();
+  const comparison = { contract: 'research-ranking-v1', method: 'classifier_score_order',
+    status: 'educational_only', clinicallyValidated: false, classCount: 20,
+    modelVersion: version, classIds: ['rosacea', 'acne_vulgaris'],
+    name: '<script>remote name</script>', scores: [0.5, 0.3], url: 'https://untrusted.example/' };
+  const uncertain = { ...result, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined,
+    classificationStatus: 'abstained', comparison };
+  let options;
+  const client = createResearchInferenceClient({ ...settings, fetchImpl: async (_url, opts) => {
+    options = opts; return respond(uncertain, 422);
+  } });
+  const response = await client.analyze(Buffer.from('fixture'), { consent: true });
+  assert.equal(options.headers['X-Research-Comparison'], 'research-ranking-v1');
+  assert.equal(response.ok, false); assert.equal(response.code, 'UNCERTAIN_CLASSIFICATION');
+  assert.equal(response.classificationStatus, 'abstained');
+  assert.deepEqual(response.comparison.classIds, comparison.classIds);
+  assert.equal(response.diagnostics, undefined);
+  for (const key of ['name', 'scores', 'url']) assert.equal(response.comparison[key], undefined);
+  assert.equal(response.publicDeployment, false);
+});
+
+test('comparison cannot disguise objects, accepted classifications, unknown IDs or mismatched models', async () => {
+  const { createResearchInferenceClient, result, respond } = await fixtures();
+  const comparison = { contract: 'research-ranking-v1', method: 'classifier_score_order',
+    status: 'educational_only', clinicallyValidated: false, classCount: 20,
+    modelVersion: version, classIds: ['rosacea', 'acne_vulgaris'] };
+  const uncertain = { ...result, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined,
+    classificationStatus: 'abstained', comparison };
+  for (const changes of [{ classIds: ['unknown', 'acne_vulgaris'] }, { classIds: ['rosacea', 'rosacea'] },
+    { classIds: ['rosacea'] }, { classIds: ['rosacea', 'acne_vulgaris', 'psoriasis'] },
+    { clinicallyValidated: true }, { status: 'classified' }, { method: 'visual_similarity' },
+    { modelVersion: 'derm-local-000000000000' }, { classCount: 21 }, { contract: 'other' }]) {
+    const client = createResearchInferenceClient({ ...settings, fetchImpl: async () => respond({ ...uncertain,
+      comparison: { ...comparison, ...changes } }, 422) });
+    await assert.rejects(client.analyze(Buffer.from('x'), { consent: true }), { code: 'INVALID_MODEL_RESULT' });
+  }
+  for (const [body, status] of [[{ ...result, comparison }, 200], [{ ...uncertain, code: 'NON_SKIN_IMAGE',
+    analysisStatus: 'input_rejected', classificationStatus: 'not_run',
+    inputCheck: { ...result.inputCheck, status: 'experimental_reject' } }, 422]]) {
+    const client = createResearchInferenceClient({ ...settings, fetchImpl: async () => respond(body, status) });
+    await assert.rejects(client.analyze(Buffer.from('x'), { consent: true }), { code: 'INVALID_MODEL_RESULT' });
+  }
 });
 
 test('redirects, credential errors and network exceptions never forward or reflect secrets', async () => {

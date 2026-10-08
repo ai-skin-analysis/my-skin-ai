@@ -71,6 +71,25 @@ test('download, inference or save outages cannot become success records', async 
   }
 });
 
+test('educational comparison on abstention is returned only after deletion and never saved as classification', async () => {
+  const f = await fixture(); let removed = false;
+  const comparison = { contract: 'research-ranking-v1', method: 'classifier_score_order',
+    status: 'educational_only', clinicallyValidated: false, classCount: 20,
+    modelVersion: f.analysis.modelVersion, classIds: ['rosacea', 'acne_vulgaris'] };
+  const analysis = { ...f.analysis, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined,
+    classificationStatus: 'abstained', comparison };
+  const options = { download: async () => Buffer.from('fixture'), client: { analyze: async () => analysis },
+    remove: async () => { removed = true; }, save: async () => { throw new Error('must not save comparison'); } };
+  const result = await f.analyzePrivateResearchScan(f.pending, 2, 'expiry', options);
+  assert.equal(removed, true); assert.equal(result.storedImage, false);
+  assert.equal(result.temporaryUploadDeleted, true); assert.equal(result.scan, undefined);
+  const view = f.researchResultView(result.analysis);
+  assert.equal(view.candidates.length, 0);
+  assert.deepEqual(view.comparisonCandidates.map(row => row.id), comparison.classIds);
+  await assert.rejects(f.analyzePrivateResearchScan(f.pending, 2, 'expiry', { ...options,
+    remove: async () => { throw new Error('deletion failed'); } }), /deletion failed/);
+});
+
 test('research views use curated names, no calibrated probabilities or validated comparisons', async () => {
   const f = await fixture();
   f.analysis.diagnostics[0].name = '<script>secret</script>';
