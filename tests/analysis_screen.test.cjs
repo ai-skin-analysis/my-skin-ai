@@ -78,6 +78,13 @@ test('external preview URLs are not loaded and presentation never persists healt
   assert.doesNotMatch(source, /innerHTML\s*=/);
 });
 
+test('landing helper describes approved consented research access, not an obsolete no-upload claim', () => {
+  const source = readFileSync(require.resolve('../vercel-public/app.js'), 'utf8');
+  assert.match(source, /บัญชีที่อนุมัติทดลองจำแนกภาพ 20 กลุ่มได้หลังยินยอมส่งภาพ/);
+  assert.match(source, /ผลอาจผิดพลาดและไม่ใช่การวินิจฉัย/);
+  assert.doesNotMatch(source, /ตอนนี้ระบบเปิดข้อมูลสาธารณะและบัญชีทดลอง โดยยังไม่รับภาพเพื่อวิเคราะห์ครับ/);
+});
+
 test('admin monitoring is authenticated and MFA-protected, shares the actual engine and exposes no private scan data', async () => {
   const { default: handler } = await import('../vercel-public/api/admin-handler.js');
   const res = { headers: {}, setHeader(key, value) { this.headers[key] = value; },
