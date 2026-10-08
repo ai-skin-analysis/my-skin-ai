@@ -45,6 +45,65 @@ test('accepted completion opens an accessible AI screen with real version, priva
   assert.match(text, /อันดับ 1/); assert.match(text, /อันดับ 2/);
   assert.match(text, /ไม่ใช่/); assert.match(text, /33\.1%/);
   assert.equal(text.includes('90%'), false);
+  assert.match(text, /ชื่อกลุ่มรอยโรคที่โมเดลจัดไว้ใกล้เคียงที่สุด/);
+  assert.match(text, /ผลการวิเคราะห์/);
+  assert.match(text, /คำแนะนำเบื้องต้น/);
+  assert.match(text, /หลีกเลี่ยงการบีบหรือแกะตุ่ม/);
+  assert.match(doc.getElementById('dashboardAnalysisNextMessage').textContent, /คำแนะนำเบื้องต้น/);
+});
+
+test('all 20 trained labels have a visible name, explanatory analysis and curated advice after an accepted result', async () => {
+  const f = await fixture();
+  const { SCAN_CLASSES } = await import('../vercel-public/scan-result.js');
+  const treeText = node => [node.textContent, ...node.children.map(treeText)].join(' ');
+  for (const [index, item] of SCAN_CLASSES.entries()) {
+    const doc = documentFixture();
+    const analysis = { ...f.analysis, diagnostics: SCAN_CLASSES.map((row, i) => ({
+      id: row.id, score: i === index ? 0.9 : 0.1 / 19,
+      name: 'untrusted injected name', recommendation: 'untrusted injected advice',
+    })) };
+    const view = f.renderAnalysisScreen(doc, { ...f.completed, analysis });
+    assert.equal(view.candidates[0].id, item.id);
+    const summary = doc.getElementById('dashboardAnalysisResult').children.find(node => node.dataset.analysisSummary === 'accepted');
+    const text = treeText(summary);
+    assert.ok(text.includes(item.name), item.id);
+    assert.ok(item.recommendation?.length > 30, item.id);
+    assert.ok(text.includes(item.recommendation), item.id);
+    assert.match(text, /ผลการวิเคราะห์/);
+    assert.match(text, /คำแนะนำเบื้องต้น/);
+    assert.doesNotMatch(text, /untrusted injected/);
+    assert.ok(summary.children.some(node => node.tagName === 'a' && node.href === item.source));
+  }
+});
+
+test('uncertainty clears a prior accepted name and class-specific advice instead of forcing classification', async () => {
+  const f = await fixture(); const doc = documentFixture();
+  f.renderAnalysisScreen(doc, f.completed);
+  const analysis = { ...f.analysis, ok: false, code: 'UNCERTAIN_CLASSIFICATION', diagnostics: undefined };
+  f.renderAnalysisScreen(doc, { analysis, storedImage: false, temporaryUploadDeleted: true });
+  const treeText = node => [node.textContent, ...node.children.map(treeText)].join(' ');
+  const text = treeText(doc.getElementById('dashboardAnalysisResult'));
+  assert.doesNotMatch(text, /สิว|โรซาเซีย|หลีกเลี่ยงการบีบหรือแกะตุ่ม/);
+  assert.match(text, /เหตุผลที่ไม่มีชื่อรอยโรค/);
+  assert.match(text, /คำแนะนำเบื้องต้น/);
+  assert.match(text, /ส่งภาพสำเร็จจึงไม่เท่ากับจำแนกสำเร็จ/);
+  assert.match(doc.getElementById('dashboardAnalysisNextMessage').textContent, /ไม่รับประกัน/);
+});
+
+test('visible model catalogue contains exactly the 20 ordered curated labels and is separate from results', async () => {
+  const f = await fixture(); const doc = documentFixture();
+  const { SCAN_CLASSES } = await import('../vercel-public/scan-result.js');
+  const container = doc.getElementById('dashboardModelClassList');
+  f.renderModelCatalogue(container);
+  f.renderModelCatalogue(container);
+  assert.equal(container.children.length, 20);
+  assert.deepEqual(container.children.map(node => node.dataset.classId), SCAN_CLASSES.map(item => item.id));
+  assert.deepEqual(container.children.map(node => node.textContent), SCAN_CLASSES.map(item => item.name));
+  assert.equal(doc.getElementById('dashboardAnalysisResult').children.length, 0);
+  const html = readFileSync(require.resolve('../vercel-public/dashboard.html'), 'utf8');
+  assert.match(html, /ไม่ใช่ 20 โมเดลหรือภาพฝึกเพียง 20 ภาพ/);
+  assert.match(html, /id="dashboardProcessingTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์/);
+  assert.match(html, /id="dashboardAnalysisTitle"[^>]*>ผลวิเคราะห์และจำแนกรอยโรคด้วยปัญญาประดิษฐ์/);
 });
 
 test('uncertain completion has no candidate names and explicitly confirms no classified history', async () => {

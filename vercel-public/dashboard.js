@@ -60,7 +60,7 @@
     // Preparation, consent, quality and authorization still run before inference.
     const ANALYSIS_PROGRESS = {
         prepare: 'กำลังเริ่มต้นคำขอวิเคราะห์ภาพของคุณ',
-        inspect: 'กำลังเตรียมภาพสำหรับการวิเคราะห์ด้วย AI',
+        inspect: 'กำลังเตรียมภาพสำหรับการวิเคราะห์ด้วยปัญญาประดิษฐ์',
         authorize: 'กำลังเชื่อมต่อบริการวิเคราะห์อย่างปลอดภัย',
         upload: 'กำลังส่งภาพที่คุณยินยอมให้บริการ AI ผ่านการเชื่อมต่อที่เข้ารหัส',
         commit: 'โมเดล AI กำลังวิเคราะห์ลักษณะและจำแนกกลุ่มรอยโรคจากภาพ กรุณารอสักครู่',
@@ -70,7 +70,7 @@
         const modal = document.getElementById('dashboardProcessingModal');
         if (!modal) return;
         modal.dataset.processing = 'active';
-        document.getElementById('dashboardProcessingTitle').textContent = 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI';
+        document.getElementById('dashboardProcessingTitle').textContent = 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์';
         document.getElementById('dashboardProcessingDetail').textContent = ANALYSIS_PROGRESS[stage] || ANALYSIS_PROGRESS.prepare;
         document.getElementById('dashboardProcessingError').classList.add('hidden');
         document.getElementById('dashboardScanResult')?.classList.add('hidden');
@@ -414,7 +414,7 @@
         let uploadedToPrivateStorage = false;
         let storedImage = false;
         button.disabled = true;
-        button.textContent = 'กำลังวิเคราะห์และจำแนกด้วย AI…';
+        button.textContent = 'กำลังวิเคราะห์และจำแนกด้วยปัญญาประดิษฐ์…';
         try {
             setProcessingStage('prepare');
             const preparedImage = await preparePrivateScanImage(selectedScanImage);
@@ -1108,6 +1108,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('dashboardSessionRetryButton').addEventListener('click', requireSession);
         refreshIcons();
+        const catalogue = document.getElementById('dashboardModelClassList');
+        if (catalogue) void getScanResultModule().then(module => module.renderModelCatalogue(catalogue)).catch(() => {
+            catalogue.textContent = 'ยังโหลดรายชื่อกลุ่มไม่ได้ กรุณาลองโหลดหน้าใหม่';
+        });
         document.getElementById('dashboardImageInput').addEventListener('change', (event) => {
             const file = event.target.files?.[0];
             event.target.value = '';

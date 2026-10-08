@@ -151,13 +151,19 @@
             <section class="scan-workbench space-y-5 rounded-[2rem] p-5 text-center sm:p-8 lg:col-span-10 lg:col-start-2" aria-labelledby="scanWorkspaceTitle">
                 <div class="mb-6 border-b border-slate-100 pb-5">
                     <div class="font-code inline-flex items-center space-x-2 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-bold tracking-wide text-teal-400 shadow-inner"><span class="h-2 w-2 rounded-full bg-teal-300"></span><span>AI SKIN LESION ANALYSIS</span></div>
-                    <h2 id="scanWorkspaceTitle" class="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI</h2>
-                    <p class="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">เลือกหรือถ่ายภาพรอยโรค ยืนยันความยินยอม แล้วกดสแกนเพื่อให้โมเดล AI วิเคราะห์และจำแนกลักษณะจากภาพ จากนั้นระบบจะเปิดหน้าผลพร้อมคำอธิบายเบื้องต้น</p>
+                    <h2 id="scanWorkspaceTitle" class="mt-3 text-xl font-extrabold text-slate-900 sm:text-2xl">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์</h2>
+                    <p class="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">เลือกหรือถ่ายภาพรอยโรค ยืนยันความยินยอม แล้วกดสแกนเพื่อให้โมเดลปัญญาประดิษฐ์วิเคราะห์และจำแนกลักษณะจากภาพ จากนั้นระบบจะเปิดหน้าผลพร้อมคำอธิบายและคำแนะนำเบื้องต้น</p>
                 </div>
 
                 <section class="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 text-left">
                     <div class="flex items-start gap-3"><span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-700 text-white"><i data-lucide="scan-line" class="h-4 w-4"></i></span><div><h3 class="text-xs font-extrabold text-cyan-950">ผลวิเคราะห์และจำแนกจาก AI</h3><p class="mt-1 text-xs leading-relaxed text-cyan-900">อ่านกลุ่มที่โมเดลจัดไว้ใกล้เคียงและคำอธิบายประกอบ หาก AI ไม่มั่นใจ ระบบจะแจ้งว่าไม่สามารถสรุปกลุ่มได้ ผลนี้ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์</p></div></div>
                 </section>
+
+                <details id="dashboardModelCatalogue" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
+                    <summary class="cursor-pointer text-sm font-bold text-teal-800">โมเดลจำแนก 20 กลุ่ม มีรอยโรคอะไรบ้าง</summary>
+                    <p class="mt-3 text-xs leading-6 text-slate-600">เป็นโมเดลจำแนก 1 ตัวที่มี 20 กลุ่ม ไม่ใช่ 20 โมเดลหรือภาพฝึกเพียง 20 ภาพ รายชื่อนี้ไม่ใช่ผลจากภาพของคุณ และไม่ได้หมายความว่าผ่านการประเมินพร้อมใช้ทั่วไปครบทุกกลุ่ม</p>
+                    <ol id="dashboardModelClassList" class="mt-3 grid list-inside list-decimal gap-2 sm:grid-cols-2"><li>กำลังโหลดรายชื่อกลุ่ม…</li></ol>
+                </details>
 
                 <div class="relative rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/30 p-6 transition-all sm:p-8">
                     <input id="dashboardImageInput" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" aria-label="เลือกภาพจากอุปกรณ์">
@@ -188,12 +194,12 @@
                     <p class="font-code text-xs font-bold tracking-widest text-teal-200">SMART SKIN AI · IMAGE ANALYSIS</p>
                     <span id="dashboardAnalysisStatus" role="status" class="rounded-full border border-teal-200/40 bg-slate-950/40 px-4 py-2 text-xs font-bold"></span>
                 </div>
-                <h1 id="dashboardAnalysisTitle" tabindex="-1" class="relative mt-5 text-2xl font-extrabold leading-tight sm:text-4xl">ผลวิเคราะห์และจำแนกรอยโรคโดย AI</h1>
+                <h1 id="dashboardAnalysisTitle" tabindex="-1" class="relative mt-5 text-2xl font-extrabold leading-tight sm:text-4xl">ผลวิเคราะห์และจำแนกรอยโรคด้วยปัญญาประดิษฐ์</h1>
                 <p class="relative mt-3 max-w-3xl text-sm leading-7 text-slate-200">ประมวลผลจากภาพด้วยโมเดล 20 กลุ่ม เป็นข้อมูลประกอบความเข้าใจเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัย และไม่ทดแทนการตรวจโดยแพทย์</p>
             </header>
 
             <div class="grid items-start gap-6 lg:grid-cols-12">
-                <aside class="scan-workbench space-y-5 rounded-3xl p-5 sm:p-6 lg:col-span-4">
+                <aside class="scan-workbench order-2 space-y-5 rounded-3xl p-5 sm:p-6 lg:order-1 lg:col-span-4">
                     <div class="flex items-center justify-between gap-3"><h2 class="font-extrabold text-slate-900">ภาพที่ใช้ประมวลผล</h2><span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">เฉพาะบัญชีคุณ</span></div>
                     <img id="dashboardAnalysisImage" alt="ภาพที่ใช้ประมวลผล AI แสดงจากอุปกรณ์ของคุณ" class="hidden max-h-96 w-full rounded-2xl border border-slate-200 bg-slate-950 object-contain">
                     <p id="dashboardAnalysisImageName" class="break-words text-sm font-semibold text-slate-700"></p>
@@ -205,11 +211,11 @@
                     <p class="rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-600">ไม่ใช้ภาพนี้ฝึกโมเดล ภาพตัวอย่างบนหน้านี้แสดงจากอุปกรณ์ของคุณ ผู้ดูแลไม่ได้รับสิทธิ์ดูภาพส่วนตัวเพิ่มจากหน้านี้</p>
                 </aside>
 
-                <div class="space-y-5 lg:col-span-8">
+                <div class="order-1 space-y-5 lg:order-2 lg:col-span-8">
                     <section id="dashboardAnalysisResult" class="processing-console rounded-3xl p-5 text-white sm:p-7" aria-live="polite" aria-label="คำอธิบายผลวิเคราะห์ AI"></section>
                     <section class="scan-workbench rounded-3xl p-5 sm:p-6" aria-labelledby="dashboardAnalysisNextTitle">
                         <h2 id="dashboardAnalysisNextTitle" class="font-extrabold text-slate-900">ทำอย่างไรต่อ</h2>
-                        <p class="mt-2 text-sm leading-7 text-slate-600">นำภาพและข้อมูลอาการไปปรึกษาแพทย์หากมีข้อกังวล อย่าใช้ชื่อกลุ่มจาก AI เพื่อเลือกยาหรือรักษาด้วยตนเอง</p>
+                        <p id="dashboardAnalysisNextMessage" class="mt-2 text-sm leading-7 text-slate-600">นำภาพและข้อมูลอาการไปปรึกษาแพทย์หากมีข้อกังวล อย่าใช้ชื่อกลุ่มจากปัญญาประดิษฐ์เพื่อเลือกยาหรือรักษาด้วยตนเอง</p>
                         <div class="mt-5 flex flex-col gap-3 sm:flex-row">
                             <button id="dashboardAnalysisNewButton" type="button" class="rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-800">สแกนภาพใหม่</button>
                             <button id="dashboardAnalysisHistoryButton" type="button" class="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">ดูประวัติของฉัน</button>
@@ -226,7 +232,7 @@
 
     <div id="dashboardProcessingModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="dashboardProcessingTitle" aria-describedby="dashboardProcessingDetail">
         <div class="processing-console max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 text-left text-white shadow-2xl sm:p-7">
-            <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="scan-line" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">SMART SKIN AI · ANALYSIS</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI</h2><p id="dashboardProcessingDetail" role="status" aria-live="polite" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังเริ่มต้นคำขอวิเคราะห์ภาพของคุณ</p></div></div>
+            <div class="relative flex items-start gap-4"><div class="relative flex h-14 w-14 shrink-0 items-center justify-center"><span class="processing-orbit absolute inset-0 rounded-full border-2 border-dashed border-teal-300/70"></span><span class="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-300/40 bg-teal-400/15 text-teal-100"><i data-lucide="scan-line" class="h-5 w-5"></i></span></div><div class="min-w-0 pt-1"><p class="font-code text-[10px] font-bold tracking-[.14em] text-teal-200">SMART SKIN AI · ANALYSIS</p><h2 id="dashboardProcessingTitle" class="mt-1 text-base font-extrabold text-white">วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์</h2><p id="dashboardProcessingDetail" role="status" aria-live="polite" class="mt-2 text-xs leading-relaxed text-slate-300">กำลังเริ่มต้นคำขอวิเคราะห์ภาพของคุณ</p></div></div>
             <div id="dashboardProcessingImageState" class="processing-image-state hidden" data-tone="info"><span>สถานะรูปภาพของคุณ</span><p></p></div>
             <section id="dashboardScanResult" class="relative mt-5 hidden" aria-live="polite" aria-label="ผลวิเคราะห์และเปรียบเทียบกลุ่มรอยโรค"></section>
             <p class="relative mt-4 text-[11px] leading-relaxed text-slate-400">ผลจาก AI เป็นการวิเคราะห์และจำแนกเชิงทดลอง อาจผิดพลาด ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์</p>

@@ -67,10 +67,10 @@ test('scan dialog shows AI analysis instead of the technical checklist without i
     const { media, element } = environment();
     const html = readFileSync(join(__dirname, '../vercel-public/dashboard.html'), 'utf8');
     assert.doesNotMatch(html, /dashboardProcessingSteps|data-processing-step|ขั้นตอนแสกนภาพเพื่อการตรวจทาน/);
-    assert.match(html, /id="scanWorkspaceTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI/);
+    assert.match(html, /id="scanWorkspaceTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์/);
     for (const stage of ['prepare', 'inspect', 'authorize', 'upload', 'commit']) {
         media.setProcessingStage(stage);
-        assert.equal(element('dashboardProcessingTitle').textContent, 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วย AI');
+        assert.equal(element('dashboardProcessingTitle').textContent, 'วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์');
         assert.equal(element('dashboardProcessingModal').dataset.processing, 'active');
         assert.equal(element('dashboardProcessingImageState').classList.contains('hidden'), true);
         assert.equal(element('dashboardScanResult').classList.contains('hidden'), true);

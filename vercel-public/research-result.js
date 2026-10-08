@@ -37,9 +37,12 @@ export function renderResearchResult(container, result) {
   };
   const card = (item, heading) => {
     const section = node('section', '', 'mt-3 rounded-2xl border border-teal-300/25 bg-slate-950/30 p-4');
-    section.append(node('p', heading, 'text-xs text-slate-300'), node('h4', item.name, 'mt-1 font-bold text-teal-200'),
-      node('p', item.description, 'mt-2 text-xs leading-relaxed text-slate-200'),
-      node('p', item.context, 'mt-2 text-xs leading-relaxed text-slate-300'));
+    section.dataset.classId = item.id;
+    section.append(node('p', heading, 'text-xs text-slate-300'), node('h4', item.name, 'mt-2 text-2xl font-extrabold text-teal-200'),
+      node('p', 'คำอธิบายกลุ่มรอยโรค', 'mt-4 text-xs font-bold text-teal-100'),
+      node('p', item.description, 'mt-1 text-sm leading-7 text-slate-200'),
+      node('p', 'ข้อมูลประกอบการพิจารณา', 'mt-4 text-xs font-bold text-teal-100'),
+      node('p', item.context, 'mt-1 text-sm leading-7 text-slate-300'));
     const link = node('a', 'อ่านคำอธิบายจากแหล่งอ้างอิง', 'mt-3 inline-block text-xs text-cyan-200 underline');
     link.href = item.source; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer';
     section.append(link); return section;
@@ -48,16 +51,47 @@ export function renderResearchResult(container, result) {
   container.append(node('h3', view.title, 'text-base font-extrabold text-white'),
     node('p', view.message, 'mt-2 text-xs leading-relaxed text-slate-200'));
   if (view.candidates.length) {
+    const primary = view.candidates[0];
+    const summary = node('section', '', 'mt-5 rounded-2xl border border-teal-200/50 bg-teal-400/10 p-5');
+    summary.dataset.analysisSummary = 'accepted';
+    summary.append(node('p', 'ชื่อกลุ่มรอยโรคที่โมเดลจัดไว้ใกล้เคียงที่สุด', 'text-xs font-bold text-teal-100'),
+      node('h4', primary.name, 'mt-2 text-3xl font-extrabold text-white'),
+      node('p', 'ผลการวิเคราะห์', 'mt-4 text-sm font-bold text-teal-100'),
+      node('p', `โมเดลจัดภาพนี้ไว้ใกล้เคียงกลุ่ม “${primary.name}” มากที่สุดจาก 20 กลุ่มที่ฝึกไว้ นี่เป็นผลจัดประเภทเชิงทดลอง ไม่ยืนยันสาเหตุ ความรุนแรง หรือการเป็นโรคจากภาพเดียว`, 'mt-1 text-sm leading-7 text-slate-200'),
+      node('p', 'คำแนะนำเบื้องต้น', 'mt-4 text-sm font-bold text-teal-100'),
+      node('p', primary.recommendation, 'mt-1 text-sm leading-7 text-slate-200'),
+      node('p', 'คำแนะนำนี้เป็นข้อมูลทั่วไปเกี่ยวกับกลุ่มดังกล่าว ไม่ใช่แผนรักษาเฉพาะบุคคล อย่าเริ่ม หยุด หรือเปลี่ยนยาจากผลนี้เพียงอย่างเดียว', 'mt-3 text-xs leading-6 text-slate-300'));
+    const source = node('a', 'แหล่งอ้างอิงคำอธิบายและคำแนะนำ', 'mt-3 inline-block text-xs text-cyan-200 underline');
+    source.href = primary.source; source.target = '_blank'; source.rel = 'noopener noreferrer'; source.referrerPolicy = 'no-referrer';
+    summary.append(source);
+    container.append(summary);
     const comparison = node('div', '', 'mt-4 grid gap-3 md:grid-cols-2');
     comparison.append(card(view.candidates[0], 'อันดับ 1 · กลุ่มที่โมเดลจัดไว้ใกล้เคียง'),
       card(view.candidates[1], 'อันดับ 2 · กลุ่มสำหรับเปรียบเทียบ'));
     container.append(comparison,
       node('p', 'ใช้เปรียบเทียบความรู้ทั่วไปเท่านั้น อันดับสองไม่ได้หมายความว่าพบรอยโรคอีกชนิด และระบบยังไม่ได้ผ่านการทดสอบการแยกรอยโรคคู่นี้', 'mt-3 text-xs leading-relaxed text-slate-300'));
+  } else if (view.code === 'UNCERTAIN_CLASSIFICATION') {
+    container.append(node('p', 'เหตุผลที่ไม่มีชื่อรอยโรค', 'mt-5 text-sm font-bold text-teal-100'),
+      node('p', 'ประมวลผลภาพแล้ว แต่ผลยังไม่ผ่านเกณฑ์ความมั่นใจของโมเดล การส่งภาพสำเร็จจึงไม่เท่ากับจำแนกสำเร็จ ระบบไม่เดาชื่อโรคและไม่ระบุว่าเป็นรอยโรคนอกกลุ่มอย่างแน่นอน', 'mt-2 text-sm leading-7 text-slate-200'),
+      node('p', 'คำแนะนำเบื้องต้น', 'mt-5 text-sm font-bold text-teal-100'),
+      node('p', 'ถ้าภาพไม่ชัด ให้ถ่ายเฉพาะบริเวณรอยโรคในแสงพอดีและไม่ใช้ฟิลเตอร์ หากยังสรุปไม่ได้หรือมีข้อกังวล ให้นำภาพพร้อมประวัติอาการไปพบแพทย์ผู้เชี่ยวชาญ ไม่จำเป็นต้องรอให้สแกนผ่าน', 'mt-2 text-sm leading-7 text-slate-200'));
   }
-  container.append(node('p', 'รุ่นทดลองยังไม่พร้อมสำหรับการประเมินสุขภาพทั่วไป ผลทดสอบภายในชุดเพิ่มเติมถูก 112 จาก 338 ภาพ (33.1%) และครอบคลุมเพียง 11 กลุ่ม จึงอาจจำแนกผิดหรือพลาดรอยโรคนอกขอบเขตได้', 'mt-4 rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100'),
+  container.append(node('p', 'โมเดลมี 20 กลุ่ม แต่ชุดทดสอบภายในเพิ่มเติมมีตัวอย่างเพียง 11 จาก 20 กลุ่ม และตอบถูก 112 จาก 338 ภาพ (33.1%) ยังไม่ใช่การประเมินอิสระครบทุกกลุ่ม รุ่นทดลองจึงยังไม่พร้อมสำหรับการประเมินสุขภาพทั่วไป และอาจจำแนกผิดหรือพลาดรอยโรคนอกขอบเขตได้', 'mt-4 rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100'),
     node('p', SCAN_DISCLAIMER, 'mt-3 text-xs leading-relaxed text-slate-300'));
   container.classList.remove('hidden');
   return view;
+}
+
+// This list describes the classifier's labels, never findings in a user's image.
+export function renderModelCatalogue(container) {
+  container.replaceChildren();
+  for (const item of SCAN_CLASSES) {
+    const row = container.ownerDocument.createElement('li');
+    row.textContent = item.name;
+    row.className = 'rounded-xl bg-white px-3 py-2 text-sm text-slate-700';
+    row.dataset.classId = item.id;
+    container.append(row);
+  }
 }
 
 // This is a separate, owner-facing screen in the authenticated dashboard.
@@ -90,13 +124,16 @@ export function renderAnalysisScreen(doc, completed, { imageName = '', previewUr
     : new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(created);
   doc.getElementById('dashboardAnalysisStatus').textContent = accepted
     ? 'ผลจัดกลุ่มเชิงทดลอง · ยังไม่ใช่ผลวินิจฉัย' : 'ประมวลผลแล้ว · ยังไม่สามารถสรุปกลุ่มได้';
+  doc.getElementById('dashboardAnalysisNextMessage').textContent = accepted
+    ? 'อ่านชื่อกลุ่ม ผลวิเคราะห์ และคำแนะนำเบื้องต้นข้างต้นร่วมกับประวัติอาการ นำข้อมูลไปปรึกษาแพทย์หากมีข้อกังวล อย่าใช้ผลปัญญาประดิษฐ์เลือกยาหรือรักษาด้วยตนเอง'
+    : 'หากภาพไม่ชัดสามารถถ่ายใหม่ได้ แต่การถ่ายซ้ำไม่รับประกันว่าจะจำแนกได้ หากยังไม่มั่นใจหรือกังวลเกี่ยวกับรอยโรค ควรให้แพทย์ตรวจโดยตรง';
   doc.getElementById('dashboardAnalysisPrivacy').textContent = accepted
     ? 'บันทึกผลเชิงทดลองในพื้นที่ส่วนตัวตามรอบหมดอายุที่บัญชีกำหนด ลบได้จากเมนูบัญชี'
     : 'ลบภาพชั่วคราวแล้ว ไม่บันทึกเป็นผลจำแนกสำเร็จ ภาพต้นฉบับยังอยู่บนอุปกรณ์ของคุณ';
   doc.getElementById('dashboardAnalysisView').dataset.resultCode = view.code;
   doc.getElementById('dashboardScanView').classList.add('hidden');
   doc.getElementById('dashboardAnalysisView').classList.remove('hidden');
-  doc.title = 'ผลวิเคราะห์และจำแนกโดย AI | Smart Skin AI';
+  doc.title = 'ผลวิเคราะห์และจำแนกด้วยปัญญาประดิษฐ์ | Smart Skin AI';
   doc.getElementById('dashboardAnalysisTitle').focus();
   return view;
 }

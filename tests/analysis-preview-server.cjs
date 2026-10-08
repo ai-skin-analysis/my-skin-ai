@@ -14,21 +14,24 @@ const analysisEnd = dashboard.indexOf('    </main>', analysisStart);
 if (analysisStart < 0 || analysisEnd < 0) throw new Error('Analysis screen boundaries changed');
 const analysis = dashboard.slice(analysisStart, analysisEnd);
 const resultPage = `<!doctype html><html lang="th"><head>${head(dashboard)}<title>หน้าทดสอบ UI — ไม่ใช่ผล AI จริง</title></head><body class="scan-medical-page min-h-screen text-slate-800">${banner}
-<div class="mx-auto flex max-w-7xl flex-wrap gap-3 px-4 pt-4"><button id="fixtureAccepted" class="rounded-xl border bg-white p-3">ตัวอย่าง 2 กลุ่ม (จำลอง)</button><button id="fixtureUncertain" class="rounded-xl border bg-white p-3">ตัวอย่างไม่มั่นใจ (จำลอง)</button><a href="/admin" class="rounded-xl border bg-white p-3">ตัวอย่างหน้าแอดมิน (จำลอง)</a></div>
+<div class="mx-auto flex max-w-7xl flex-wrap gap-3 px-4 pt-4"><button id="fixtureAccepted" class="rounded-xl border bg-white p-3">ตัวอย่างผลสำเร็จ (จำลอง)</button><button id="fixtureUncertain" class="rounded-xl border bg-white p-3">ตัวอย่างไม่มั่นใจ (จำลอง)</button><label class="rounded-xl bg-white p-3">กลุ่มตัวอย่าง <select id="fixtureClass" class="max-w-full"></select></label><a href="/admin" class="rounded-xl border bg-white p-3">ตัวอย่างหน้าแอดมิน (จำลอง)</a></div>
 <main class="mx-auto max-w-7xl p-4 sm:p-8"><div id="dashboardScanView" class="hidden">พื้นที่เลือกภาพใหม่ — ทดสอบ UI เท่านั้น</div>${analysis}</main>
 <script type="module">
 import { SCAN_CLASSES } from '/scan-result.js';
 import { renderAnalysisScreen } from '/research-result.js';
+const selection = document.getElementById('fixtureClass');
+for (const item of SCAN_CLASSES) { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; selection.append(option); }
 function show(accepted) {
   const analysis = { ok: accepted, code: accepted ? 'RESEARCH_ONLY' : 'UNCERTAIN_CLASSIFICATION', releaseStatus:'research_only',classificationStatus:'experimental',modelVersion:'derm-local-e10f89ad2ac8',publicDeployment:false,scopeValidated:false,unsupportedValidated:false };
-  if(accepted) analysis.diagnostics=SCAN_CLASSES.map((row,index)=>({id:row.id,score:index?0.1/19:0.9}));
+  if(accepted) analysis.diagnostics=SCAN_CLASSES.map(row=>({id:row.id,score:row.id===selection.value?0.9:0.1/19}));
   renderAnalysisScreen(document,{analysis,storedImage:accepted,temporaryUploadDeleted:!accepted,scan:accepted?{id:'fixture-only',createdAt:'2026-10-07T16:00:00Z'}:undefined},{imageName:'ข้อมูลทดสอบ UI — ไม่ใช่ภาพผู้ใช้'});
 }
 document.getElementById('fixtureAccepted').onclick=()=>show(true);
 document.getElementById('fixtureUncertain').onclick=()=>show(false);
+selection.onchange=()=>show(true);
 document.getElementById('dashboardAnalysisNewButton').onclick=()=>{document.getElementById('dashboardAnalysisView').classList.add('hidden');document.getElementById('dashboardScanView').classList.remove('hidden');};
 document.getElementById('dashboardAnalysisHistoryButton').onclick=()=>alert('ตัวอย่าง UI ไม่มีการเชื่อมบัญชีหรือประวัติจริง');
-show(false);
+show(true);
 </script></body></html>`;
 const adminStart = admin.indexOf('  <main id="adminMain"');
 const adminEnd = admin.indexOf('  </main>', adminStart);
@@ -40,7 +43,7 @@ if (progressStart < 0 || progressEnd < 0) throw new Error('Analysis dialog bound
 const progressLogic = dashboardJs.match(/    const ANALYSIS_PROGRESS = \{[\s\S]*?\n    \};/)[0]
   + dashboardJs.match(/    function setProcessingStage\(stage\) \{[\s\S]*?\n    \}/)[0];
 const progressPage = `<!doctype html><html lang="th"><head>${head(dashboard)}<title>ทดสอบหน้ารอ AI — ไม่เรียกโมเดลจริง</title></head><body>${banner}${dashboard.slice(progressStart, progressEnd)}<script>
-const refreshIcons=()=>{};
+const refreshIcons=()=>{if(typeof lucide!=='undefined')lucide.createIcons();};
 const showModal=id=>{const modal=document.getElementById(id);modal.classList.remove('hidden');modal.classList.add('flex');modal.setAttribute('aria-hidden','false');};
 ${progressLogic}
 setProcessingStage('commit');
