@@ -1,6 +1,12 @@
 // Six PAD labels are a different domain, never a relabelled SCIN-20 output.
 import { SCAN_CLASSES } from './scan-result.js';
 
+// Exactly the original trained three-label artifact, not arbitrary truncated
+// scores from a twenty- or six-label classifier.
+export const SCIN3_MODEL_VERSION = 'scin3-local-baab96df5bf5';
+export const SCIN3_CLASSES = Object.freeze(['acne_vulgaris', 'psoriasis', 'urticaria']
+  .map(id => SCAN_CLASSES.find(row => row.id === id)));
+
 const CAUTION = 'ชื่อกลุ่มเป็นผลจัดประเภทเชิงทดลอง ไม่ยืนยันหรือคัดโรคมะเร็งออก หากรอยโรคเปลี่ยนแปลง โตขึ้น เป็นแผลหรือเลือดออก ควรพบแพทย์ อย่าใช้ผลนี้เลือกยาหรือรักษาเอง';
 export const PAD6_CLASSES = Object.freeze([
   { id: 'actinic_keratosis', name: 'กระแดด (Actinic keratosis)', description: 'อาจเป็นปื้นแห้ง หยาบหรือมีขุยบริเวณที่โดนแดด สีและลักษณะอาจต่างกันได้', context: 'ภาพเดียวไม่ยืนยันชนิดรอยโรคหรือการเปลี่ยนแปลงของเซลล์ ควรให้แพทย์ตรวจเมื่อสงสัย', source: 'https://www.nhs.uk/conditions/actinic-keratoses/' },
@@ -12,6 +18,7 @@ export const PAD6_CLASSES = Object.freeze([
 ].map(row => Object.freeze({ ...row, recommendation: CAUTION })));
 
 export function researchClassesForVersion(version) {
+  if (version === SCIN3_MODEL_VERSION) return SCIN3_CLASSES;
   if (/^pad6-local-[0-9a-f]{12}$/.test(version || '')) return PAD6_CLASSES;
   // Legacy results keep their own labels; never map old scores onto six names.
   if (/^derm-local-[0-9a-f]{12}$/.test(version || '')) return SCAN_CLASSES;

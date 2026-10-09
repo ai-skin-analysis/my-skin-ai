@@ -1,6 +1,6 @@
 import { SCAN_DISCLAIMER } from './scan-result.js';
 import { validatedResearchComparison } from './research-comparison.js';
-import { PAD6_CLASSES, researchClassesForVersion } from './research-catalog.js';
+import { SCIN3_CLASSES, researchClassesForVersion } from './research-catalog.js';
 
 const FAILURES = {
   NON_SKIN_IMAGE: 'ข้อมูลภาพผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นชัดเจน ตัวกรองเชิงทดลองอาจผิดพลาดได้',
@@ -102,7 +102,9 @@ export function renderResearchResult(container, result) {
       container.append(node('p', 'ยังไม่มีลำดับคะแนนที่ใช้เปรียบเทียบได้ จึงไม่เลือกกลุ่มขึ้นมาแทนผลที่ไม่แน่ใจ', 'mt-4 text-sm leading-7 text-slate-300'));
     }
   }
-  container.append(node('p', count === 20
+  container.append(node('p', count === 3
+    ? 'รุ่นสาธิต 3 กลุ่ม: สิว สะเก็ดเงิน และลมพิษ ผลทดสอบภายในเดิมถูก 17 จาก 27 ภาพ (63%) รับผลตามเกณฑ์เดิม 9 ภาพ แต่ถูกเพียง 7 ภาพ ไม่ใช่ผลประเมินอิสระ ยังไม่ผ่านการประเมินเพื่อใช้งานสุขภาพทั่วไป และอาจจัดภาพของรอยโรคอื่นผิดเป็นหนึ่งใน 3 กลุ่มได้'
+    : count === 20
     ? 'ผลเก่าจากโมเดล 20 กลุ่ม: ชุดทดสอบภายในเพิ่มเติมมีตัวอย่าง 11 จาก 20 กลุ่ม ตอบถูก 112 จาก 338 ภาพ (33.1%) ไม่ใช่ผลประเมินของรุ่น 6 กลุ่ม และยังไม่พร้อมสำหรับการประเมินสุขภาพทั่วไป'
     : 'รุ่น PAD 6 กลุ่มเป็นงานทดลอง ชุดข้อมูลมีกลุ่มเมลาโนมาเพียง 52 ภาพ การทดสอบภายในไม่ใช่การประเมินอิสระทางคลินิก ผลเป็นไฝหรือกระเนื้อไม่ได้ยืนยันว่าไม่ใช่มะเร็ง และระบบอาจพลาดรอยโรคนอกขอบเขตได้', 'mt-4 rounded-xl border border-amber-200/25 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100'),
     node('p', SCAN_DISCLAIMER, 'mt-3 text-xs leading-relaxed text-slate-300'));
@@ -111,7 +113,7 @@ export function renderResearchResult(container, result) {
 }
 
 // This list describes the classifier's labels, never findings in a user's image.
-export function renderModelCatalogue(container, classes = PAD6_CLASSES) {
+export function renderModelCatalogue(container, classes = SCIN3_CLASSES) {
   container.replaceChildren();
   for (const item of classes) {
     const row = container.ownerDocument.createElement('li');

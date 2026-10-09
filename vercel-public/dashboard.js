@@ -479,7 +479,7 @@
             // scanning when the actual semantic detector/classifier is unavailable.
             const readiness = await userRequest('/api/user/scan/research/readiness');
             if (readiness.researchAvailable !== true || readiness.releaseStatus !== 'research_only'
-                || readiness.classCount !== 6 || !/^pad6-local-[0-9a-f]{12}$/.test(readiness.modelVersion || '')) {
+                || readiness.classCount !== 3 || readiness.modelVersion !== 'scin3-local-baab96df5bf5') {
                 throw scanError('MODEL_UNAVAILABLE', readiness.message || 'ระบบวิเคราะห์และคัดกรองภาพรอยโรคยังไม่พร้อมใช้งาน');
             }
             if (!await refreshPrivateStorageStatus()) {
@@ -493,7 +493,7 @@
                 method: 'POST',
                 body: JSON.stringify({
                     consent: true,
-                    researchConsentVersion: 'skin-research-pad6-20261008-v1',
+                    researchConsentVersion: 'skin-demo-scin3-20261009-v1',
                     originalName: preparedImage.name,
                     mimeType: preparedImage.type,
                     imageSizeBytes: preparedImage.size,
@@ -514,7 +514,7 @@
             setProcessingStage('commit');
             const completed = await userRequest('/api/user/scan/research/complete', {
                 method: 'POST',
-                body: JSON.stringify({ uploadId: uploadRequest.upload.id, researchConsentVersion: 'skin-research-pad6-20261008-v1' }),
+                body: JSON.stringify({ uploadId: uploadRequest.upload.id, researchConsentVersion: 'skin-demo-scin3-20261009-v1' }),
             });
             storedImage = completed.storedImage === true;
             // Storage acknowledgement / brightness is not a classification.

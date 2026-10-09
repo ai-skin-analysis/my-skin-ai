@@ -90,18 +90,18 @@ test('uncertainty clears a prior accepted name and class-specific advice instead
   assert.match(doc.getElementById('dashboardAnalysisNextMessage').textContent, /ไม่รับประกัน/);
 });
 
-test('visible model catalogue contains exactly six PAD labels, not the old twenty, separate from results', async () => {
+test('visible demo catalogue contains exactly three original SCIN labels, separate from results', async () => {
   const f = await fixture(); const doc = documentFixture();
-  const { PAD6_CLASSES: SCAN_CLASSES } = await import('../vercel-public/research-catalog.js');
+  const { SCIN3_CLASSES: SCAN_CLASSES } = await import('../vercel-public/research-catalog.js');
   const container = doc.getElementById('dashboardModelClassList');
   f.renderModelCatalogue(container);
   f.renderModelCatalogue(container);
-  assert.equal(container.children.length, 6);
+  assert.equal(container.children.length, 3);
   assert.deepEqual(container.children.map(node => node.dataset.classId), SCAN_CLASSES.map(item => item.id));
   assert.deepEqual(container.children.map(node => node.textContent), SCAN_CLASSES.map(item => item.name));
   assert.equal(doc.getElementById('dashboardAnalysisResult').children.length, 0);
   const html = readFileSync(require.resolve('../vercel-public/dashboard.html'), 'utf8');
-  assert.match(html, /ไม่ใช่ 6 โมเดลหรือภาพฝึกเพียง 6 ภาพ/);
+  assert.match(html, /ไม่ใช่ 3 โมเดลหรือภาพฝึกเพียง 3 ภาพ/);
   assert.match(html, /id="dashboardProcessingTitle"[^>]*>วิเคราะห์และจำแนกรอยโรคผิวหนังด้วยปัญญาประดิษฐ์/);
   assert.match(html, /id="dashboardAnalysisTitle"[^>]*>ผลวิเคราะห์และจำแนกรอยโรคด้วยปัญญาประดิษฐ์/);
 });
@@ -182,7 +182,7 @@ test('external preview URLs are not loaded and presentation never persists healt
 
 test('landing helper describes approved consented research access, not an obsolete no-upload claim', () => {
   const source = readFileSync(require.resolve('../vercel-public/app.js'), 'utf8');
-  assert.match(source, /ขอบเขตรุ่นใหม่เป็นรอยโรค 6 กลุ่มจาก PAD-UFES-20/);
+  assert.match(source, /รุ่นสาธิตใช้โมเดลเดิม 1 ตัวสำหรับ 3 กลุ่ม: สิว สะเก็ดเงิน และลมพิษ/);
   assert.match(source, /ทดลองได้เมื่อบริการพร้อมและยินยอมส่งภาพ/);
   assert.match(source, /ผลอาจผิดพลาดและไม่ใช่การวินิจฉัย/);
   assert.doesNotMatch(source, /ตอนนี้ระบบเปิดข้อมูลสาธารณะและบัญชีทดลอง โดยยังไม่รับภาพเพื่อวิเคราะห์ครับ/);

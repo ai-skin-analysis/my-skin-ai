@@ -61,7 +61,7 @@ function environment() {
     };})();`), context);
     return { context, media: context.media, element, revoked };
 }
-const pad6Ready = { ok: true, researchAvailable: true, releaseStatus: 'research_only', classCount: 6, modelVersion: 'pad6-local-aaaaaaaaaaaa' };
+const pad6Ready = { ok: true, researchAvailable: true, releaseStatus: 'research_only', classCount: 3, modelVersion: 'scin3-local-baab96df5bf5' };
 const photo = name => new File(['image'], name, { type: 'image/jpeg' });
 
 test('scan dialog shows AI analysis instead of the technical checklist without inventing a result', () => {
@@ -406,13 +406,13 @@ test('research rejection clears server upload state, retains local preview and p
     const requests = [];
     context.fetch = async (path, options) => {
         requests.push(path);
-        if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-research-pad6-20261008-v1');
+        if (path.endsWith('/research/upload')) assert.equal(JSON.parse(options.body).researchConsentVersion, 'skin-demo-scin3-20261009-v1');
         return { ok: true, json: async () => path.endsWith('/readiness')
             ? pad6Ready
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
             : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
-                ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'pad6-local-aaaaaaaaaaaa',
+                ok: false, code: 'NON_SKIN_IMAGE', releaseStatus: 'research_only', modelVersion: 'scin3-local-baab96df5bf5',
                 publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
             } } };
     };
@@ -428,7 +428,7 @@ test('research rejection clears server upload state, retains local preview and p
 
 test('upload and camera images use the same real research path and only valid model results show success', async () => {
     const presenter = await import('../vercel-public/research-result.js');
-    const { PAD6_CLASSES: SCAN_CLASSES } = await import('../vercel-public/research-catalog.js');
+    const { SCIN3_CLASSES: SCAN_CLASSES } = await import('../vercel-public/research-catalog.js');
     for (const source of ['upload', 'camera']) {
         const { context, media, element } = environment();
         let rendered = false;
@@ -440,8 +440,8 @@ test('upload and camera images use the same real research path and only valid mo
                 : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
                 : { ok: true, storedImage: true, scan: { id: 'saved-id', createdAt: '2026-10-07T16:00:00Z' }, message: 'experimental', analysis: {
                     ok: true, code: 'RESEARCH_ONLY', releaseStatus: 'research_only', classificationStatus: 'experimental',
-                    modelVersion: 'pad6-local-aaaaaaaaaaaa', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
-                    diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / 5 : 0.9 })),
+                    modelVersion: 'scin3-local-baab96df5bf5', publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
+                    diagnostics: SCAN_CLASSES.map((row, index) => ({ id: row.id, score: index ? 0.1 / (SCAN_CLASSES.length - 1) : 0.9 })),
                 } } };
         };
         await media.presentImage(photo('lesion.jpg'), source, source);
@@ -461,7 +461,7 @@ test('upload and camera images use the same real research path and only valid mo
         assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), false);
         assert.equal(element('dashboardScanView').classList.contains('hidden'), true);
         assert.match(element('dashboardAnalysisStatus').textContent, /เชิงทดลอง/);
-        assert.match(element('dashboardAnalysisModel').textContent, /^pad6-local-/);
+        assert.equal(element('dashboardAnalysisModel').textContent, 'scin3-local-baab96df5bf5');
         media.returnToScan();
         assert.equal(element('dashboardAnalysisView').classList.contains('hidden'), true);
         assert.equal(element('dashboardScanView').classList.contains('hidden'), false);
@@ -481,7 +481,7 @@ test('a completed abstention opens the next AI screen without becoming accepted 
             : path === '/api/user/storage-status' ? { ok: true, configured: true }
             : path.endsWith('/upload') ? { ok: true, upload: { id: 'test', url: '/test-private-upload' } }
             : { ok: true, storedImage: false, temporaryUploadDeleted: true, analysis: {
-                ok: false, code: 'UNCERTAIN_CLASSIFICATION', releaseStatus: 'research_only', modelVersion: 'pad6-local-aaaaaaaaaaaa',
+                ok: false, code: 'UNCERTAIN_CLASSIFICATION', releaseStatus: 'research_only', modelVersion: 'scin3-local-baab96df5bf5',
                 publicDeployment: false, scopeValidated: false, unsupportedValidated: false,
             } } };
     };

@@ -4,7 +4,7 @@ import { researchClassesForVersion } from '../research-catalog.js';
 import { researchInferenceFromEnvironment } from './research-inference.js';
 import { downloadPrivateScanObject, removePrivateObjects, upsertPrivateRow } from './supabase-private.js';
 
-export const RESEARCH_CONSENT_VERSION = 'skin-research-pad6-20261008-v1';
+export const RESEARCH_CONSENT_VERSION = 'skin-demo-scin3-20261009-v1';
 
 export async function researchReadiness(client = researchInferenceFromEnvironment()) {
   const ready = await client.readiness();

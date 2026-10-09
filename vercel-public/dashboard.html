@@ -160,15 +160,15 @@
                 </section>
 
                 <details id="dashboardModelCatalogue" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">
-                    <summary class="cursor-pointer text-sm font-bold text-teal-800">โมเดลจำแนก 6 กลุ่ม มีรอยโรคอะไรบ้าง</summary>
-                    <p class="mt-3 text-xs leading-6 text-slate-600">เป็นโมเดลจำแนก 1 ตัวที่มี 6 กลุ่มจาก PAD-UFES-20 ไม่ใช่ 6 โมเดลหรือภาพฝึกเพียง 6 ภาพ ขอบเขตนี้ไม่รวมสิวและผื่น 20 กลุ่มเดิม รายชื่อนี้ไม่ใช่ผลจากภาพของคุณ และไม่ใช่การรับรองทางการแพทย์</p>
+                    <summary class="cursor-pointer text-sm font-bold text-teal-800">โมเดลสาธิต 3 กลุ่ม มีรอยโรคอะไรบ้าง</summary>
+                    <p class="mt-3 text-xs leading-6 text-slate-600">ใช้โมเดลเดิม 1 ตัวที่ฝึกจาก SCIN สำหรับสิว สะเก็ดเงิน และลมพิษ ไม่ใช่ 3 โมเดลหรือภาพฝึกเพียง 3 ภาพ เปิดเฉพาะบัญชีที่ผู้ดูแลอนุมัติ รายชื่อนี้ไม่ใช่ผลจากภาพของคุณ และไม่ใช่การรับรองทางการแพทย์</p>
                     <ol id="dashboardModelClassList" class="mt-3 grid list-inside list-decimal gap-2 sm:grid-cols-2"><li>กำลังโหลดรายชื่อกลุ่ม…</li></ol>
                 </details>
 
                 <div class="relative rounded-3xl border-2 border-dashed border-teal-200 bg-teal-50/30 p-6 transition-all sm:p-8">
                     <input id="dashboardImageInput" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" class="sr-only" aria-label="เลือกภาพจากอุปกรณ์">
                     <input id="dashboardNativeCameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr-only" aria-label="ถ่ายภาพด้วยกล้องของอุปกรณ์">
-                    <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">รุ่นทดลอง 6 กลุ่มจาก PAD-UFES-20 สำหรับภาพที่อัปโหลดหรือถ่ายด้วยกล้อง ไม่รองรับสิวและผื่นในชุดเดิม ยังไม่ผ่านการประเมินอิสระเพื่อใช้งานด้านสุขภาพ ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์ ผลกลุ่มไฝหรือกระเนื้อไม่ยืนยันว่าปลอดภัย ภาพที่ไม่มั่นใจจะไม่แสดงชื่อรอยโรค</p>
+                    <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">รุ่นสาธิตสำหรับบัญชีที่อนุมัติ: วิเคราะห์ภาพจริงจากการอัปโหลดหรือกล้อง เปรียบเทียบได้เฉพาะสิว สะเก็ดเงิน และลมพิษ ผลทดสอบภายในเดิมถูก 17/27 ภาพ (63%) ยังไม่ผ่านการประเมินอิสระเพื่อใช้งานสุขภาพทั่วไป ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์ ระบบอาจพลาดภาพนอกขอบเขต และจะงดสรุปเมื่อไม่มั่นใจ</p>
                     <div id="dashboardImagePlaceholder" class="space-y-4">
                         <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-teal-100 bg-white text-teal-600 shadow-md"><i data-lucide="image-plus" class="h-8 w-8"></i></div>
                         <div><h3 class="text-sm font-bold text-slate-800">อัปโหลดหรือถ่ายภาพบริเวณผิวหนัง</h3><p class="mt-1 text-xs text-slate-400">รองรับ JPG, JPEG, PNG และ WEBP ขนาดไม่เกิน 8 MB ภาพควรชัด มีแสงพอดี และโฟกัสเฉพาะจุดหรืออาการบนผิวหนังที่ต้องการตรวจ</p></div>
@@ -195,7 +195,7 @@
                     <span id="dashboardAnalysisStatus" role="status" class="rounded-full border border-teal-200/40 bg-slate-950/40 px-4 py-2 text-xs font-bold"></span>
                 </div>
                 <h1 id="dashboardAnalysisTitle" tabindex="-1" class="relative mt-5 text-2xl font-extrabold leading-tight sm:text-4xl">ผลวิเคราะห์และจำแนกรอยโรคด้วยปัญญาประดิษฐ์</h1>
-                <p class="relative mt-3 max-w-3xl text-sm leading-7 text-slate-200">ประมวลผลจากภาพด้วยโมเดล 6 กลุ่ม เป็นข้อมูลประกอบความเข้าใจเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัย และไม่ทดแทนการตรวจโดยแพทย์</p>
+                <p class="relative mt-3 max-w-3xl text-sm leading-7 text-slate-200">ประมวลผลจากภาพด้วยโมเดลสาธิต 3 กลุ่ม: สิว สะเก็ดเงิน และลมพิษ เป็นข้อมูลประกอบความเข้าใจเบื้องต้นเท่านั้น ไม่ใช่การวินิจฉัย และไม่ทดแทนการตรวจโดยแพทย์</p>
             </header>
 
             <div class="grid items-start gap-6 lg:grid-cols-12">
