@@ -510,8 +510,14 @@ async function completeResearchUpload(req, res) {
     // it also cleans up any late upload made with that still-valid URL.
     return json(res, 200, { ok: true, ...result });
   } catch (error) {
-    await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NULL
-      WHERE id = ${id} AND user_id = ${account.user.id}`;
+    try {
+      await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NULL
+        WHERE id = ${id} AND user_id = ${account.user.id}`;
+    } catch {
+      // Preserve the original failure, not a second database-reset error.
+      // The claimed row still expires; do not allow concurrent inference.
+      console.warn('smart_skin_scan_stage', { stage: 'claim_release', ok: false });
+    }
     throw error;
   }
 }

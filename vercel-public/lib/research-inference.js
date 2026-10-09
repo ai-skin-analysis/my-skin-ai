@@ -7,6 +7,14 @@ const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_RESPONSE = 256 * 1024;
 const SAFE_MESSAGES = {
   MODEL_UNAVAILABLE: 'บริการวิเคราะห์ภาพยังไม่พร้อม กรุณาลองใหม่ภายหลัง',
+  MODEL_TIMEOUT: 'การเชื่อมต่อบริการ AI ใช้เวลานานเกินกำหนด ยังไม่มีผลจำแนก กรุณาลองใหม่ภายหลัง',
+  MODEL_ERROR: 'บริการ AI รับคำขอแล้วแต่ประมวลผลไม่สำเร็จ ยังไม่มีผลจำแนก กรุณาลองใหม่ภายหลัง',
+  NO_IMAGE: 'ไม่พบข้อมูลภาพ กรุณาเลือกภาพหรือถ่ายภาพใหม่',
+  IMAGE_TOO_LARGE: 'ภาพมีขนาดเกิน 8 MB กรุณาเลือกภาพที่เล็กลง',
+  IMAGE_DIMENSIONS: 'ขนาดภาพไม่เหมาะสม กรุณาใช้ภาพด้านละอย่างน้อย 64 พิกเซล และไม่เกิน 12 ล้านพิกเซล',
+  INVALID_IMAGE: 'อ่านข้อมูลภาพไม่ได้ กรุณาเลือกภาพหรือถ่ายภาพใหม่',
+  UNSUPPORTED_FORMAT: 'รองรับ JPG, JPEG, PNG และ WEBP ที่ไม่ใช่ภาพเคลื่อนไหวเท่านั้น',
+  INSUFFICIENT_DETAIL: 'ภาพไม่มีรายละเอียดเพียงพอ กรุณาถ่ายรอยโรคให้เห็นชัดเจนแล้วลองใหม่',
   INVALID_MODEL_RESULT: 'ผลจากบริการโมเดลไม่ครบถ้วน จึงไม่แสดงชื่อกลุ่มรอยโรค',
   NON_SKIN_IMAGE: 'ข้อมูลภาพผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นชัดเจน ตัวกรองเชิงทดลองอาจผิดพลาดได้',
   UNCERTAIN_CLASSIFICATION: 'ขออภัย ระบบยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ หรืออาจอยู่นอกกลุ่มที่รองรับ โปรดพบแพทย์ผู้เชี่ยวชาญ',
@@ -33,6 +41,17 @@ function validateEnvelope(value, version) {
       || value.publicDeployment !== false || value.scopeValidated !== false
       || value.unsupportedValidated !== false || value.imageStored !== false
       || value.imageForwarded !== false || value.modelVersion !== version) invalid();
+}
+
+const INPUT_ERROR_CODES = new Set(['NO_IMAGE', 'IMAGE_TOO_LARGE', 'IMAGE_DIMENSIONS',
+  'INVALID_IMAGE', 'UNSUPPORTED_FORMAT', 'INSUFFICIENT_DETAIL']);
+
+function validErrorEnvelope(value) {
+  return value && value.ok === false && value.mode === 'authenticated_research'
+    && value.releaseStatus === 'research_only' && value.publicDeployment === false
+    && value.scopeValidated === false && value.unsupportedValidated === false
+    && value.imageStored === false && value.imageForwarded === false
+    && value.diagnostics === undefined && value.comparison === undefined;
 }
 
 function validateImageResult(value, version) {
@@ -102,9 +121,22 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
       // Never follow redirects with the credential, nor reflect remote HTML,
       // stack traces, or user-controlled descriptions back to a browser.
       if (![200, 422].includes(response.status)) {
-        await response.body?.cancel();
-        const code = response.status === 409 ? 'MODEL_BUSY' : response.status === 429 ? 'RATE_LIMITED' : 'MODEL_UNAVAILABLE';
-        throw new InferenceServiceError(code, [409, 429].includes(response.status) ? response.status : 503,
+        let code = response.status === 409 ? 'MODEL_BUSY' : response.status === 429 ? 'RATE_LIMITED'
+          : [408, 504].includes(response.status) ? 'MODEL_TIMEOUT' : 'MODEL_UNAVAILABLE';
+        let status = [409, 429].includes(response.status) ? response.status : 503;
+        // Authenticated, bounded JSON only. Never reflect remote messages, HTML,
+        // image contents, stack traces, credential errors or redirect targets.
+        if (body && [400, 413, 503].includes(response.status)) {
+          let value;
+          try { value = await readBoundedJson(response); } catch { /* generic safe fallback */ }
+          if (validErrorEnvelope(value)) {
+            if ([400, 413].includes(response.status) && INPUT_ERROR_CODES.has(value.code)) {
+              code = value.code;
+              status = 422;
+            } else if (response.status === 503 && value.code === 'MODEL_ERROR') code = 'MODEL_ERROR';
+          }
+        } else await response.body?.cancel();
+        throw new InferenceServiceError(code, status,
           { operation, stage: 'upstream_http', upstreamStatus: response.status });
       }
       const value = await readBoundedJson(response);
@@ -113,7 +145,9 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
       if (error instanceof InferenceServiceError) throw error;
       const safeCodes = new Set(['UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT',
         'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND']);
-      throw new InferenceServiceError('MODEL_UNAVAILABLE', 503, { operation,
+      const timeout = controller.signal.aborted || ['UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT',
+        'UND_ERR_BODY_TIMEOUT', 'ETIMEDOUT'].includes(error?.cause?.code);
+      throw new InferenceServiceError(timeout ? 'MODEL_TIMEOUT' : 'MODEL_UNAVAILABLE', 503, { operation,
         stage: controller.signal.aborted ? 'upstream_timeout' : 'upstream_transport',
         ...(safeCodes.has(error?.cause?.code) ? { transportCode: error.cause.code } : {}) });
     } finally { clearTimeout(timer); }
