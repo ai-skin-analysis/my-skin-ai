@@ -10,7 +10,7 @@ test('probe uses only a fixed valid generated PNG, never storage or history', as
     readiness: async () => ({ modelVersion: 'scin3-local-baab96df5bf5', classCount: 3 }),
     analyze: async (bytes, options) => {
       calls++;
-      assert.equal(bytes.length, 792);
+      assert.equal(bytes.length, 792 + 1024 * 1024 + 12);
       assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
       assert.deepEqual(options, { consent: true });
       assert.equal(bytes.readUInt32BE(16), 224);
@@ -18,6 +18,7 @@ test('probe uses only a fixed valid generated PNG, never storage or history', as
       const dataLength = bytes.readUInt32BE(33);
       assert.equal(bytes.toString('ascii', 37, 41), 'IDAT');
       assert.equal(inflateSync(bytes.subarray(41, 41 + dataLength)).length, 224 * (224 * 3 + 1));
+      assert.equal(bytes.toString('ascii', bytes.length - 8, bytes.length - 4), 'IEND');
       return { ok: false, code: 'NON_SKIN_IMAGE' };
     },
   });
