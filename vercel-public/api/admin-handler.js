@@ -20,6 +20,7 @@ import {
 import { beginMfaEnrollment, confirmMfaEnrollment, verifyMfaChallenge } from '../lib/admin-mfa.js';
 import { scanReadiness, requireScanEngine } from '../lib/scan-readiness.js';
 import { InferenceServiceError } from '../lib/research-inference.js';
+import { researchTransportCheck } from '../lib/research-transport-check.js';
 import { adminPrivateSummary } from '../lib/admin-private-summary.js';
 import { researchReadiness, analyzePrivateResearchScan, RESEARCH_CONSENT_VERSION } from '../lib/research-workflow.js';
 import {
@@ -352,6 +353,14 @@ async function getResearchReadiness(req, res) {
   if (!requireGet(req, res)) return;
   if (!await signedInApprovedUser(req, res)) return;
   return json(res, 200, { ok: true, ...await researchReadiness() });
+}
+
+async function checkResearchTransport(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  if (!await signedInApprovedUser(req, res)) return;
+  const budget = takeRateBudget(req, 'user_scan');
+  if (!budget.ok) return rejectRateLimit(res, 'ตรวจการเชื่อมต่อบ่อยเกินไป กรุณารอแล้วลองใหม่', budget);
+  return json(res, 200, await researchTransportCheck());
 }
 
 async function getAdminModelReadiness(req, res) {
@@ -846,6 +855,7 @@ export default async function handler(req, res) {
       case 'user/history': return await userHistory(req, res);
       case 'user/scan/readiness': return await getScanReadiness(req, res);
       case 'user/scan/research/readiness': return await getResearchReadiness(req, res);
+      case 'user/scan/research/transport-check': return await checkResearchTransport(req, res);
       case 'user/scan/research/upload': return await startScanUpload(req, res, true);
       case 'user/scan/research/complete': return await completeResearchUpload(req, res);
       case 'user/scan/upload': return await startScanUpload(req, res);
@@ -865,7 +875,10 @@ export default async function handler(req, res) {
       default: return json(res, 404, { ok: false, message: 'ไม่พบปลายทางผู้ดูแลระบบ' });
     }
   } catch (error) {
-    if (error instanceof InferenceServiceError) return json(res, error.status, { ok: false, code: error.code, message: error.message });
+    if (error instanceof InferenceServiceError) {
+      if (error.diagnostic) console.warn('smart_skin_inference_failed', error.diagnostic);
+      return json(res, error.status, { ok: false, code: error.code, message: error.message });
+    }
     return publicError(res, error, 'admin');
   }
 }

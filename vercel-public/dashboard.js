@@ -16,6 +16,7 @@
     let scanResultModule;
     let sessionCheckPending = false;
     let scanRequestPending = false;
+    let transportCheckPending = false;
     let pendingAnalysisScreen = null;
     const getScanResultModule = () => scanResultModule ||= import('./research-result.js').catch(error => {
         scanResultModule = undefined;
@@ -24,6 +25,29 @@
 
     function refreshIcons() {
         if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    async function checkAiTransport() {
+        if (transportCheckPending || scanRequestPending) return;
+        const button = document.getElementById('dashboardTransportCheckButton');
+        const status = document.getElementById('dashboardTransportCheckStatus');
+        transportCheckPending = true;
+        button.disabled = true;
+        status.textContent = 'กำลังตรวจด้วยภาพตารางสีสังเคราะห์ ไม่ส่งภาพของคุณและไม่บันทึกประวัติ…';
+        try {
+            const result = await userRequest('/api/user/scan/research/transport-check', { method: 'POST', body: '{}' });
+            if (result.transportAvailable !== true || result.generatedProbeOnly !== true
+                || result.userImageSent !== false || result.publicReleaseApproved !== false
+                || result.classCount !== 3 || result.modelVersion !== 'scin3-local-baab96df5bf5') {
+                throw new Error('ผลตรวจการเชื่อมต่อไม่ตรงกับรุ่นโมเดล');
+            }
+            status.textContent = 'เชื่อมต่อบริการ AI ได้แล้ว · รุ่นสาธิต 3 กลุ่ม · ไม่ได้ส่งภาพของคุณ การตรวจนี้ไม่ใช่การรับรองความแม่นยำ';
+        } catch (error) {
+            status.textContent = error.message || 'ยังเชื่อมต่อบริการ AI ไม่สำเร็จ กรุณาลองใหม่ภายหลัง';
+        } finally {
+            transportCheckPending = false;
+            button.disabled = false;
+        }
     }
 
     function setStatus(message, tone = 'info') {
@@ -1185,6 +1209,7 @@
         document.getElementById('dashboardOpenCameraButton').addEventListener('click', openCamera);
         document.getElementById('dashboardClearImageButton').addEventListener('click', clearImage);
         document.getElementById('dashboardSubmitScanButton').addEventListener('click', submitPrivateScan);
+        document.getElementById('dashboardTransportCheckButton')?.addEventListener('click', checkAiTransport);
         document.getElementById('dashboardAnalysisNewButton').addEventListener('click', returnToScan);
         document.getElementById('dashboardAnalysisHistoryButton').addEventListener('click', openTimeline);
         document.getElementById('dashboardCloseCameraButton').addEventListener('click', closeCamera);

@@ -15,10 +15,12 @@ const SAFE_MESSAGES = {
 };
 
 export class InferenceServiceError extends Error {
-  constructor(code = 'MODEL_UNAVAILABLE', status = 503) {
+  constructor(code = 'MODEL_UNAVAILABLE', status = 503, diagnostic) {
     super(SAFE_MESSAGES[code] || SAFE_MESSAGES.MODEL_UNAVAILABLE);
     this.code = code;
     this.status = status;
+    // Server-only, allowlisted metadata. No URL, key, image, user ID or raw error.
+    if (diagnostic) this.diagnostic = Object.freeze(diagnostic);
   }
 }
 
@@ -86,6 +88,7 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
   }
 
   async function call(path, body) {
+    const operation = body ? 'analyze' : 'readiness';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120_000);
     try {
@@ -101,13 +104,18 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
       if (![200, 422].includes(response.status)) {
         await response.body?.cancel();
         const code = response.status === 409 ? 'MODEL_BUSY' : response.status === 429 ? 'RATE_LIMITED' : 'MODEL_UNAVAILABLE';
-        throw new InferenceServiceError(code, [409, 429].includes(response.status) ? response.status : 503);
+        throw new InferenceServiceError(code, [409, 429].includes(response.status) ? response.status : 503,
+          { operation, stage: 'upstream_http', upstreamStatus: response.status });
       }
       const value = await readBoundedJson(response);
       return { value, status: response.status };
     } catch (error) {
       if (error instanceof InferenceServiceError) throw error;
-      throw new InferenceServiceError();
+      const safeCodes = new Set(['UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT',
+        'UND_ERR_BODY_TIMEOUT', 'UND_ERR_SOCKET', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND']);
+      throw new InferenceServiceError('MODEL_UNAVAILABLE', 503, { operation,
+        stage: controller.signal.aborted ? 'upstream_timeout' : 'upstream_transport',
+        ...(safeCodes.has(error?.cause?.code) ? { transportCode: error.cause.code } : {}) });
     } finally { clearTimeout(timer); }
   }
 
