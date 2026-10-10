@@ -66,3 +66,15 @@ test('dashboard pins three-label scope and retains original session and approval
   assert.match(handler,/user\.role !== 'user' \|\| user\.approvalStatus !== 'approved'/);
   assert.doesNotMatch(front,/SMART_SKIN_INFERENCE_API_KEY/);
 });
+
+test('landing, scan workspace and result state information-only scope without claiming a health service', async()=>{
+  const notice='เว็บไซต์นี้ให้ข้อมูลเชิงทดลองเท่านั้น ยังไม่ได้เปิดเป็นบริการสุขภาพทั่วไป ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์';
+  const { SCAN_DISCLAIMER } = await import('../vercel-public/scan-result.js');
+  for(const page of ['index.html','dashboard.html']){
+    assert.ok(readFileSync(require.resolve(`../vercel-public/${page}`),'utf8').includes(notice));
+  }
+  assert.ok(SCAN_DISCLAIMER.startsWith(notice));
+  assert.match(SCAN_DISCLAIMER,/ไม่ควรใช้ตัดสินใจรักษาด้วยตนเอง/);
+  const renderer=readFileSync(require.resolve('../vercel-public/research-result.js'),'utf8');
+  assert.match(renderer,/node\('p', SCAN_DISCLAIMER,/);
+});
