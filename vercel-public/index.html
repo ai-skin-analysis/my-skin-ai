@@ -275,7 +275,7 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2 self-start sm:self-auto">
-                    <button id="environmentLocationButton" type="button" aria-haspopup="dialog" aria-controls="environmentLocationConsentModal" class="flex items-center space-x-2 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 px-4 py-2.5 rounded-xl border border-teal-600 shadow-md shadow-teal-700/20 transition-all group cursor-pointer">
+                    <button id="environmentLocationButton" type="button" aria-haspopup="dialog" aria-controls="environmentLocationConsentModal" class="flex items-center space-x-2 text-xs font-bold text-white bg-teal-700 hover:bg-teal-800 px-4 py-2.5 rounded-xl border border-teal-600 shadow-md shadow-teal-700/20 transition-all group cursor-pointer disabled:opacity-60 disabled:cursor-wait">
                         <i data-lucide="map-pin" class="w-4 h-4 text-teal-200"></i>
                         <span id="location-text">ใช้ตำแหน่งล่าสุดของฉัน</span>
                     </button>
@@ -284,6 +284,11 @@
                         <span>ค้นหาสถานพยาบาล</span>
                     </button>
                 </div>
+            </div>
+
+            <div class="rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-3" aria-live="polite">
+                <p id="environment-current-weather" class="text-sm font-extrabold text-teal-900">สภาพอากาศปัจจุบันตามตำแหน่งของคุณ</p>
+                <p id="environment-area-text" class="mt-1 text-xs leading-relaxed text-slate-600">กดใช้ตำแหน่งและยืนยัน เพื่อขอตำแหน่งใหม่จากมือถือหรืออุปกรณ์ที่คุณกำลังใช้งาน</p>
             </div>
 
             <!-- Grid 4 การ์ดสภาพอากาศหลัก -->
@@ -348,7 +353,7 @@
                     </div>
                     <span id="time-period-badge" class="px-3 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 bg-slate-800 border border-slate-700">
                         <i data-lucide="clock" class="w-3.5 h-3.5"></i>
-                        <span id="time-period-text">กำลังตรวจสอบเวลา...</span>
+                        <span id="time-period-text">รอข้อมูลอากาศ</span>
                     </span>
                 </div>
 
@@ -361,28 +366,28 @@
                         <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
                             <i id="rec-icon-1-el" data-lucide="shield-check" class="w-4 h-4"></i>
                         </div>
-                        <span id="rec-1">กำลังประมวลผลคำแนะนำ...</span>
+                        <span id="rec-1">คำแนะนำจะแสดงหลังได้รับข้อมูลอากาศ</span>
                     </div>
 
                     <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
                         <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
                             <i id="rec-icon-2-el" data-lucide="sparkles" class="w-4 h-4"></i>
                         </div>
-                        <span id="rec-2">กำลังประมวลผลคำแนะนำ...</span>
+                        <span id="rec-2">คำแนะนำจะแสดงหลังได้รับข้อมูลอากาศ</span>
                     </div>
 
                     <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
                         <div id="rec-icon-3-box" class="p-2 bg-amber-500/20 text-amber-400 rounded-lg shrink-0 border border-amber-500/30">
                             <i id="rec-icon-3-el" data-lucide="wind" class="w-4 h-4"></i>
                         </div>
-                        <span id="rec-3">เปิดเครื่องฟอกอากาศและปิดหน้าต่างลดฝุ่นสะสม</span>
+                        <span id="rec-3">คำแนะนำจะแสดงหลังได้รับข้อมูลอากาศ</span>
                     </div>
 
                     <div class="flex items-center space-x-3 bg-slate-800/90 p-3.5 rounded-xl border border-slate-700/80 text-xs font-semibold text-slate-100 shadow-sm">
                         <div class="p-2 bg-teal-500/20 text-teal-400 rounded-lg shrink-0 border border-teal-500/30">
                             <i id="rec-icon-4-el" data-lucide="glass-water" class="w-4 h-4"></i>
                         </div>
-                        <span id="rec-4">กำลังประมวลผลคำแนะนำ...</span>
+                        <span id="rec-4">คำแนะนำจะแสดงหลังได้รับข้อมูลอากาศ</span>
                     </div>
                 </div>
             </div>

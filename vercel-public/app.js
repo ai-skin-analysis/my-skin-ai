@@ -159,6 +159,9 @@
         let currentLat = null;
         let currentLng = null;
         let environmentLocationConsent = false;
+        let environmentRequestId = 0;
+        let environmentRequestBusy = false;
+        let environmentController = null;
         let mapLocationConsent = false;
         // This is a separate, one-time approval for a Google Maps URL that
         // contains coordinates. A later checkbox tick alone is not enough to
@@ -173,10 +176,10 @@
         let mapFrameIsExternal = false;
 
         let liveEnvData = {
-            uv: { val: 0, status: "กำลังโหลด...", title: "UV Index (ดัชนีรังสีอุลตราไวโอเลต)", badge: "", badgeClass: "", iconBg: "bg-amber-100 text-amber-600", icon: "sun", desc: "" },
-            temp: { val: "0°C", status: "กำลังโหลด...", title: "อุณหภูมิอากาศ (Temperature)", badge: "", badgeClass: "", iconBg: "bg-orange-100 text-orange-600", icon: "thermometer", desc: "" },
-            humidity: { val: "0%", status: "กำลังโหลด...", title: "ความชื้นสัมพัทธ์ (Humidity)", badge: "", badgeClass: "", iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: "" },
-            aqi: { val: "0", status: "กำลังโหลด...", title: "ดัชนีคุณภาพอากาศ (AQI)", badge: "", badgeClass: "", iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: "" }
+            uv: { val: '—', status: "รออนุญาตตำแหน่ง", title: "UV Index (ดัชนีรังสีอุลตราไวโอเลต)", badge: "", badgeClass: "", iconBg: "bg-amber-100 text-amber-600", icon: "sun", desc: "ยืนยันการใช้ตำแหน่งก่อนเรียกข้อมูลปัจจุบัน" },
+            temp: { val: '—', status: "รออนุญาตตำแหน่ง", title: "อุณหภูมิอากาศ (Temperature)", badge: "", badgeClass: "", iconBg: "bg-orange-100 text-orange-600", icon: "thermometer", desc: "ยืนยันการใช้ตำแหน่งก่อนเรียกข้อมูลปัจจุบัน" },
+            humidity: { val: '—', status: "รออนุญาตตำแหน่ง", title: "ความชื้นสัมพัทธ์ (Humidity)", badge: "", badgeClass: "", iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: "ยืนยันการใช้ตำแหน่งก่อนเรียกข้อมูลปัจจุบัน" },
+            aqi: { val: '—', status: "รออนุญาตตำแหน่ง", title: "ดัชนีคุณภาพอากาศ (AQI)", badge: "", badgeClass: "", iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: "ยืนยันการใช้ตำแหน่งก่อนเรียกข้อมูลปัจจุบัน" }
         };
         let localPreviewUrl = '';
         let localCameraStream = null;
@@ -388,8 +391,8 @@
         function locationErrorMessage(error) {
             if (!window.isSecureContext) return insecureLocationContextMessage();
             if (error?.code === 1) return 'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง โปรดอนุญาต Location ในเบราว์เซอร์แล้วลองอีกครั้ง';
-            if (error?.code === 2) return 'ไม่พบตำแหน่งปัจจุบัน โปรดเปิด GPS หรือเชื่อมต่อเครือข่ายแล้วลองอีกครั้ง';
-            if (error?.code === 3) return 'การระบุตำแหน่งใช้เวลานานเกินไป โปรดลองอีกครั้ง';
+            if (error?.code === 2) return 'อุปกรณ์ยังไม่ส่งตำแหน่ง โปรดเปิดบริการตำแหน่ง (Location/GPS) และ Wi-Fi หรืออินเทอร์เน็ต แล้วลองอีกครั้ง';
+            if (error?.code === 3) return 'อุปกรณ์ยังหาตำแหน่งไม่สำเร็จ โปรดอนุญาต Location ให้เบราว์เซอร์ เปิดบริการตำแหน่งและ Wi-Fi แล้วลองอีกครั้ง';
             return 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้';
         }
 
@@ -447,6 +450,7 @@
         }
 
         function useCurrentLocationForEnvironment() {
+            if (environmentRequestBusy) return;
             if (!window.isSecureContext) {
                 showEnvironmentUnavailable(insecureLocationContextMessage());
                 return;
@@ -474,22 +478,11 @@
             }
             closeEnvironmentLocationConsent();
             environmentLocationConsent = true;
-            document.getElementById('location-text').textContent = 'กำลังขอตำแหน่งล่าสุดจากอุปกรณ์';
-            setEnvironmentSourceText('กำลังขอตำแหน่งล่าสุดจากอุปกรณ์', 'ระบบจะไม่ใช้ตำแหน่งเก่าที่เก็บในหน้าเว็บ และจะเรียกข้อมูลอากาศใหม่หลังได้รับพิกัด');
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    saveFreshBrowserLocation(position);
-                    document.getElementById('location-text').textContent = 'กำลังโหลดข้อมูลอากาศตามตำแหน่งล่าสุดของคุณ';
-                    fetchLiveWeatherData(currentLat, currentLng, currentLocationMeta);
-                },
-                (error) => showEnvironmentUnavailable(locationErrorMessage(error)),
-                // Request a fresh reading only after the visitor has explicitly consented.
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+            requestFreshEnvironmentLocation();
         }
 
         function refreshEnvironmentData() {
+            if (environmentRequestBusy) return;
             if (!environmentLocationConsent || !hasCurrentLocation()) {
                 useCurrentLocationForEnvironment();
                 return;
@@ -500,16 +493,99 @@
                     : 'เบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง');
                 return;
             }
-            document.getElementById('location-text').textContent = 'กำลังอัปเดตตำแหน่งและข้อมูลอากาศล่าสุด';
-            setEnvironmentSourceText('กำลังอัปเดตข้อมูลอากาศจาก Open-Meteo', 'กำลังขอตำแหน่งใหม่จากอุปกรณ์ก่อนเรียกข้อมูลอากาศ จึงอาจใช้เวลาสักครู่');
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
+            requestFreshEnvironmentLocation();
+        }
+
+        function setEnvironmentBusy(busy) {
+            environmentRequestBusy = busy;
+            ['environmentLocationButton', 'environmentRefreshButton'].forEach((id) => {
+                const button = document.getElementById(id);
+                if (button) {
+                    button.disabled = busy;
+                    button.setAttribute('aria-busy', String(busy));
+                }
+            });
+            document.getElementById('location-text').textContent = busy ? 'กำลังขอตำแหน่ง…' : 'ใช้ตำแหน่งล่าสุดของฉัน';
+        }
+
+        function resetEnvironmentCards(status) {
+            ['uv', 'temp', 'humidity', 'aqi'].forEach((key) => {
+                document.getElementById(`card-${key}-val`).textContent = '—';
+                const statusNode = document.getElementById(`card-${key}-status`);
+                statusNode.textContent = status;
+                statusNode.className = 'inline-block px-2.5 py-0.5 text-xs font-bold rounded-full';
+                liveEnvData[key] = { ...liveEnvData[key], val: '—', status, badge: status, desc: 'ยังไม่มีข้อมูลปัจจุบันจากผู้ให้บริการสำหรับตำแหน่งนี้' };
+            });
+            document.getElementById('time-period-text').textContent = 'รอข้อมูลอากาศ';
+            ['rec-1', 'rec-2', 'rec-3', 'rec-4'].forEach((id) => {
+                document.getElementById(id).textContent = 'คำแนะนำตามสภาพอากาศจะแสดงเมื่อได้รับข้อมูล';
+            });
+        }
+
+        function requestFreshEnvironmentLocation() {
+            if (environmentRequestBusy || !environmentLocationConsent) return;
+            const requestId = ++environmentRequestId;
+            environmentController?.abort();
+            environmentController = new AbortController();
+            const signal = environmentController.signal;
+            setEnvironmentBusy(true);
+            resetEnvironmentCards('รอตำแหน่งจากอุปกรณ์');
+            document.getElementById('environment-area-text').textContent = 'กำลังขอตำแหน่งปัจจุบันจากอุปกรณ์ของคุณ';
+            document.getElementById('environment-current-weather').textContent = 'สภาพอากาศปัจจุบัน';
+            document.getElementById('env-summary-text').textContent = 'เมื่อได้รับตำแหน่ง ระบบจะเรียกข้อมูลอากาศปัจจุบันให้ทันที โดยไม่ต้องเข้าสู่ระบบ';
+            setEnvironmentSourceText('โปรดกดอนุญาตตำแหน่งในหน้าต่างของเบราว์เซอร์ หากมีการถาม', 'ขอตำแหน่งใหม่ทุกครั้ง ไม่ใช้พิกัดเก่า ไม่ใช้ IP เดาตำแหน่ง และไม่บันทึกในบัญชี');
+
+            let finished = false;
+            let attempt = 0;
+            const isActive = () => !finished && requestId === environmentRequestId && !signal.aborted;
+            const helpTimer = window.setTimeout(() => {
+                if (isActive()) setEnvironmentSourceText('ยังรอตำแหน่งจากอุปกรณ์ — ตรวจว่าได้กดอนุญาต Location ในเบราว์เซอร์แล้ว', 'เปิดบริการตำแหน่ง (Location/GPS) และ Wi-Fi บนอุปกรณ์ หากยังไม่พบตำแหน่ง ระบบจะลองวิธีระบุตำแหน่งสำรองให้อีกครั้ง');
+            }, 5000);
+            // Browser timeouts can exclude the permission prompt. Bound our UI
+            // wait too; late callbacks must never send a cancelled position.
+            const deadline = window.setTimeout(() => fail({ code: 3 }), 30000);
+            const clearTimers = () => { window.clearTimeout(helpTimer); window.clearTimeout(deadline); };
+            const fail = (error) => {
+                if (!isActive()) return;
+                finished = true;
+                clearTimers();
+                environmentController.abort();
+                showEnvironmentUnavailable(locationErrorMessage(error));
+                setEnvironmentBusy(false);
+            };
+            const acquire = (highAccuracy) => {
+                const thisAttempt = ++attempt;
+                const success = async (position) => {
+                    if (!isActive() || thisAttempt !== attempt) return;
+                    const { latitude, longitude } = position?.coords || {};
+                    if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+                        fail({ code: 2 });
+                        return;
+                    }
+                    finished = true;
+                    clearTimers();
                     saveFreshBrowserLocation(position);
-                    fetchLiveWeatherData(currentLat, currentLng, currentLocationMeta);
-                },
-                (error) => showEnvironmentUnavailable(locationErrorMessage(error)),
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+                    document.getElementById('location-text').textContent = 'กำลังโหลดอากาศ…';
+                    setEnvironmentSourceText('ได้รับตำแหน่งแล้ว กำลังโหลดสภาพอากาศปัจจุบัน', 'อากาศจะแสดงก่อน โดยไม่ต้องรอชื่อพื้นที่หรือคุณภาพอากาศ');
+                    await fetchLiveWeatherData(currentLat, currentLng, { ...currentLocationMeta }, requestId, signal);
+                    if (requestId === environmentRequestId) setEnvironmentBusy(false);
+                };
+                const error = (problem) => {
+                    if (!isActive() || thisAttempt !== attempt) return;
+                    if (!highAccuracy && (problem?.code === 2 || problem?.code === 3)) {
+                        setEnvironmentSourceText('กำลังลองระบุตำแหน่งด้วย GPS อีกครั้ง', 'โปรดเปิดบริการตำแหน่งและอยู่ในจุดที่รับสัญญาณได้ ระบบยังไม่ส่งพิกัดจนกว่าอุปกรณ์จะระบุตำแหน่งสำเร็จ');
+                        acquire(true);
+                    } else fail(problem);
+                };
+                try {
+                    // Weather grids do not require a precise GPS fix. Try the
+                    // faster device/Wi-Fi reading first; both attempts are fresh.
+                    navigator.geolocation.getCurrentPosition(success, error, {
+                        enableHighAccuracy: highAccuracy, timeout: highAccuracy ? 10000 : 6000, maximumAge: 0,
+                    });
+                } catch (problem) { error(problem); }
+            };
+            acquire(false);
         }
 
         function approximateLocationLabel(data) {
@@ -568,43 +644,71 @@
         }
 
         function formatGpsAccuracy(accuracyMeters) {
-            return Number.isFinite(accuracyMeters) ? `ความแม่นยำ GPS ประมาณ ±${Math.round(accuracyMeters)} ม.` : 'ความแม่นยำ GPS ไม่ระบุ';
+            return Number.isFinite(accuracyMeters) ? `ความคลาดเคลื่อนของตำแหน่งจากอุปกรณ์ประมาณ ±${Math.round(accuracyMeters)} ม.` : 'อุปกรณ์ไม่ระบุความคลาดเคลื่อนของตำแหน่ง';
         }
 
-        async function fetchLiveWeatherData(lat, lng, locationMeta = {}) {
+        async function fetchEnvironmentJson(url, timeoutMs, parentSignal) {
+            const controller = new AbortController();
+            const abort = () => controller.abort();
+            if (parentSignal?.aborted) controller.abort();
+            parentSignal?.addEventListener('abort', abort, { once: true });
+            const timer = window.setTimeout(abort, timeoutMs);
             try {
-                const roundedLat = roundedCoordinate(lat);
-                const roundedLng = roundedCoordinate(lng);
-                const [weatherRes, airRes, locationName] = await Promise.all([
-                    fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code&timezone=auto`),
-                    fetchWithTimeout(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLng}&current=us_aqi&timezone=auto`),
-                    fetchApproximateLocationName(lat, lng).catch(() => '')
-                ]);
-                if (!weatherRes.ok || !airRes.ok) throw new Error('Weather service unavailable');
-                const weatherData = await weatherRes.json();
-                const airData = await airRes.json();
+                const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+                if (!response.ok) throw new Error('Environment provider unavailable');
+                const data = await response.json();
+                if (controller.signal.aborted) throw new Error('Environment request cancelled');
+                return data;
+            } finally {
+                window.clearTimeout(timer);
+                parentSignal?.removeEventListener('abort', abort);
+            }
+        }
 
-                const uvVal = Math.round(Number(weatherData.current?.uv_index));
-                const rawTempVal = Number(weatherData.current?.temperature_2m);
-                const tempVal = Math.round(rawTempVal * 10) / 10;
-                const humVal = Math.round(Number(weatherData.current?.relative_humidity_2m));
-                const aqiVal = Math.round(Number(airData.current?.us_aqi));
-                if (![uvVal, tempVal, humVal, aqiVal].every(Number.isFinite)) throw new Error('Invalid weather data');
-
-                const weatherDescription = weatherCodeLabel(weatherData.current?.weather_code);
-                const gpsCapturedAt = formatEnvironmentUpdatedAt(locationMeta.capturedAt);
-                const weatherObservedAt = formatProviderCurrentTime(weatherData.current?.time, weatherData.timezone_abbreviation || weatherData.timezone);
-                const airObservedAt = formatProviderCurrentTime(airData.current?.time, airData.timezone_abbreviation || airData.timezone);
+        async function fetchLiveWeatherData(lat, lng, locationMeta = {}, requestId = environmentRequestId, signal = environmentController?.signal) {
+            const isActive = () => requestId === environmentRequestId && !signal?.aborted;
+            const roundedLat = roundedCoordinate(lat);
+            const roundedLng = roundedCoordinate(lng);
+            let weather = null, aqi = null, airTime = '', locationName = '', airSettled = false, locationSettled = false;
+            const render = () => {
+                if (!isActive() || !weather) return;
+                const current = weather.current;
                 currentLocationMeta.approximateName = locationName;
-                document.getElementById('location-text').textContent = locationName
-                    ? `พื้นที่ใกล้เคียงจากตำแหน่งล่าสุด: ${locationName}`
-                    : 'ข้อมูลอากาศตามตำแหน่งล่าสุดของคุณ';
+                document.getElementById('environment-area-text').textContent = locationName
+                    ? `พื้นที่ใกล้เคียงจากตำแหน่งปัจจุบัน: ${locationName}` : `อากาศตามตำแหน่งปัจจุบันของอุปกรณ์คุณ (${locationSettled ? 'บริการชื่อพื้นที่ไม่พร้อมใช้งาน' : 'กำลังโหลดชื่อพื้นที่'})`;
+                document.getElementById('environment-current-weather').textContent = `สภาพอากาศปัจจุบัน: ${weatherCodeLabel(current.weather_code)}`;
+                updateCardsUI(Math.round(current.uv_index), current.temperature_2m, Math.round(current.relative_humidity_2m), aqi,
+                    weatherCodeLabel(current.weather_code), locationName, current.is_day);
+                if (aqi === null) {
+                    document.getElementById('card-aqi-status').textContent = airSettled ? 'บริการ AQI ไม่พร้อม' : 'กำลังโหลด AQI…';
+                    liveEnvData.aqi.status = document.getElementById('card-aqi-status').textContent;
+                }
                 setEnvironmentSourceText(
-                    `แหล่งข้อมูล: Open-Meteo current conditions · อากาศ ${weatherObservedAt} · AQI ${airObservedAt}`,
-                    `อุณหภูมิแสดง ${tempVal.toFixed(1)}°C จากกริดพยากรณ์ ไม่ใช่ค่าเซนเซอร์ในโทรศัพท์ พิกัดถูกขอใหม่เวลา ${gpsCapturedAt} และส่งแบบปัดเป็นทศนิยม 4 ตำแหน่ง (${formatGpsAccuracy(locationMeta.accuracyMeters)}) ค่าอาจต่างจากแอปโทรศัพท์ หากใช้ผู้ให้บริการ จุดวัด/กริดพยากรณ์ หรือเวลาอัปเดตคนละแหล่ง`,
+                    `Open-Meteo · อากาศ ${formatProviderCurrentTime(current.time, weather.timezone_abbreviation || weather.timezone)} · AQI ${airTime || (airSettled ? 'ไม่พร้อมใช้งาน' : 'กำลังโหลด')}`,
+                    `ข้อมูลอากาศปัจจุบันเป็นค่าประมาณจากกริดพยากรณ์ ไม่ใช่เซนเซอร์โทรศัพท์ ขอพิกัดใหม่เวลา ${formatEnvironmentUpdatedAt(locationMeta.capturedAt)} (${formatGpsAccuracy(locationMeta.accuracyMeters)}) ส่งพิกัดแบบปัดทศนิยม 4 ตำแหน่งและไม่บันทึกในบัญชี`,
                 );
-                updateCardsUI(uvVal, tempVal, humVal, aqiVal, weatherDescription, locationName);
+            };
+            // Optional providers run independently: a slow place name or AQI
+            // must never delay or erase valid current weather.
+            fetchEnvironmentJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLng}&current=us_aqi&timezone=auto`, 6000, signal)
+                .then((data) => {
+                    const value = data.current?.us_aqi;
+                    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('Invalid AQI');
+                    aqi = Math.round(value);
+                    airTime = formatProviderCurrentTime(data.current.time, data.timezone_abbreviation || data.timezone);
+                }).catch(() => {}).finally(() => { airSettled = true; render(); });
+            fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000, signal)
+                .then((data) => { locationName = approximateLocationLabel(data); }).catch(() => {}).finally(() => { locationSettled = true; render(); });
+            try {
+                const data = await fetchEnvironmentJson(`https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code,is_day&timezone=auto`, 8000, signal);
+                const current = data.current;
+                if (!current || !['uv_index', 'temperature_2m', 'relative_humidity_2m'].every((key) => typeof current[key] === 'number' && Number.isFinite(current[key]))
+                    || current.uv_index < 0 || current.relative_humidity_2m < 0 || current.relative_humidity_2m > 100) throw new Error('Invalid weather data');
+                if (!isActive()) return;
+                weather = data;
+                render();
             } catch (err) {
+                if (!isActive()) return;
                 showEnvironmentUnavailable(navigator.onLine
                     ? 'เชื่อมต่อบริการข้อมูลอากาศไม่สำเร็จ โปรดลองอีกครั้ง'
                     : 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต จึงยังโหลดข้อมูลอากาศตามตำแหน่งไม่ได้');
@@ -612,21 +716,20 @@
         }
 
         function showEnvironmentUnavailable(message) {
-            ['uv', 'temp', 'humidity', 'aqi'].forEach((key) => {
-                document.getElementById(`card-${key}-val`).textContent = '—';
-                document.getElementById(`card-${key}-status`).textContent = 'ไม่มีข้อมูล';
-            });
-            document.getElementById('location-text').textContent = message;
+            resetEnvironmentCards('ไม่มีข้อมูล');
+            document.getElementById('location-text').textContent = 'ใช้ตำแหน่งล่าสุดของฉัน';
+            document.getElementById('environment-area-text').textContent = message;
+            document.getElementById('environment-current-weather').textContent = 'ยังไม่มีข้อมูลอากาศปัจจุบัน';
             document.getElementById('env-summary-text').textContent = 'ไม่สามารถแสดงข้อมูลอากาศตามตำแหน่งได้ โปรดใช้คำแนะนำทั่วไปและหลีกเลี่ยงการตีความเป็นผลทางการแพทย์';
             setEnvironmentSourceText(
-                'ยังไม่มีข้อมูลอากาศปัจจุบันจากแหล่งข้อมูลภายนอก',
+                message,
                 navigator.onLine
                     ? 'โปรดตรวจสิทธิ์ Location และลองอัปเดตอีกครั้ง ระบบจะไม่ใช้ชื่อพื้นที่หรือข้อมูลอากาศเก่ามาแสดงแทน'
                     : 'ออฟไลน์อยู่ จึงไม่สามารถเรียกตำแหน่งย้อนกลับ แผนที่ หรือข้อมูลอากาศใหม่ได้ แต่หน้าเว็บส่วนอื่นยังใช้งานได้',
             );
         }
 
-        function updateCardsUI(uv, temp, hum, aqi, weatherDescription = '', locationName = '') {
+        function updateCardsUI(uv, temp, hum, aqi, weatherDescription = '', locationName = '', isDay = null) {
             let uvStatus = "ต่ำ", uvClass = "bg-emerald-50 text-emerald-600 border-emerald-100", uvBadgeClass = "bg-emerald-100 text-emerald-700", uvDesc = "รังสี UV ปลอดภัย";
             if (uv >= 3 && uv <= 5) { uvStatus = "ปานกลาง"; uvClass = "bg-yellow-50 text-yellow-600 border-yellow-100"; uvBadgeClass = "bg-yellow-100 text-yellow-700"; uvDesc = "เริ่มมีรังสี UV ควรทากันแดดเมื่อต้องออกแจ้ง"; }
             else if (uv >= 6 && uv <= 7) { uvStatus = "สูง"; uvClass = "bg-orange-50 text-orange-600 border-orange-100"; uvBadgeClass = "bg-orange-100 text-orange-700"; uvDesc = "รังสี UV สูง ควรทาครีมกันแดด SPF 50+ และสวมหมวก"; }
@@ -660,13 +763,13 @@
             if (aqi > 50 && aqi <= 100) { aqiStatus = "ปานกลาง"; aqiClass = "bg-yellow-50 text-yellow-600 border-yellow-100"; aqiBadgeClass = "bg-yellow-100 text-yellow-700"; aqiDesc = "มีฝุ่นสะสมปานกลาง ล้างหน้าหลังเข้าบ้าน"; }
             else if (aqi > 100) { aqiStatus = "มีผลกระทบ"; aqiClass = "bg-rose-50 text-rose-600 border-rose-100"; aqiBadgeClass = "bg-rose-100 text-rose-700"; aqiDesc = "ฝุ่นละอองสูง สวมหน้ากากและล้างหน้าให้สะอาด"; }
 
-            document.getElementById('card-aqi-val').textContent = aqi;
+            document.getElementById('card-aqi-val').textContent = aqi === null ? '—' : aqi;
             const cardAqiStatus = document.getElementById('card-aqi-status');
-            cardAqiStatus.textContent = aqiStatus;
+            cardAqiStatus.textContent = aqi === null ? 'ไม่มีข้อมูล AQI' : aqiStatus;
             cardAqiStatus.className = `inline-block px-2.5 py-0.5 text-xs font-bold rounded-full border ${aqiClass}`;
 
             const currentHour = new Date().getHours();
-            const isDaytime = currentHour >= 6 && currentHour < 18;
+            const isDaytime = isDay === 0 || isDay === 1 ? isDay === 1 : currentHour >= 6 && currentHour < 18;
 
             const timeBadge = document.getElementById('time-period-badge');
             const timeText = document.getElementById('time-period-text');
@@ -701,7 +804,7 @@
             liveEnvData.uv = { val: uv, status: uvStatus, title: "UV Index (ดัชนีรังสีอุลตราไวโอเลต)", badge: uvStatus, badgeClass: uvBadgeClass, iconBg: "bg-amber-100 text-amber-600", icon: "sun", desc: uvDesc };
             liveEnvData.temp = { val: `${tempDisplay}°C`, status: tempStatus, title: "อุณหภูมิอากาศโดยประมาณ (Temperature)", badge: tempStatus, badgeClass: tempBadgeClass, iconBg: "bg-orange-100 text-orange-600", icon: "thermometer", desc: `${tempDesc} ค่านี้มาจากกริดข้อมูลอากาศ จึงอาจไม่ตรงกับแอปหรือสถานีวัดอื่น` };
             liveEnvData.humidity = { val: `${hum}%`, status: humStatus, title: "ความชื้นสัมพัทธ์ (Humidity)", badge: humStatus, badgeClass: humBadgeClass, iconBg: "bg-blue-100 text-blue-600", icon: "droplets", desc: humDesc };
-            liveEnvData.aqi = { val: aqi, status: aqiStatus, title: "ดัชนีคุณภาพอากาศ (AQI)", badge: aqiStatus, badgeClass: aqiBadgeClass, iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: aqiDesc };
+            liveEnvData.aqi = { val: aqi === null ? '—' : aqi, status: aqi === null ? 'ไม่มีข้อมูล AQI' : aqiStatus, title: "ดัชนีคุณภาพอากาศ (AQI)", badge: aqi === null ? 'ไม่มีข้อมูล AQI' : aqiStatus, badgeClass: aqiBadgeClass, iconBg: "bg-emerald-100 text-emerald-600", icon: "wind", desc: aqi === null ? 'บริการคุณภาพอากาศยังไม่ส่งข้อมูลสำหรับตำแหน่งนี้ อุณหภูมิและข้อมูลอากาศที่แสดงยังใช้งานได้' : aqiDesc };
         }
 
         // 🏥 ระบบค้นหาสถานพยาบาลและหมุดตำแหน่งโดยประมาณของผู้ใช้ 🏥
