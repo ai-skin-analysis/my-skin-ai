@@ -182,6 +182,9 @@
         let localCameraStream = null;
 
         document.addEventListener("DOMContentLoaded", () => {
+            // Public weather controls must work before and independently of
+            // account restoration. CSP intentionally blocks inline onclick.
+            setupPublicEnvironmentControls();
             if (typeof lucide !== 'undefined') lucide.createIcons();
             // Bind the account-panel interactions explicitly. Inline handlers
             // are not dependable under every static-host security policy.
@@ -200,6 +203,31 @@
             });
             restoreAccountSession();
         });
+
+        function setupPublicEnvironmentControls() {
+            document.getElementById('environmentLocationButton')?.addEventListener('click', useCurrentLocationForEnvironment);
+            document.getElementById('environmentRefreshButton')?.addEventListener('click', refreshEnvironmentData);
+            document.getElementById('environmentLocationConfirmButton')?.addEventListener('click', approveEnvironmentLocationConsent);
+            document.querySelectorAll('[data-close-environment-consent]').forEach((button) => {
+                button.addEventListener('click', closeEnvironmentLocationConsent);
+            });
+            document.getElementById('environmentLocationConsentModal')?.addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) closeEnvironmentLocationConsent();
+            });
+            document.querySelectorAll('[data-environment-detail]').forEach((card) => {
+                const open = () => openEnvDetailModal(card.dataset.environmentDetail);
+                card.addEventListener('click', open);
+                card.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        open();
+                    }
+                });
+            });
+            document.querySelectorAll('[data-close-environment-detail]').forEach((button) => {
+                button.addEventListener('click', closeEnvDetailModal);
+            });
+        }
 
         function setupLocalImageCapture() {
             document.getElementById('localImageInput')?.addEventListener('change', handleLocalImageSelection);
