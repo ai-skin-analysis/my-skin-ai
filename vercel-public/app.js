@@ -162,6 +162,11 @@
         let environmentRequestId = 0;
         let environmentRequestBusy = false;
         let environmentController = null;
+        let environmentSelectedArea = null;
+        let environmentAreaSearchId = 0;
+        let environmentAreaSearchController = null;
+        let mapLocationRequestId = 0;
+        let mapLocationDeadline = null;
         let mapLocationConsent = false;
         // This is a separate, one-time approval for a Google Maps URL that
         // contains coordinates. A later checkbox tick alone is not enough to
@@ -188,6 +193,7 @@
             // Public weather controls must work before and independently of
             // account restoration. CSP intentionally blocks inline onclick.
             setupPublicEnvironmentControls();
+            setupPublicMedicalMapControls();
             if (typeof lucide !== 'undefined') lucide.createIcons();
             // Bind the account-panel interactions explicitly. Inline handlers
             // are not dependable under every static-host security policy.
@@ -211,6 +217,12 @@
             document.getElementById('environmentLocationButton')?.addEventListener('click', useCurrentLocationForEnvironment);
             document.getElementById('environmentRefreshButton')?.addEventListener('click', refreshEnvironmentData);
             document.getElementById('environmentLocationConfirmButton')?.addEventListener('click', approveEnvironmentLocationConsent);
+            document.getElementById('environmentAreaButton')?.addEventListener('click', openEnvironmentArea);
+            document.getElementById('environmentAreaForm')?.addEventListener('submit', searchEnvironmentAreas);
+            document.querySelectorAll('[data-close-environment-area]').forEach((button) => button.addEventListener('click', closeEnvironmentArea));
+            document.getElementById('environmentAreaModal')?.addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) closeEnvironmentArea();
+            });
             document.querySelectorAll('[data-close-environment-consent]').forEach((button) => {
                 button.addEventListener('click', closeEnvironmentLocationConsent);
             });
@@ -230,6 +242,106 @@
             document.querySelectorAll('[data-close-environment-detail]').forEach((button) => {
                 button.addEventListener('click', closeEnvDetailModal);
             });
+        }
+
+        function setupPublicMedicalMapControls() {
+            document.getElementById('medicalMapButton')?.addEventListener('click', () => openMapModal());
+            document.getElementById('medicalMapSearchButton')?.addEventListener('click', executeCustomSearch);
+            document.getElementById('customSearchInput')?.addEventListener('keydown', handleSearchKeyPress);
+            document.getElementById('mapLocationButton')?.addEventListener('click', useCurrentLocationForMap);
+            document.querySelectorAll('[data-map-category]').forEach((button) => {
+                button.addEventListener('click', () => filterMapSearch(button.dataset.mapCategory));
+            });
+            document.querySelectorAll('[data-close-medical-map]').forEach((button) => button.addEventListener('click', closeMapModal));
+            document.getElementById('mapModal')?.addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) closeMapModal();
+            });
+            document.getElementById('googleMapIframe')?.addEventListener('error', () => {
+                if (mapFrameIsExternal) showMapFrameFallback('แผนที่ฝังโหลดไม่ได้ กรุณากดเปิดผลค้นหาใน Google Maps ด้านบน');
+            });
+        }
+
+        function openEnvironmentArea() {
+            if (environmentRequestBusy) return;
+            document.getElementById('environmentAreaStatus').textContent = 'พิมพ์ชื่อเมืองหรือจังหวัด แล้วเลือกผลลัพธ์ที่ต้องการ';
+            document.getElementById('environmentAreaResults').replaceChildren();
+            showAccessibleModal('environmentAreaModal', '#environmentAreaInput');
+        }
+
+        function closeEnvironmentArea() {
+            ++environmentAreaSearchId;
+            environmentAreaSearchController?.abort();
+            document.getElementById('environmentAreaSearchButton').disabled = false;
+            hideAccessibleModal('environmentAreaModal');
+        }
+
+        async function searchEnvironmentAreas(event) {
+            event?.preventDefault();
+            const query = document.getElementById('environmentAreaInput').value.trim();
+            const status = document.getElementById('environmentAreaStatus');
+            const results = document.getElementById('environmentAreaResults');
+            if (query.length < 2 || query.length > 80) {
+                status.textContent = 'กรุณาพิมพ์ชื่อเมืองหรือจังหวัด 2–80 ตัวอักษร';
+                return;
+            }
+            const searchId = ++environmentAreaSearchId;
+            environmentAreaSearchController?.abort();
+            environmentAreaSearchController = new AbortController();
+            const searchButton = document.getElementById('environmentAreaSearchButton');
+            searchButton.disabled = true;
+            status.textContent = 'กำลังค้นหาพื้นที่…';
+            results.replaceChildren();
+            try {
+                const data = await fetchEnvironmentJson('/api/environment', 8000, environmentAreaSearchController.signal, { kind: 'places', query });
+                if (searchId !== environmentAreaSearchId) return;
+                const places = Array.isArray(data.results) ? data.results.filter(validEnvironmentArea).slice(0, 8) : [];
+                status.textContent = places.length ? 'เลือกพื้นที่เพื่อดูอากาศปัจจุบัน (ไม่ใช้ GPS)' : 'ไม่พบพื้นที่ ลองชื่อจังหวัดหรือชื่อภาษาอังกฤษ เช่น Bangkok';
+                for (const place of places) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'w-full rounded-xl border border-teal-200 bg-teal-50 p-3 text-left text-sm font-bold text-teal-900 hover:bg-teal-100';
+                    button.textContent = environmentAreaLabel(place);
+                    button.addEventListener('click', () => {
+                        closeEnvironmentArea();
+                        requestSelectedAreaWeather(place);
+                    });
+                    results.append(button);
+                }
+            } catch (error) {
+                if (searchId === environmentAreaSearchId) status.textContent = 'ค้นหาพื้นที่ไม่สำเร็จ โปรดตรวจอินเทอร์เน็ตแล้วลองใหม่';
+            } finally {
+                if (searchId === environmentAreaSearchId) searchButton.disabled = false;
+            }
+        }
+
+        function validEnvironmentArea(place) {
+            return place && typeof place.name === 'string' && place.name.trim()
+                && Number.isFinite(place.latitude) && Math.abs(place.latitude) <= 90
+                && Number.isFinite(place.longitude) && Math.abs(place.longitude) <= 180;
+        }
+
+        function environmentAreaLabel(place) {
+            return [place.name, place.admin1, place.country].filter(value => typeof value === 'string' && value)
+                .filter((value, index, parts) => parts.indexOf(value) === index).join(' · ');
+        }
+
+        async function requestSelectedAreaWeather(place) {
+            if (environmentRequestBusy || !validEnvironmentArea(place)) return;
+            environmentSelectedArea = { ...place };
+            const requestId = ++environmentRequestId;
+            environmentController?.abort();
+            environmentController = new AbortController();
+            setEnvironmentBusy(true);
+            resetEnvironmentCards('กำลังโหลดอากาศของพื้นที่');
+            document.getElementById('location-text').textContent = 'กำลังโหลดอากาศ…';
+            document.getElementById('environment-area-text').textContent = `พื้นที่ที่เลือก: ${environmentAreaLabel(place)} — ไม่ใช่ตำแหน่ง GPS ของอุปกรณ์`;
+            document.getElementById('environment-current-weather').textContent = 'กำลังโหลดสภาพอากาศปัจจุบัน';
+            setEnvironmentSourceText('เรียกอากาศของพื้นที่ที่คุณเลือก โดยไม่ขอสิทธิ์ตำแหน่ง', 'พิกัดเป็นจุดอ้างอิงของเมืองหรือพื้นที่ ไม่ใช่ตำแหน่งจริงของคุณ');
+            try {
+                await fetchLiveWeatherData(place.latitude, place.longitude, { source: 'selected-area', approximateName: environmentAreaLabel(place) }, requestId, environmentController.signal);
+            } finally {
+                if (requestId === environmentRequestId) setEnvironmentBusy(false);
+            }
         }
 
         function setupLocalImageCapture() {
@@ -390,7 +502,7 @@
 
         function locationErrorMessage(error) {
             if (!window.isSecureContext) return insecureLocationContextMessage();
-            if (error?.code === 1) return 'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง โปรดอนุญาต Location ในเบราว์เซอร์แล้วลองอีกครั้ง';
+            if (error?.code === 1) return 'เบราว์เซอร์ไม่ได้ให้สิทธิ์ตำแหน่ง — กด “เลือกพื้นที่เอง” เพื่อดูอากาศได้เลย หรือเปิดสิทธิ์ Location ของเว็บไซต์แล้วลองใหม่';
             if (error?.code === 2) return 'อุปกรณ์ยังไม่ส่งตำแหน่ง โปรดเปิดบริการตำแหน่ง (Location/GPS) และ Wi-Fi หรืออินเทอร์เน็ต แล้วลองอีกครั้ง';
             if (error?.code === 3) return 'อุปกรณ์ยังหาตำแหน่งไม่สำเร็จ โปรดอนุญาต Location ให้เบราว์เซอร์ เปิดบริการตำแหน่งและ Wi-Fi แล้วลองอีกครั้ง';
             return 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้';
@@ -483,6 +595,10 @@
 
         function refreshEnvironmentData() {
             if (environmentRequestBusy) return;
+            if (environmentSelectedArea) {
+                requestSelectedAreaWeather(environmentSelectedArea);
+                return;
+            }
             if (!environmentLocationConsent || !hasCurrentLocation()) {
                 useCurrentLocationForEnvironment();
                 return;
@@ -498,7 +614,7 @@
 
         function setEnvironmentBusy(busy) {
             environmentRequestBusy = busy;
-            ['environmentLocationButton', 'environmentRefreshButton'].forEach((id) => {
+            ['environmentLocationButton', 'environmentRefreshButton', 'environmentAreaButton'].forEach((id) => {
                 const button = document.getElementById(id);
                 if (button) {
                     button.disabled = busy;
@@ -524,6 +640,7 @@
 
         function requestFreshEnvironmentLocation() {
             if (environmentRequestBusy || !environmentLocationConsent) return;
+            environmentSelectedArea = null;
             const requestId = ++environmentRequestId;
             environmentController?.abort();
             environmentController = new AbortController();
@@ -602,9 +719,8 @@
         async function fetchApproximateLocationName(lat, lng) {
             const roundedLat = roundedCoordinate(lat);
             const roundedLng = roundedCoordinate(lng);
-            const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`);
-            if (!response.ok) throw new Error('Location service unavailable');
-            return approximateLocationLabel(await response.json());
+            const data = await fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000);
+            return approximateLocationLabel(data);
         }
 
         async function fetchWithTimeout(url, timeoutMs = 12000) {
@@ -670,12 +786,15 @@
             const isActive = () => requestId === environmentRequestId && !signal?.aborted;
             const roundedLat = roundedCoordinate(lat);
             const roundedLng = roundedCoordinate(lng);
-            let weather = null, aqi = null, airTime = '', locationName = '', airSettled = false, locationSettled = false;
+            const selectedArea = locationMeta.source === 'selected-area';
+            let weather = null, aqi = null, airTime = '', locationName = selectedArea ? locationMeta.approximateName : '', airSettled = false, locationSettled = selectedArea;
             const render = () => {
                 if (!isActive() || !weather) return;
                 const current = weather.current;
-                currentLocationMeta.approximateName = locationName;
-                document.getElementById('environment-area-text').textContent = locationName
+                if (!selectedArea) currentLocationMeta.approximateName = locationName;
+                document.getElementById('environment-area-text').textContent = selectedArea
+                    ? `พื้นที่ที่คุณเลือก: ${locationName} — ไม่ใช่ตำแหน่ง GPS ของอุปกรณ์`
+                    : locationName
                     ? `พื้นที่ใกล้เคียงจากตำแหน่งปัจจุบัน: ${locationName}` : `อากาศตามตำแหน่งปัจจุบันของอุปกรณ์คุณ (${locationSettled ? 'บริการชื่อพื้นที่ไม่พร้อมใช้งาน' : 'กำลังโหลดชื่อพื้นที่'})`;
                 document.getElementById('environment-current-weather').textContent = `สภาพอากาศปัจจุบัน: ${weatherCodeLabel(current.weather_code)}`;
                 updateCardsUI(Math.round(current.uv_index), current.temperature_2m, Math.round(current.relative_humidity_2m), aqi,
@@ -686,7 +805,9 @@
                 }
                 setEnvironmentSourceText(
                     `Open-Meteo · อากาศ ${formatProviderCurrentTime(current.time, weather.timezone_abbreviation || weather.timezone)} · AQI ${airTime || (airSettled ? 'ไม่พร้อมใช้งาน' : 'กำลังโหลด')}`,
-                    `ข้อมูลอากาศปัจจุบันเป็นค่าประมาณจากกริดพยากรณ์ ไม่ใช่เซนเซอร์โทรศัพท์ ขอพิกัดใหม่เวลา ${formatEnvironmentUpdatedAt(locationMeta.capturedAt)} (${formatGpsAccuracy(locationMeta.accuracyMeters)}) ส่งพิกัดแบบปัดทศนิยม 4 ตำแหน่งและไม่บันทึกในบัญชี`,
+                    selectedArea
+                        ? 'ข้อมูลอากาศเป็นค่าประมาณของพื้นที่ที่เลือก ไม่ใช่ตำแหน่ง GPS ของอุปกรณ์หรือเซนเซอร์โทรศัพท์ และไม่บันทึกในบัญชี'
+                        : `ข้อมูลอากาศปัจจุบันเป็นค่าประมาณจากกริดพยากรณ์ ไม่ใช่เซนเซอร์โทรศัพท์ ขอพิกัดใหม่เวลา ${formatEnvironmentUpdatedAt(locationMeta.capturedAt)} (${formatGpsAccuracy(locationMeta.accuracyMeters)}) ส่งพิกัดแบบปัดทศนิยม 4 ตำแหน่งและไม่บันทึกในบัญชี`,
                 );
             };
             // Optional providers run independently: a slow place name or AQI
@@ -698,7 +819,7 @@
                     aqi = Math.round(value);
                     airTime = formatProviderCurrentTime(data.current.time, data.timezone_abbreviation || data.timezone);
                 }).catch(() => {}).finally(() => { airSettled = true; render(); });
-            fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000, signal)
+            if (!selectedArea) fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000, signal)
                 .then((data) => { locationName = approximateLocationLabel(data); }).catch(() => {}).finally(() => { locationSettled = true; render(); });
             try {
                 const data = await fetchEnvironmentJson('/api/environment', 8000, signal, { kind: 'weather', latitude: roundedLat, longitude: roundedLng });
@@ -816,6 +937,9 @@
             // map/search URL without a fresh, explicit map opt-in.
             mapLocationConsent = false;
             mapGoogleMapsLocationConsent = false;
+            ++mapLocationRequestId;
+            window.clearTimeout(mapLocationDeadline);
+            document.getElementById('mapLocationButton').disabled = false;
             document.getElementById('mapLocationConsentCheck').checked = false;
             document.getElementById('googleMapLocationConsentCheck').checked = false;
             document.getElementById('mapLocationButton').textContent = 'แสดงตำแหน่งปัจจุบันโดยประมาณบนแผนที่';
@@ -861,14 +985,15 @@
         }
 
         function executeCustomSearch() {
-            const searchInput = document.getElementById('customSearchInput').value.trim();
+            const searchInput = document.getElementById('customSearchInput').value.trim().slice(0, 150);
             if (searchInput !== '') {
                 executeSearchWithQuery(searchInput + " โรคผิวหนัง คลินิก โรงพยาบาล");
-            }
+            } else setMapLocationStatus('พิมพ์ชื่อจังหวัด อำเภอ หรือสถานพยาบาลก่อนกดค้นหา หรือเลือกประเภทด้านบน', true);
         }
 
         function handleSearchKeyPress(event) {
             if (event.key === 'Enter') {
+                event.preventDefault();
                 executeCustomSearch();
             }
         }
@@ -893,13 +1018,14 @@
             const externalButton = document.getElementById('btnExternalNav');
             const externalButtonText = document.getElementById('btnExternalNavText');
             if (mayShareLocationWithGoogleMaps()) {
-                externalButton.href = `https://www.google.com/maps/search/?api=1&query=${markerLat.toFixed(4)}%2C${markerLng.toFixed(4)}`;
-                externalButtonText.textContent = 'เปิดตำแหน่งใน Google Maps';
+                externalButton.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lastMapQuery} ใกล้ ${markerLat.toFixed(4)},${markerLng.toFixed(4)}`)}`;
+                externalButtonText.textContent = 'ค้นหาสถานพยาบาลใกล้ตำแหน่งใน Google Maps';
             } else {
                 externalButton.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lastMapQuery)}`;
                 externalButtonText.textContent = 'ค้นหาใน Google Maps';
                 setMapLocationStatus(`แสดงหมุดผ่าน OpenStreetMap แล้ว (${formatGpsAccuracy(currentLocationMeta.accuracyMeters)}) Google Maps ยังไม่ได้รับพิกัดของคุณ`);
             }
+            document.getElementById('medicalMapExternalTop').href = externalButton.href;
         }
 
         function executeSearchWithQuery(queryText) {
@@ -916,16 +1042,19 @@
             if (!navigator.onLine) {
                 showMapFrameFallback('ออฟไลน์อยู่ จึงยังโหลดแผนที่หรือผลค้นหาสถานพยาบาลไม่ได้');
                 document.getElementById('btnExternalNav').href = '#';
+                document.getElementById('medicalMapExternalTop').href = '#';
                 return;
             }
 
             const locationQuery = shareWithGoogle ? `&ll=${roundedCoordinate(currentLat)},${roundedCoordinate(currentLng)}&z=13` : '';
-            const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(queryText)}${locationQuery}&output=embed`;
+            // Use the already-allowlisted host; maps.google.com is blocked by CSP.
+            const mapUrl = `https://www.google.com/maps?q=${encodeURIComponent(queryText)}${locationQuery}&output=embed`;
             loadMapFrame(mapUrl);
             document.getElementById('btnExternalNav').href = shareWithGoogle
-                ? `https://www.google.com/maps/search/${encodeURIComponent(queryText)}/@${roundedCoordinate(currentLat)},${roundedCoordinate(currentLng)},14z`
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${queryText} ใกล้ ${roundedCoordinate(currentLat)},${roundedCoordinate(currentLng)}`)}`
                 : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryText)}`;
             document.getElementById('btnExternalNavText').textContent = 'ค้นหาใน Google Maps';
+            document.getElementById('medicalMapExternalTop').href = document.getElementById('btnExternalNav').href;
         }
 
         function useCurrentLocationForMap() {
@@ -957,30 +1086,58 @@
             // It prevents a coordinate obtained for OpenStreetMap from being
             // sent to Google merely because the checkbox is ticked later.
             const wantsGoogleMapsLocation = document.getElementById('googleMapLocationConsentCheck').checked === true;
-
+            const button = document.getElementById('mapLocationButton');
+            if (button.disabled) return;
+            const requestId = ++mapLocationRequestId;
+            let finished = false;
+            const active = () => !finished && requestId === mapLocationRequestId && !document.getElementById('mapModal').classList.contains('hidden');
+            button.disabled = true;
             document.getElementById('coords-text').textContent = 'กำลังขอตำแหน่งล่าสุดจากอุปกรณ์';
             setMapLocationStatus('กำลังขอตำแหน่งใหม่ โดยไม่ใช้พิกัดที่ค้างอยู่ในหน้าเว็บ');
+            const fail = (error) => {
+                if (!active()) return;
+                finished = true;
+                window.clearTimeout(mapLocationDeadline);
+                button.disabled = false;
+                mapLocationConsent = false;
+                mapGoogleMapsLocationConsent = false;
+                executeSearchWithQuery(lastMapQuery);
+                setMapLocationStatus(`${locationErrorMessage(error)} — ยังค้นหาสถานพยาบาลด้วยชื่อพื้นที่หรือ Google Maps ได้`, true);
+            };
+            mapLocationDeadline = window.setTimeout(() => fail({ code: 3 }), 30000);
             // A map request is a separate consent action. Always ask for a fresh
             // browser position instead of reusing an earlier weather/map reading.
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
+            const acquire = (highAccuracy) => navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    if (!active()) return;
+                    const { latitude, longitude } = position?.coords || {};
+                    if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) return fail({ code: 2 });
+                    finished = true;
+                    window.clearTimeout(mapLocationDeadline);
+                    button.disabled = false;
                     saveFreshBrowserLocation(position);
                     mapLocationConsent = true;
                     mapGoogleMapsLocationConsent = wantsGoogleMapsLocation;
                     document.getElementById('mapLocationButton').textContent = 'อัปเดตหมุดตำแหน่งปัจจุบันอีกครั้ง';
-                    currentLocationMeta.approximateName = await fetchApproximateLocationName(currentLat, currentLng).catch(() => '');
+                    // Show the marker immediately; reverse geocoding is optional.
                     showCurrentLocationMarker();
                     if (mayShareLocationWithGoogleMaps()) {
                         setMapLocationStatus(`แสดงหมุดพิกัดโดยประมาณแล้ว (${formatGpsAccuracy(currentLocationMeta.accuracyMeters)}) และอนุญาตให้ Google Maps ใช้พิกัดสำหรับค้นหา`);
                     }
+                    fetchApproximateLocationName(currentLat, currentLng).then((name) => {
+                        if (requestId !== mapLocationRequestId || !mapLocationConsent) return;
+                        currentLocationMeta.approximateName = name;
+                        document.getElementById('coords-text').textContent = `หมุดตำแหน่งปัจจุบันโดยประมาณ${name ? ` — ${name}` : ''}`;
+                    }).catch(() => {});
                 },
                 (error) => {
-                    const message = `${locationErrorMessage(error)} — จึงค้นหาโดยไม่ใช้ตำแหน่ง`;
-                    document.getElementById('coords-text').textContent = message;
-                    setMapLocationStatus(message, true);
+                    if (!active()) return;
+                    if (!highAccuracy && (error?.code === 2 || error?.code === 3)) acquire(true);
+                    else fail(error);
                 },
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                { enableHighAccuracy: highAccuracy, timeout: highAccuracy ? 10000 : 6000, maximumAge: 0 }
             );
+            try { acquire(false); } catch (error) { fail(error); }
         }
 
         function closeMapModal() {

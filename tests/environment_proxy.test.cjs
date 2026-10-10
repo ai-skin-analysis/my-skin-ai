@@ -88,3 +88,34 @@ test('real shared router permits public weather while retaining denial for anony
         assert.equal(privateResponse.code, 401);
     } finally { global.fetch = original; }
 });
+
+test('public area search uses a fixed geocoding host, returns bounded sanitized rounded places and no account data', async () => {
+    const run = await handler, original = global.fetch;
+    let url;
+    global.fetch = async input => { url = input; return { ok: true, json: async () => ({ results: [
+        { name: 'พื้นที่ทดสอบ', admin1: 'จังหวัด', country: 'ประเทศ', latitude: 0.123456, longitude: 1.234567, secret: 'not returned' },
+        { name: 'invalid', latitude: 999, longitude: 1 },
+    ] }) }; };
+    try {
+        const req = request({ kind: 'places', query: 'พื้นที่ทดสอบ' }); req.headers['x-forwarded-for'] = 'area-test-client';
+        const res = response(); await run(req, res);
+        assert.equal(res.code, 200); assert.equal(res.headers['Cache-Control'], 'no-store');
+        assert.match(url, /^https:\/\/geocoding-api\.open-meteo\.com\/v1\/search\?/);
+        assert.equal(res.body.results.length, 1); assert.equal(res.body.results[0].latitude, 0.1235);
+        assert.equal(res.body.results[0].longitude, 1.2346); assert.equal(res.body.results[0].secret, undefined);
+    } finally { global.fetch = original; }
+});
+
+test('area search refuses missing, huge, non-string, control-character and extra-coordinate input before fetch', async () => {
+    const run = await handler, original = global.fetch; let calls = 0;
+    global.fetch = async () => { calls++; throw new Error('must not fetch'); };
+    try {
+        for (const body of [{ kind: 'places' }, { kind: 'places', query: 'x' }, { kind: 'places', query: 123 },
+            { kind: 'places', query: 'x'.repeat(81) }, { kind: 'places', query: 'test\u0001' },
+            { kind: 'places', query: 'test', latitude: 0.1, longitude: 1.2 }]) {
+            const req = request(body); req.headers['x-forwarded-for'] = 'invalid-area-test-client';
+            const res = response(); await run(req, res); assert.equal(res.code, 400);
+        }
+        assert.equal(calls, 0);
+    } finally { global.fetch = original; }
+});

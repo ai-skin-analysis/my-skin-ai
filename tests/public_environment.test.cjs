@@ -13,7 +13,7 @@ function environment({ secure = true, supported = true, accountFailure = false, 
     let nextTimer = 0;
     class Element {
         constructor(id) {
-            this.id = id; this.textContent = ''; this.checked = false; this.style = {}; this.dataset = {};
+            this.id = id; this.textContent = ''; this.value = ''; this.checked = false; this.style = {}; this.dataset = {}; this.children = [];
             this.isConnected = true; this.events = new Map(); this.attributes = new Map();
             const classes = new Set(id.endsWith('Modal') ? ['hidden'] : []);
             this.classList = { add: n => classes.add(n), remove: n => classes.delete(n), contains: n => classes.has(n),
@@ -25,6 +25,9 @@ function environment({ secure = true, supported = true, accountFailure = false, 
         }
         setAttribute(name, value) { this.attributes.set(name, value); }
         focus() { document.activeElement = this; }
+        click() { this.dispatch(); }
+        replaceChildren(...children) { this.children = children; }
+        append(child) { this.children.push(child); }
         closest() { return null; }
         querySelector(selector) { return selector.startsWith('#') ? element(selector.slice(1)) : null; }
         querySelectorAll() { return []; }
@@ -32,17 +35,26 @@ function environment({ secure = true, supported = true, accountFailure = false, 
     const element = id => { if (!nodes.has(id)) nodes.set(id, new Element(id)); return nodes.get(id); };
     const closeConsent = [element('closeEnvironment'), element('cancelEnvironment')];
     const closeDetails = [element('closeDetails'), element('acceptDetails')];
+    const closeArea = [element('closeArea'), element('cancelArea')];
+    const closeMap = [element('closeMap'), element('cancelMap')];
+    const categories = [['mapBtnDerm', 'dermatologist'], ['mapBtnHosp', 'hospital'], ['mapBtnPharm', 'pharmacy']].map(([id, category]) => {
+        const button = element(id); button.dataset.mapCategory = category; return button;
+    });
     const cards = ['uv', 'temp', 'humidity', 'aqi'].map(key => {
         const card = element(`detail-${key}`); card.dataset.environmentDetail = key; return card;
     });
     const document = { getElementById: element, activeElement: element('environmentLocationButton'),
         documentElement: element('html'), body: element('body'),
+        createElement: tag => new Element(tag),
         addEventListener(type, fn) { documentEvents.set(type, fn); },
         querySelectorAll(selector) {
             if (selector === '[data-close-environment-consent]') return closeConsent;
             if (selector === '[data-close-environment-detail]') return closeDetails;
+            if (selector === '[data-close-environment-area]') return closeArea;
+            if (selector === '[data-close-medical-map]') return closeMap;
+            if (selector === '[data-map-category]') return categories;
             if (selector === '[data-environment-detail]') return cards;
-            if (selector === '[data-accessible-modal="true"]') return [element('environmentLocationConsentModal'), element('envDetailModal')];
+            if (selector === '[data-accessible-modal="true"]') return [element('environmentLocationConsentModal'), element('environmentAreaModal'), element('mapModal'), element('envDetailModal')];
             return [];
         } };
     const fetch = async (url, options = {}) => {
@@ -57,11 +69,13 @@ function environment({ secure = true, supported = true, accountFailure = false, 
             const body = JSON.parse(options.body);
             requestBodies.push(body);
             assert.equal(options.method, 'POST'); assert.equal(options.credentials, 'omit');
-            providerUrl = `https://${body.kind === 'weather' ? 'api.open-meteo.com' : 'air-quality-api.open-meteo.com'}/?latitude=${body.latitude}&longitude=${body.longitude}`;
+            providerUrl = body.kind === 'places' ? `https://geocoding-api.open-meteo.com/?name=${encodeURIComponent(body.query)}`
+                : `https://${body.kind === 'weather' ? 'api.open-meteo.com' : 'air-quality-api.open-meteo.com'}/?latitude=${body.latitude}&longitude=${body.longitude}`;
         }
         const host = new URL(providerUrl).hostname;
         const data = host === 'api.open-meteo.com' ? { current: { temperature_2m: 24.3, relative_humidity_2m: 50, uv_index: 3, weather_code: 0, is_day: 1, time: '2026-10-10T10:00' }, timezone: 'UTC' }
             : host === 'air-quality-api.open-meteo.com' ? { current: { us_aqi: 20, time: '2026-10-10T10:00' }, timezone: 'UTC' }
+            : host === 'geocoding-api.open-meteo.com' ? { results: [{ name: 'พื้นที่ทดสอบ', admin1: 'จังหวัดทดสอบ', country: 'ประเทศทดสอบ', latitude: 0.123456, longitude: 1.234567 }] }
             : { address: { city: 'พื้นที่ทดสอบ' } };
         return providerResponse ? providerResponse(String(providerUrl), options, data) : { ok: true, json: async () => data };
     };
@@ -80,7 +94,7 @@ function environment({ secure = true, supported = true, accountFailure = false, 
             location: { search: '', replace: path => redirects.push(path) } } });
     vm.runInContext(script, context);
     documentEvents.get('DOMContentLoaded')();
-    return { element, requests, requestBodies, positions, redirects, closeConsent, closeDetails, cards, gpsCallbacks,
+    return { element, requests, requestBodies, positions, redirects, closeConsent, closeDetails, closeArea, closeMap, cards, gpsCallbacks,
         run: code => vm.runInContext(code, context),
         fireTimers(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { timers.delete(id); timer.fn(); } } };
 }
@@ -97,6 +111,108 @@ test('public location controls use external event listeners without weakening CS
     const csp = policy.headers[0].headers.find(h => h.key === 'Content-Security-Policy').value;
     assert.doesNotMatch(csp.match(/script-src [^;]+/)[0], /unsafe-inline|unsafe-eval/);
     assert.doesNotMatch(script, /localStorage|sessionStorage/);
+});
+
+test('all public medical-map controls are CSP-safe and a guest can search by button, category or Enter without GPS', async () => {
+    assert.doesNotMatch(html, /on(?:click|keypress)="(?:openMapModal|closeMapModal|executeCustomSearch|filterMapSearch|useCurrentLocationForMap|handleSearchKeyPress)\(/);
+    const e = environment({ accountFailure: true }); await flush(); e.requests.length = 0;
+    e.element('medicalMapButton').dispatch();
+    assert.equal(e.element('mapModal').classList.contains('hidden'), false);
+    assert.match(e.element('googleMapIframe').src, /^https:\/\/www\.google\.com\/maps\?/);
+    assert.doesNotMatch(e.element('googleMapIframe').src, /&ll=|marker=|latitude=/);
+    e.element('mapBtnHosp').dispatch();
+    assert.match(decodeURIComponent(e.element('btnExternalNav').href), /โรงพยาบาล/);
+    e.element('customSearchInput').value = 'จังหวัดทดสอบ';
+    e.element('customSearchInput').dispatch('keydown', { key: 'Enter' });
+    assert.match(decodeURIComponent(e.element('btnExternalNav').href), /จังหวัดทดสอบ/);
+    assert.equal(e.element('medicalMapExternalTop').href, e.element('btnExternalNav').href);
+    assert.equal(e.positions.length, 0); assert.deepEqual(e.requests, []);
+    e.closeMap[0].dispatch();
+    assert.equal(e.element('mapModal').classList.contains('hidden'), true); assert.equal(e.element('googleMapIframe').src, '');
+});
+
+test('map location requires separate consent; denial keeps keyword search available and closing discards late GPS', async () => {
+    const denied = environment({ gpsError: 1 }); await flush(); denied.requests.length = 0;
+    denied.element('medicalMapButton').dispatch(); denied.element('mapLocationButton').dispatch();
+    assert.equal(denied.positions.length, 0);
+    denied.element('mapLocationConsentCheck').checked = true; denied.element('mapLocationButton').dispatch();
+    assert.match(denied.element('mapLocationStatus').textContent, /สิทธิ์ตำแหน่ง/);
+    assert.match(denied.element('btnExternalNav').href, /api=1&query=/);
+    assert.equal(denied.element('mapLocationButton').disabled, false); assert.deepEqual(denied.requests, []);
+    const late = environment({ gpsPlan: ['pending'] }); await flush(); late.requests.length = 0;
+    late.element('medicalMapButton').dispatch(); late.element('mapLocationConsentCheck').checked = true;
+    late.element('mapLocationButton').dispatch(); late.closeMap[1].dispatch();
+    late.gpsCallbacks[0].success({ coords: { latitude: 0.1, longitude: 1.2, accuracy: 10 } }); await flush();
+    assert.equal(late.element('googleMapIframe').src, ''); assert.deepEqual(late.requests, []);
+});
+
+test('map marker displays before optional geocoder, keeps coordinates out of Google until distinct consent, and is cleared on close', async () => {
+    const e = environment({ providerResponse: (url) => url.includes('nominatim') ? new Promise(() => {}) : Promise.reject(new Error('unexpected request')) });
+    await flush(); e.element('medicalMapButton').dispatch(); e.element('mapLocationConsentCheck').checked = true;
+    e.element('mapLocationButton').dispatch();
+    assert.match(e.element('googleMapIframe').src, /^https:\/\/www\.openstreetmap\.org\/export\/embed\.html/);
+    assert.match(e.element('googleMapIframe').src, /marker=0\.1235%2C1\.2346/);
+    assert.doesNotMatch(e.element('btnExternalNav').href, /0\.1235|1\.2346/);
+    e.element('googleMapLocationConsentCheck').checked = true;
+    e.element('mapBtnDerm').dispatch();
+    assert.doesNotMatch(e.element('googleMapIframe').src, /&ll=/);
+    e.closeMap[1].dispatch(); assert.equal(e.element('googleMapIframe').src, '');
+});
+
+test('guest can choose an area and refresh actual weather without GPS; chosen area never masquerades as a device location', async () => {
+    const e = environment({ gpsError: 1 }); await flush(); e.requests.length = 0;
+    e.element('environmentAreaButton').dispatch();
+    assert.equal(e.element('environmentAreaModal').classList.contains('hidden'), false); assert.deepEqual(e.requests, []);
+    e.element('environmentAreaInput').value = 'พื้นที่ทดสอบ'; e.element('environmentAreaForm').dispatch('submit'); await flush();
+    assert.deepEqual(e.requestBodies[0], { kind: 'places', query: 'พื้นที่ทดสอบ' });
+    e.element('environmentAreaResults').children[0].dispatch(); await flush();
+    assert.equal(e.positions.length, 0); assert.equal(e.element('card-temp-val').textContent, '24.3°C');
+    assert.match(e.element('environment-area-text').textContent, /พื้นที่ที่คุณเลือก.*ไม่ใช่ตำแหน่ง GPS/);
+    assert.doesNotMatch(e.element('environment-source-note').textContent, /ขอพิกัดใหม่เวลา/);
+    assert.equal(e.run('currentLat'), null); assert.equal(e.run('currentLng'), null);
+    assert.equal(e.requests.some(url => url.includes('nominatim')), false);
+    e.element('environmentRefreshButton').dispatch(); await flush();
+    assert.equal(e.positions.length, 0); assert.equal(e.element('environmentAreaButton').disabled, false);
+});
+
+test('closing area search cancels late results; invalid or failed searches cannot fabricate weather', async () => {
+    let resolveSearch;
+    const e = environment({ providerResponse: (url, options, data) => url.includes('geocoding') ? new Promise(resolve => { resolveSearch = resolve; }) : { ok: true, json: async () => data } });
+    await flush(); e.element('environmentAreaButton').dispatch();
+    e.element('environmentAreaInput').value = 'x'; e.element('environmentAreaForm').dispatch('submit'); await flush();
+    assert.equal(e.requestBodies.length, 0);
+    e.element('environmentAreaInput').value = 'test'; e.element('environmentAreaForm').dispatch('submit'); await flush();
+    e.closeArea[0].dispatch(); resolveSearch({ ok: true, json: async () => ({ results: [{ name: 'late', latitude: 0.1, longitude: 1.2 }] }) }); await flush();
+    assert.deepEqual(e.element('environmentAreaResults').children, []); assert.equal(e.positions.length, 0);
+    assert.equal(e.element('environmentAreaSearchButton').disabled, false);
+});
+
+test('map GPS fallback is fresh and its deadline releases controls and prevents late coordinate transmission', async () => {
+    const e = environment({ gpsPlan: [3, 'pending'] }); await flush(); e.requests.length = 0;
+    e.element('medicalMapButton').dispatch(); e.element('mapLocationConsentCheck').checked = true;
+    e.element('mapLocationButton').dispatch(); e.element('mapLocationButton').dispatch();
+    assert.equal(e.positions.length, 2); assert.equal(e.positions[0].enableHighAccuracy, false);
+    assert.equal(e.positions[1].enableHighAccuracy, true); assert.equal(e.positions[1].maximumAge, 0);
+    e.fireTimers(30000); assert.equal(e.element('mapLocationButton').disabled, false);
+    e.gpsCallbacks[1].success({ coords: { latitude: 0.1, longitude: 1.2, accuracy: 5 } }); await flush();
+    assert.deepEqual(e.requests, []); assert.doesNotMatch(e.element('googleMapIframe').src, /marker=|&ll=/);
+});
+
+test('explicit Google map consent creates encoded universal search links; iframe failure preserves the direct-search fallback', async () => {
+    const e = environment(); await flush(); e.element('medicalMapButton').dispatch();
+    e.element('mapLocationConsentCheck').checked = true; e.element('googleMapLocationConsentCheck').checked = true;
+    e.element('mapLocationButton').dispatch(); await flush();
+    assert.match(e.element('btnExternalNav').href, /api=1&query=/);
+    assert.match(decodeURIComponent(e.element('btnExternalNav').href), /คลินิก.*0\.1235,1\.2346/);
+    e.element('mapBtnHosp').dispatch();
+    const mapHost = new URL(e.element('googleMapIframe').src).origin;
+    const policy = JSON.parse(readFileSync(join(__dirname, '../vercel-public/vercel.json'), 'utf8'));
+    const csp = policy.headers[0].headers.find(h => h.key === 'Content-Security-Policy').value;
+    assert.ok(csp.match(/frame-src [^;]+/)[0].includes(mapHost));
+    const directLink = e.element('medicalMapExternalTop').href;
+    e.element('googleMapIframe').dispatch('error');
+    assert.equal(e.element('mapFrameFallback').classList.contains('hidden'), false);
+    assert.equal(e.element('medicalMapExternalTop').href, directLink);
 });
 
 test('guest can open and cancel location consent; no location or external data is requested before opt-in', async () => {

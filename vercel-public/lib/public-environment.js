@@ -21,8 +21,27 @@ export default async function handler(req, res) {
   if (!withinBudget(req)) return json(res, 429, { ok: false, message: 'โปรดรอสักครู่ก่อนอัปเดตอีกครั้ง' });
   try {
     const body = requestJson(req);
-    if (JSON.stringify(body).length > 512 || Object.keys(body).some(key => !['kind', 'latitude', 'longitude'].includes(key))) return json(res, 400, { ok: false });
+    if (JSON.stringify(body).length > 512) return json(res, 400, { ok: false });
     const { kind, latitude, longitude } = body;
+    if (kind === 'places') {
+      if (Object.keys(body).some(key => !['kind', 'query'].includes(key)) || typeof body.query !== 'string'
+        || body.query.trim().length < 2 || body.query.length > 80 || /[\u0000-\u001f\u007f]/.test(body.query)) return json(res, 400, { ok: false });
+      const query = new URLSearchParams({ name: body.query.trim(), count: '8', language: 'th', format: 'json' });
+      const signal = AbortSignal.timeout(6000);
+      const upstream = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${query}`, { signal, redirect: 'error', cache: 'no-store' });
+      if (!upstream.ok) return json(res, 502, { ok: false, message: 'บริการค้นหาพื้นที่ยังไม่พร้อม' });
+      const data = await upstream.json();
+      if (signal.aborted) throw new Error('Provider timeout');
+      const results = (Array.isArray(data.results) ? data.results : []).filter(place => place
+        && typeof place.name === 'string' && place.name.trim() && Number.isFinite(place.latitude) && Math.abs(place.latitude) <= 90
+        && Number.isFinite(place.longitude) && Math.abs(place.longitude) <= 180).slice(0, 8).map(place => ({
+          name: place.name.slice(0, 100), admin1: typeof place.admin1 === 'string' ? place.admin1.slice(0, 100) : '',
+          country: typeof place.country === 'string' ? place.country.slice(0, 100) : '',
+          latitude: Number(place.latitude.toFixed(4)), longitude: Number(place.longitude.toFixed(4)),
+        }));
+      return json(res, 200, { results });
+    }
+    if (Object.keys(body).some(key => !['kind', 'latitude', 'longitude'].includes(key))) return json(res, 400, { ok: false });
     if (!['weather', 'air'].includes(kind) || typeof latitude !== 'number' || typeof longitude !== 'number'
       || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return json(res, 400, { ok: false });
     // Round again on the server. Never put coordinates in our request URL,
