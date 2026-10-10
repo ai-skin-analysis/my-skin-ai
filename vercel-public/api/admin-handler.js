@@ -22,6 +22,8 @@ import { scanReadiness, requireScanEngine } from '../lib/scan-readiness.js';
 import { InferenceServiceError } from '../lib/research-inference.js';
 import { researchTransportCheck } from '../lib/research-transport-check.js';
 import { adminPrivateSummary } from '../lib/admin-private-summary.js';
+import { adminShareConsent, sharedQuery, recordConsentedScan, revokeAdminShares,
+  sharedHistory, sharedImage } from '../lib/admin-scan-sharing.js';
 import { researchReadiness, analyzePrivateResearchScan, RESEARCH_CONSENT_VERSION } from '../lib/research-workflow.js';
 import {
   countPrivateRows,
@@ -74,6 +76,48 @@ async function signedInApprovedUser(req, res) {
     return null;
   }
   return { user, claims };
+}
+
+async function verifiedSharingAdmin(req, res) {
+  const admin = await signedInAdmin(req, res);
+  if (!admin) return null;
+  if (!admin.user.mfaEnrolled || admin.claims.mfaVerified !== true) {
+    json(res, 403, { ok: false, code: 'mfa_required', message: 'กรุณายืนยัน MFA ของผู้ดูแลก่อนดูประวัติและภาพที่ผู้ใช้แชร์' });
+    return null;
+  }
+  return admin;
+}
+
+async function adminSharedHistory(req, res) {
+  if (!requireGet(req, res)) return;
+  if (!await verifiedSharingAdmin(req, res)) return;
+  const query = sharedQuery(req.query);
+  const sql = await database();
+  return json(res, 200, { ok: true, ...await sharedHistory(sql, query) });
+}
+
+async function adminSharedImage(req, res) {
+  if (!requireGet(req, res)) return;
+  if (!await verifiedSharingAdmin(req, res)) return;
+  const query = sharedQuery(req.query, true);
+  const sql = await database();
+  const image = await sharedImage(sql, query);
+  res.setHeader('Cache-Control', 'no-store, private');
+  res.setHeader('Content-Type', image.mime);
+  res.setHeader('Content-Length', String(image.bytes.length));
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Content-Disposition', 'inline');
+  return res.status(200).send(image.bytes);
+}
+
+async function userRevokeAdminShares(req, res) {
+  if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
+  const account = await signedInApprovedUser(req, res);
+  if (!account) return;
+  if (requestJson(req).confirmed !== true) return json(res, 400, { ok: false, message: 'กรุณายืนยันการถอนการแชร์' });
+  await revokeAdminShares(await database(), account.user.id);
+  return json(res, 200, { ok: true, message: 'ถอนการแชร์รายการเดิมทั้งหมดแล้ว รูปและประวัติส่วนตัวของคุณยังอยู่ตามรอบหมดอายุ ไม่สามารถเรียกคืนสิ่งที่ผู้ดูแลเห็นหรือบันทึกไว้ก่อนถอนสิทธิ์ได้' });
 }
 
 async function overview(req, res) {
@@ -447,9 +491,11 @@ async function startScanUpload(req, res, research = false) {
   if (!research && !requireScanEngine(res, json)) return;
   if (!isSupabasePrivateStorageConfigured()) return json(res, 503, { ok: false, message: 'ระบบจัดเก็บภาพส่วนตัวยังไม่ได้เชื่อมต่อ Supabase' });
   let details;
+  let shareConsent = null;
   try {
     const body = requestJson(req);
     details = validateScanRequest(body);
+    shareConsent = research ? adminShareConsent(body) : null;
     if (research && body.researchConsentVersion !== RESEARCH_CONSENT_VERSION) {
       throw new PublicAccountError('กรุณายืนยันความยินยอมสำหรับการวิเคราะห์เชิงทดลองก่อนส่งภาพ');
     }
@@ -462,10 +508,10 @@ async function startScanUpload(req, res, research = false) {
   const objectPath = scanObjectPath(account.user.id, details.mimeType);
   const expiresAt = new Date(Date.now() + PENDING_SCAN_UPLOAD_TTL_MS);
   await sql`INSERT INTO smart_skin_pending_scan_uploads (
-      id, user_id, object_path, original_name, mime_type, image_size_bytes, source, expires_at, research_consent_version
+      id, user_id, object_path, original_name, mime_type, image_size_bytes, source, expires_at, research_consent_version, admin_share_consent_version
     ) VALUES (
       ${id}, ${account.user.id}, ${objectPath}, ${details.originalName}, ${details.mimeType},
-      ${details.imageSizeBytes}, ${details.source}, ${expiresAt}, ${research ? RESEARCH_CONSENT_VERSION : null}
+      ${details.imageSizeBytes}, ${details.source}, ${expiresAt}, ${research ? RESEARCH_CONSENT_VERSION : null}, ${shareConsent}
     )`;
   let upload;
   try {
@@ -497,18 +543,23 @@ async function completeResearchUpload(req, res) {
   const rows = await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NOW()
     WHERE id = ${id} AND user_id = ${account.user.id} AND expires_at > NOW()
       AND analysis_started_at IS NULL AND research_consent_version = ${RESEARCH_CONSENT_VERSION}
-    RETURNING id, object_path, original_name, image_size_bytes, source, research_consent_version`;
+    RETURNING id, object_path, original_name, image_size_bytes, source, research_consent_version, admin_share_consent_version`;
   const pending = rows[0];
   if (!pending) return json(res, 409, { ok: false, code: 'MODEL_BUSY', message: 'รายการหมดอายุ ถูกประมวลผลแล้ว หรือกำลังประมวลผล กรุณาเริ่มใหม่' });
   try {
     const retention = new Date(Date.now() + scanRetentionDays() * 86400000).toISOString();
     const result = await analyzePrivateResearchScan(pending, account.user.id, retention);
+    // Optional sharing must never make a successfully saved private scan fail
+    // or trigger a second inference. Its status is visible to the owner.
+    let adminShareStatus = 'private';
     if (result.storedImage) {
+      try { adminShareStatus = await recordConsentedScan(sql, pending, account.user.id, result, retention); }
+      catch { adminShareStatus = 'unavailable'; }
       await sql`DELETE FROM smart_skin_pending_scan_uploads WHERE id = ${id} AND user_id = ${account.user.id}`;
     }
     // For rejections the locked pending row stays until signed-upload expiry:
     // it also cleans up any late upload made with that still-valid URL.
-    return json(res, 200, { ok: true, ...result });
+    return json(res, 200, { ok: true, ...result, adminShareStatus });
   } catch (error) {
     try {
       await sql`UPDATE smart_skin_pending_scan_uploads SET analysis_started_at = NULL
@@ -730,6 +781,7 @@ async function sendFeedback(req, res) {
 }
 
 async function deletePrivateUserData(userId) {
+  await revokeAdminShares(await database(), userId);
   if (!isSupabasePrivateStorageConfigured()) return;
   const filter = `?user_id=eq.${encodeURIComponent(userId)}`;
   const [scans, avatars] = await Promise.all([
@@ -762,6 +814,7 @@ async function deleteScanHistory(req, res) {
   const sql = await database();
   const pendingRows = await sql`SELECT object_path FROM smart_skin_pending_scan_uploads
     WHERE user_id = ${account.user.id}`;
+  await revokeAdminShares(sql, account.user.id);
   let privateDeleteComplete = true;
   if (isSupabasePrivateStorageConfigured()) {
     try {
@@ -852,6 +905,8 @@ export default async function handler(req, res) {
   try {
     switch (requestPath(req)) {
       case 'overview': return await overview(req, res);
+      case 'shared-history': return await adminSharedHistory(req, res);
+      case 'shared-image': return await adminSharedImage(req, res);
       case 'model/readiness': return await getAdminModelReadiness(req, res);
       case 'approve-user': return await approveUser(req, res);
       case 'user/profile': return await userProfile(req, res);
@@ -859,6 +914,7 @@ export default async function handler(req, res) {
       case 'user/avatar/remove': return await removeAvatar(req, res);
       case 'user/storage-status': return await privateStorageStatus(req, res);
       case 'user/history': return await userHistory(req, res);
+      case 'user/scan/admin-share/revoke': return await userRevokeAdminShares(req, res);
       case 'user/scan/readiness': return await getScanReadiness(req, res);
       case 'user/scan/research/readiness': return await getResearchReadiness(req, res);
       case 'user/scan/research/transport-check': return await checkResearchTransport(req, res);

@@ -132,6 +132,17 @@
         try {
             // Presentation only: no upload, re-scan, storage or model call.
             presenter.renderAnalysisScreen(document, completed, options);
+            document.getElementById('dashboardAdminShareStatus').textContent = completed.adminShareStatus === 'shared'
+                ? 'แชร์รายการนี้ให้ผู้ดูแลที่ยืนยัน MFA แล้ว ถอนการแชร์ได้ที่ “ประวัติของฉัน”'
+                : completed.adminShareStatus === 'unavailable'
+                ? 'บันทึกผลส่วนตัวแล้ว แต่ยังยืนยันสถานะแชร์ไม่ได้ หากไม่ต้องการให้ผู้ดูแลเข้าถึง ให้ถอนการแชร์ที่ “ประวัติของฉัน” ระบบไม่ส่งภาพหรือสแกนซ้ำอัตโนมัติ'
+                : 'รายการนี้ไม่ได้แชร์ให้ผู้ดูแล ภาพและผลยังเป็นข้อมูลส่วนตัวของคุณ';
+            document.getElementById('dashboardAnalysisAccessBadge').textContent = completed.adminShareStatus === 'shared'
+                ? 'แชร์ให้ผู้ดูแลตามยินยอม' : completed.adminShareStatus === 'unavailable' ? 'ยังยืนยันสถานะแชร์ไม่ได้' : 'เฉพาะบัญชีคุณ';
+            if (completed.adminShareStatus === 'shared') document.getElementById('dashboardAnalysisPrivacy').textContent =
+                'เก็บในพื้นที่ส่วนตัว และแชร์รายการนี้ให้ผู้ดูแลโครงการที่ยืนยัน MFA ตามความยินยอมแยกต่างหาก ถอนการแชร์ได้ที่ประวัติของฉัน';
+            if (completed.adminShareStatus === 'unavailable') document.getElementById('dashboardAnalysisPrivacy').textContent =
+                'บันทึกประวัติส่วนตัวแล้ว แต่สถานะแชร์ยังไม่แน่นอน หากต้องการปิดสิทธิ์ ให้ถอนการแชร์ที่ประวัติของฉัน';
             closeModal('dashboardProcessingModal');
             document.getElementById('dashboardAnalysisTitle').focus();
             window.scrollTo?.({ top: 0, behavior: 'auto' });
@@ -355,6 +366,7 @@
         document.getElementById('dashboardImagePreviewPanel').classList.remove('hidden');
         document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
+        document.getElementById('dashboardAdminShareInput').checked = false;
         submit.disabled = false;
         submit.innerHTML = '<i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มแสกนภาพ';
         setStatus(privateStorageReady
@@ -382,6 +394,7 @@
         document.getElementById('dashboardImagePreviewPanel').classList.add('hidden');
         document.getElementById('dashboardLesionImageInput').checked = false;
         document.getElementById('dashboardScanConsentInput').checked = false;
+        document.getElementById('dashboardAdminShareInput').checked = false;
         setStatus('ล้างภาพออกจากหน้าปัจจุบันแล้ว ไม่ส่งภาพใหม่ และไม่ลบประวัติที่บันทึกไว้ก่อนหน้า', 'info');
     }
 
@@ -487,6 +500,7 @@
         }
         const button = document.getElementById('dashboardSubmitScanButton');
         const imageName = selectedScanImage.name || 'รูปภาพที่เลือก';
+        const shareWithAdmin = document.getElementById('dashboardAdminShareInput').checked === true;
         let uploadAttempted = false;
         let uploadedToPrivateStorage = false;
         let storedImage = false;
@@ -518,6 +532,8 @@
                 body: JSON.stringify({
                     consent: true,
                     researchConsentVersion: 'skin-demo-scin3-20261009-v1',
+                    shareWithAdmin,
+                    ...(shareWithAdmin ? { adminShareConsentVersion: 'admin-scan-share-20261010-v1' } : {}),
                     originalName: preparedImage.name,
                     mimeType: preparedImage.type,
                     imageSizeBytes: preparedImage.size,
@@ -567,6 +583,7 @@
             document.getElementById('dashboardImageInput').value = '';
             document.getElementById('dashboardLesionImageInput').checked = false;
             document.getElementById('dashboardScanConsentInput').checked = false;
+            document.getElementById('dashboardAdminShareInput').checked = false;
             button.textContent = 'ประมวลผลภาพแล้ว';
             setStatus(completed.message || resultView.message, resultView.code === 'RESEARCH_ONLY' ? 'success' : 'info');
         } catch (error) {
@@ -883,6 +900,21 @@
         }
     }
 
+    async function revokeAdminSharing() {
+        if (!window.confirm('ถอนการแชร์รายการเดิมทั้งหมดให้ผู้ดูแลหรือไม่? ประวัติส่วนตัวของคุณยังอยู่ ไม่สามารถเรียกคืนสิ่งที่ผู้ดูแลเห็นหรือบันทึกไว้แล้วได้')) return;
+        const button = document.getElementById('userRevokeAdminShareButton');
+        const status = document.getElementById('userAdminShareStatus');
+        button.disabled = true;
+        try {
+            const data = await userRequest('/api/user/scan/admin-share/revoke', { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+            status.textContent = data.message;
+            document.getElementById('dashboardAdminShareStatus').textContent = 'ถอนการแชร์รายการเดิมทั้งหมดแล้ว ผู้ดูแลไม่สามารถเรียกดูใหม่ได้ ประวัติส่วนตัวของคุณยังอยู่';
+            document.getElementById('dashboardAnalysisAccessBadge').textContent = 'ถอนการแชร์แล้ว';
+            document.getElementById('dashboardAnalysisPrivacy').textContent = 'ประวัติส่วนตัวของคุณยังอยู่ตามรอบหมดอายุ แต่ปิดสิทธิ์เรียกดูใหม่ของผู้ดูแลแล้ว';
+        } catch (error) { status.textContent = error.message || 'ยังถอนการแชร์ไม่ได้ โปรดลองใหม่'; }
+        finally { button.disabled = false; }
+    }
+
     function locationOnce() {
         return new Promise((resolve, reject) => {
             if (!navigator.geolocation) return reject(new Error('เบราว์เซอร์นี้ไม่รองรับตำแหน่งปัจจุบัน'));
@@ -1027,6 +1059,7 @@
             appendAccountInfoSection(content, 'ข้อมูลที่ระบบอาจจัดเก็บ', 'ข้อมูลบัญชี เช่น ชื่อและอีเมล รูปโปรไฟล์ที่เลือกบันทึก ภาพผิวหนังที่คุณยืนยันและกดเริ่มแสกน ประวัติรายการแสกน ข้อความถึงผู้ดูแล และบริบทสภาพแวดล้อมจากตำแหน่งโดยประมาณเมื่อคุณยินยอม ภาพที่เพียงเลือกดูตัวอย่างจะยังอยู่บนอุปกรณ์จนกว่าคุณจะกดเริ่มแสกน');
             appendAccountInfoSection(content, 'วัตถุประสงค์ในการใช้ข้อมูล', 'ใช้เพื่อยืนยันบัญชี ให้บริการฟังก์ชันที่คุณเลือก แสดงประวัติส่วนบุคคล รักษาความปลอดภัย และตอบคำขอของผู้ใช้ ระบบไม่ขายข้อมูลส่วนบุคคลและไม่ใช้ภาพผิวหนังเพื่อการโฆษณา');
             appendAccountInfoSection(content, 'ความยินยอมและการถอนความยินยอม', 'ฟังก์ชันแสกนภาพและเรดาร์จะขอความยินยอมแยกกันก่อนส่งข้อมูล คุณถอนความยินยอมและขอลบข้อมูลได้ทุกเมื่อผ่านเมนูบัญชีหรือส่งข้อความถึงผู้ดูแล การถอนความยินยอมไม่กระทบการประมวลผลที่ชอบด้วยกฎหมายก่อนถอน');
+            appendAccountInfoSection(content, 'การแชร์ให้ผู้ดูแลเป็นทางเลือก', 'ก่อนสแกนมีตัวเลือกที่ไม่ติ๊กไว้ล่วงหน้า ให้ผู้ดูแลโครงการที่ยืนยัน MFA ดูภาพ ผลจำแนก คำอธิบาย คำแนะนำ และ Grad-CAM ของรายการนั้นเพื่อทบทวนโครงการ ไม่ใช่บริการสุขภาพ ภาพอยู่ใน Supabase ส่วนตัว สำเนาผลและ Grad-CAM อยู่ใน Neon ตามรอบหมดอายุเดียวกับภาพ ไม่ใช้ฝึกโมเดล ไม่ยินยอมก็สแกนได้และไม่เปิดประวัติเดิมให้ผู้ดูแล ถอนการแชร์รายการเดิมทั้งหมดได้ที่ประวัติของฉัน แต่ไม่สามารถเรียกคืนสิ่งที่เคยเห็นหรือบันทึกไว้แล้ว');
             appendAccountInfoSection(content, 'ระยะเวลาเก็บรักษา', 'ภาพและประวัติการแสกนมีรอบหมดอายุของระบบ โดยค่าเริ่มต้นไม่เกิน 30 วัน บริบทตำแหน่งโดยประมาณเก็บเฉพาะรายการล่าสุดไม่เกิน 24 ชั่วโมง รูปโปรไฟล์เก็บจนกว่าคุณจะเปลี่ยน ลบ หรือปิดบัญชี เมื่อหมดความจำเป็นระบบจะลบหรือทำให้ไม่สามารถเชื่อมโยงกลับมาหาคุณได้ตามความเหมาะสม');
             appendAccountInfoSection(content, 'การเข้าถึงและผู้ให้บริการภายนอก', 'เมื่อกดสแกน ภาพที่ลบข้อมูลเมตาบนอุปกรณ์แล้วจะถูกส่งผ่าน HTTPS ไป Supabase ส่วนตัว ผ่านแบ็กเอนด์ Vercel และบริการโมเดล Smart Skin AI บนเซิร์ฟเวอร์ที่ผู้ดูแลได้รับสิทธิ์ใช้ บริการโมเดลประมวลผลในหน่วยความจำ ไม่บันทึกไฟล์และไม่ส่งภาพต่อ Google หรือ Hugging Face ภาพและผลที่ยอมรับเก็บใน Supabase สำหรับประวัติส่วนตัว ภาพที่ถูกปฏิเสธจะถูกลบ ไม่ใช้ภาพของคุณฝึกโมเดล ส่วน Open-Meteo ได้รับเฉพาะพิกัดโดยประมาณเมื่อคุณยินยอมใช้เรดาร์');
             appendAccountInfoSection(content, 'สิทธิของคุณตาม PDPA', 'ภายใต้เงื่อนไขของกฎหมาย คุณอาจขอเข้าถึงหรือรับสำเนาข้อมูล ขอแก้ไข ขอให้ลบหรือจำกัดการใช้ คัดค้าน ขอรับหรือโอนข้อมูล ถอนความยินยอม และร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคลได้');
@@ -1220,6 +1253,7 @@
         document.getElementById('dashboardSubmitScanButton').addEventListener('click', submitPrivateScan);
         document.getElementById('dashboardTransportCheckButton')?.addEventListener('click', checkAiTransport);
         document.getElementById('dashboardAnalysisNewButton').addEventListener('click', returnToScan);
+        document.getElementById('dashboardAnalysisBackButton').addEventListener('click', returnToScan);
         document.getElementById('dashboardAnalysisHistoryButton').addEventListener('click', openTimeline);
         document.getElementById('dashboardCloseCameraButton').addEventListener('click', closeCamera);
         document.getElementById('dashboardCancelCameraButton').addEventListener('click', closeCamera);
@@ -1238,6 +1272,7 @@
         document.getElementById('saveProfileAvatarButton').addEventListener('click', saveAvatar);
         document.getElementById('removeProfileAvatarButton').addEventListener('click', removeAvatar);
         document.getElementById('userTimelineButton').addEventListener('click', openTimeline);
+        document.getElementById('userRevokeAdminShareButton').addEventListener('click', revokeAdminSharing);
         document.getElementById('nearbyEnvironmentRadarButton').addEventListener('click', openNearbyRadar);
         document.getElementById('nearbyRadarLoadButton').addEventListener('click', loadNearbyEnvironment);
         document.getElementById('nearbyContextDeleteButton').addEventListener('click', deleteNearbyContext);

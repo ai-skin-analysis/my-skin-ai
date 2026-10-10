@@ -70,6 +70,12 @@
         approved.textContent = 'อนุมัติแล้ว';
         action.appendChild(approved);
       }
+      const timeline = document.createElement('button');
+      timeline.type = 'button';
+      timeline.className = 'ml-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-[11px] font-bold text-teal-800';
+      timeline.textContent = 'ดูไทม์ไลน์';
+      timeline.addEventListener('click', () => window.openAdminTimelineUser?.(user.id));
+      action.appendChild(timeline);
       row.appendChild(action);
       target.appendChild(row);
     });
@@ -171,12 +177,13 @@
       setText('scanCount', data.counts.scans ?? '—');
       setText('radarAccountCount', `${data.counts.users} ACTIVE`);
       setText('radarUserText', data.counts.users ? `ผู้ใช้ทั่วไป ${data.counts.users} บัญชีในระบบ` : 'ยังไม่มีผู้ใช้ทั่วไปในระบบขณะนี้');
-      setText('latestScanResult', 'ผลส่วนตัวของเจ้าของบัญชี');
+      setText('latestScanResult', 'เฉพาะรายการที่ยินยอมแชร์');
       setText('latestScanConfidence', 'ไม่แสดงเป็น % โรค');
       setText('adminSavedScanSummary', data.counts.scans === null ? 'ยังโหลดจำนวนรายการไม่ได้'
         : `ผลที่บันทึกในระบบ ${data.counts.scans} รายการ · ไม่นับภาพที่ถูกปฏิเสธเป็นผลสำเร็จ`);
       setText('feedbackCount', data.counts.feedbacks === null ? 'ยังโหลดไม่ได้' : `${data.counts.feedbacks ?? 0} ข้อความ`);
       renderUsers(data.users || []);
+      window.setAdminTimelineUsers?.(data.users || []);
       renderFeedbacks(data.feedbacks || [], data.feedbacksAvailable !== false);
       const warning = document.getElementById('adminStorageWarning');
       warning.textContent = data.warning || '';

@@ -174,6 +174,8 @@ export async function database() {
         ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'user'`;
       await sql`ALTER TABLE smart_skin_users
         ADD COLUMN IF NOT EXISTS approval_status VARCHAR(16) NOT NULL DEFAULT 'pending'`;
+      await sql`ALTER TABLE smart_skin_users
+        ADD COLUMN IF NOT EXISTS admin_shares_revoked_at TIMESTAMPTZ`;
       // The account must exist already: this statement never creates an
       // administrator or accepts a role supplied by the browser.
       await sql`UPDATE smart_skin_users SET role = 'admin'
@@ -245,7 +247,22 @@ export async function database() {
         ON smart_skin_pending_scan_uploads (expires_at)`;
       await sql`ALTER TABLE smart_skin_pending_scan_uploads
         ADD COLUMN IF NOT EXISTS research_consent_version VARCHAR(64),
-        ADD COLUMN IF NOT EXISTS analysis_started_at TIMESTAMPTZ`;
+        ADD COLUMN IF NOT EXISTS analysis_started_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS admin_share_consent_version VARCHAR(64)`;
+      // Separate, optional permission. Existing private scans are never migrated
+      // here. Pixels remain in the private bucket; only a bounded trusted result
+      // and the real numeric Grad-CAM are retained for explicitly shared scans.
+      await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_scan_shares (
+        id UUID PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES smart_skin_users(id) ON DELETE CASCADE,
+        analysis_json JSONB NOT NULL,
+        consent_version VARCHAR(64) NOT NULL,
+        consented_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        retention_expires_at TIMESTAMPTZ NOT NULL
+      )`;
+      await sql`CREATE INDEX IF NOT EXISTS smart_skin_admin_scan_shares_user_idx
+        ON smart_skin_admin_scan_shares (user_id, created_at DESC, id DESC)`;
       await sql`CREATE TABLE IF NOT EXISTS smart_skin_admin_mfa (
         user_id BIGINT PRIMARY KEY REFERENCES smart_skin_users(id) ON DELETE CASCADE,
         secret_ciphertext TEXT NOT NULL,
@@ -274,6 +291,7 @@ export async function database() {
   // Match the legacy retention behavior: any active application request also
   // removes expired environmental context records from every account.
   await sql`DELETE FROM smart_skin_nearby_context_reports WHERE retention_expires_at <= NOW()`;
+  await sql`DELETE FROM smart_skin_admin_scan_shares WHERE retention_expires_at <= NOW()`;
   return sql;
 }
 

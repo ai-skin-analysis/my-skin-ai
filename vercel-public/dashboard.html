@@ -182,6 +182,7 @@
                         <div class="flex flex-col justify-center gap-2 sm:flex-row"><label for="dashboardImageInput" class="cursor-pointer rounded-xl border border-teal-200 bg-white px-4 py-2 text-xs font-bold text-teal-700 transition hover:bg-teal-50">เปลี่ยนภาพ</label><button id="dashboardClearImageButton" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">ยกเลิก</button></div>
                         <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-left"><input id="dashboardLesionImageInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-cyan-500 text-cyan-700 focus:ring-cyan-500"><span class="text-xs leading-relaxed text-slate-700">ฉันยืนยันว่าภาพนี้แสดงผิวหนังของมนุษย์ที่มีรอยโรคหรือผื่น และไม่ใช่ภาพเอกสาร สัตว์ วัตถุ หรือภาพอื่นที่ไม่ใช่ผิวหนังมนุษย์</span></label>
                         <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-left"><input id="dashboardScanConsentInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-500 text-teal-700 focus:ring-teal-500"><span class="text-xs leading-relaxed text-slate-700">ฉันมีสิทธิ์ใช้ภาพนี้และยินยอมให้ส่งภาพผิวหนังซึ่งอาจเป็นข้อมูลสุขภาพไปยัง Supabase ส่วนตัว ผ่าน Vercel และเซิร์ฟเวอร์โมเดล Smart Skin AI เพื่อจำแนกเชิงทดลอง หลังลบข้อมูลเมตาบนอุปกรณ์ ภาพและผลที่ยอมรับเก็บในประวัติตามรอบหมดอายุ (ค่าเริ่มต้น 30 วัน) ลบได้จากเมนูบัญชี ภาพที่ถูกปฏิเสธจะถูกลบ ไม่ใช้ภาพฝึกโมเดล ฉันเข้าใจว่าโมเดลยังไม่ผ่านการทดสอบสำหรับการใช้งานทั่วไป อาจผิดพลาด และไม่ทดแทนแพทย์ การไม่ยินยอมจะไม่ส่งภาพ</span></label>
+                        <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left"><input id="dashboardAdminShareInput" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-teal-500 text-teal-700 focus:ring-teal-500"><span class="text-xs leading-6 text-slate-700"><strong class="block text-teal-800">ตัวเลือกเพิ่มเติม: แชร์รายการนี้ให้ผู้ดูแลโครงการ</strong>ฉันยินยอมให้ผู้ดูแล Smart Skin AI ที่ยืนยัน MFA ดูภาพ ผลจำแนก คำอธิบาย คำแนะนำ และ Grad-CAM ของรายการนี้ในไทม์ไลน์ เพื่อทบทวนการทำงานของโครงการ ไม่ใช่การให้บริการสุขภาพ ภาพอยู่ใน Supabase ส่วนตัว สำเนาผลและแผนที่อิทธิพลเก็บในฐานข้อมูลบัญชี Neon ตามรอบหมดอายุเดียวกับภาพ (ค่าเริ่มต้น 30 วัน) ไม่ใช้ฝึกโมเดล ถอนการแชร์ทั้งหมดได้ที่ “ประวัติของฉัน” แต่เรียกคืนสิ่งที่ผู้ดูแลเคยเห็นหรือบันทึกไว้ไม่ได้ <strong>ไม่ติ๊กก็สแกนได้ตามปกติ และไม่แชร์ประวัติเดิม</strong></span></label>
                         <button id="dashboardSubmitScanButton" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-teal-800"><i data-lucide="scan-line" class="h-4 w-4"></i>เริ่มสแกนภาพเชิงทดลอง</button>
                     </div>
                 </div>
@@ -191,6 +192,8 @@
         </div>
 
         <section id="dashboardAnalysisView" class="hidden space-y-6" aria-labelledby="dashboardAnalysisTitle">
+            <button id="dashboardAnalysisBackButton" type="button" class="inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-white px-5 py-3 text-sm font-bold text-teal-800 shadow-sm transition hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"><i data-lucide="arrow-left" class="h-4 w-4" aria-hidden="true"></i>กลับหน้าสแกน</button>
+            <p id="dashboardAdminShareStatus" class="rounded-xl border border-teal-200 bg-white p-4 text-sm leading-6 text-slate-700" role="status"></p>
             <header class="scan-hero relative rounded-[2rem] p-6 text-white sm:p-9">
                 <div class="relative flex flex-wrap items-center justify-between gap-3">
                     <p class="font-code text-xs font-bold tracking-widest text-teal-200">SMART SKIN AI · IMAGE ANALYSIS</p>
@@ -202,7 +205,7 @@
 
             <div class="grid items-start gap-6 lg:grid-cols-12">
                 <aside class="scan-workbench order-2 space-y-5 rounded-3xl p-5 sm:p-6 lg:order-1 lg:col-span-4">
-                    <div class="flex items-center justify-between gap-3"><h2 class="font-extrabold text-slate-900">ภาพที่ใช้ประมวลผล</h2><span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">เฉพาะบัญชีคุณ</span></div>
+                    <div class="flex items-center justify-between gap-3"><h2 class="font-extrabold text-slate-900">ภาพที่ใช้ประมวลผล</h2><span id="dashboardAnalysisAccessBadge" class="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800">เฉพาะบัญชีคุณ</span></div>
                     <img id="dashboardAnalysisImage" alt="ภาพที่ใช้ประมวลผล AI แสดงจากอุปกรณ์ของคุณ" class="hidden max-h-96 w-full rounded-2xl border border-slate-200 bg-slate-950 object-contain">
                     <p id="dashboardAnalysisImageName" class="break-words text-sm font-semibold text-slate-700"></p>
                     <dl class="space-y-4 border-t border-slate-200 pt-5 text-xs">
@@ -210,7 +213,7 @@
                         <div><dt class="text-slate-500">เวลาประมวลผล</dt><dd id="dashboardAnalysisTime" class="mt-1 font-semibold text-slate-800"></dd></div>
                         <div><dt class="text-slate-500">สถานะข้อมูลส่วนตัว</dt><dd id="dashboardAnalysisPrivacy" class="mt-1 leading-6 text-slate-700"></dd></div>
                     </dl>
-                    <p class="rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-600">ไม่ใช้ภาพนี้ฝึกโมเดล ภาพตัวอย่างบนหน้านี้แสดงจากอุปกรณ์ของคุณ ผู้ดูแลไม่ได้รับสิทธิ์ดูภาพส่วนตัวเพิ่มจากหน้านี้</p>
+                    <p class="rounded-xl bg-slate-50 p-3 text-xs leading-6 text-slate-600">ไม่ใช้ภาพนี้ฝึกโมเดล ภาพตัวอย่างบนหน้านี้แสดงจากอุปกรณ์ของคุณ ผู้ดูแลดูได้เฉพาะรายการที่คุณเลือกยินยอมแชร์แยกต่างหากก่อนสแกน</p>
                 </aside>
 
                 <div class="order-1 space-y-5 lg:order-2 lg:col-span-8">
@@ -279,7 +282,15 @@
     </div>
 
     <div id="userTimelineModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="userTimelineTitle">
-        <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-8"><div class="mb-6 flex shrink-0 items-start justify-between border-b border-slate-100 pb-5"><div class="space-y-3"><h2 id="userTimelineTitle" class="flex items-center gap-2 text-xl font-extrabold text-slate-800"><i data-lucide="clock" class="h-6 w-6 text-teal-600"></i>Skin Timeline</h2><p id="timelineSubtitle" class="text-xs text-slate-500">ประวัติข้อมูลที่บันทึกไว้ในบัญชี ใช้ประกอบการติดตามส่วนบุคคล ไม่ใช่การวินิจฉัยโรค</p><div class="inline-flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2 text-sm text-slate-700"><div class="flex items-center gap-1.5"><i data-lucide="user" class="h-4 w-4 text-teal-600"></i><span class="font-bold">ชื่อ:</span><span id="timelineUserName">ผู้ใช้งานทั่วไป</span></div><span class="hidden h-4 w-px bg-slate-300 sm:block"></span><div class="flex items-center gap-1.5"><i data-lucide="mail" class="h-4 w-4 text-teal-600"></i><span class="font-bold">อีเมล:</span><span id="timelineUserEmail">user@example.com</span></div></div></div><button type="button" data-close-modal="userTimelineModal" class="rounded-full bg-slate-50 p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700" aria-label="ปิดประวัติ"><i data-lucide="x" class="h-5 w-5"></i></button></div><div id="userTimelineContent" class="min-h-48 flex-1" aria-live="polite"></div></div>
+        <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl sm:p-8">
+            <div class="mb-6 flex shrink-0 items-start justify-between border-b border-slate-100 pb-5"><div class="space-y-3"><h2 id="userTimelineTitle" class="flex items-center gap-2 text-xl font-extrabold text-slate-800"><i data-lucide="clock" class="h-6 w-6 text-teal-600"></i>Skin Timeline</h2><p id="timelineSubtitle" class="text-xs text-slate-500">ประวัติข้อมูลที่บันทึกไว้ในบัญชี ใช้ประกอบการติดตามส่วนบุคคล ไม่ใช่การวินิจฉัยโรค</p><div class="inline-flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2 text-sm text-slate-700"><div class="flex items-center gap-1.5"><i data-lucide="user" class="h-4 w-4 text-teal-600"></i><span class="font-bold">ชื่อ:</span><span id="timelineUserName">ผู้ใช้งานทั่วไป</span></div><span class="hidden h-4 w-px bg-slate-300 sm:block"></span><div class="flex items-center gap-1.5"><i data-lucide="mail" class="h-4 w-4 text-teal-600"></i><span class="font-bold">อีเมล:</span><span id="timelineUserEmail">user@example.com</span></div></div></div><button type="button" data-close-modal="userTimelineModal" class="rounded-full bg-slate-50 p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700" aria-label="ปิดประวัติ"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+            <div class="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-600">
+                <p>ผู้ดูแลเห็นเฉพาะรายการที่คุณเลือกแชร์ก่อนสแกน รายการเดิมไม่ถูกแชร์อัตโนมัติ</p>
+                <button id="userRevokeAdminShareButton" type="button" class="mt-3 rounded-xl border border-rose-200 bg-white px-4 py-2 font-bold text-rose-700 disabled:opacity-50">ถอนการแชร์ให้ผู้ดูแลทั้งหมด</button>
+                <p id="userAdminShareStatus" class="mt-2" role="status"></p>
+            </div>
+            <div id="userTimelineContent" class="min-h-48 flex-1" aria-live="polite"></div>
+        </div>
     </div>
 
     <div id="nearbyRadarModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="nearbyRadarTitle">
