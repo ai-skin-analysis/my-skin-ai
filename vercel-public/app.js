@@ -647,14 +647,15 @@
             return Number.isFinite(accuracyMeters) ? `ความคลาดเคลื่อนของตำแหน่งจากอุปกรณ์ประมาณ ±${Math.round(accuracyMeters)} ม.` : 'อุปกรณ์ไม่ระบุความคลาดเคลื่อนของตำแหน่ง';
         }
 
-        async function fetchEnvironmentJson(url, timeoutMs, parentSignal) {
+        async function fetchEnvironmentJson(url, timeoutMs, parentSignal, body = null) {
             const controller = new AbortController();
             const abort = () => controller.abort();
             if (parentSignal?.aborted) controller.abort();
             parentSignal?.addEventListener('abort', abort, { once: true });
             const timer = window.setTimeout(abort, timeoutMs);
             try {
-                const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+                const response = await fetch(url, { signal: controller.signal, cache: 'no-store',
+                    ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', body: JSON.stringify(body) } : {}) });
                 if (!response.ok) throw new Error('Environment provider unavailable');
                 const data = await response.json();
                 if (controller.signal.aborted) throw new Error('Environment request cancelled');
@@ -690,7 +691,7 @@
             };
             // Optional providers run independently: a slow place name or AQI
             // must never delay or erase valid current weather.
-            fetchEnvironmentJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${roundedLat}&longitude=${roundedLng}&current=us_aqi&timezone=auto`, 6000, signal)
+            fetchEnvironmentJson('/api/environment', 8000, signal, { kind: 'air', latitude: roundedLat, longitude: roundedLng })
                 .then((data) => {
                     const value = data.current?.us_aqi;
                     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('Invalid AQI');
@@ -700,7 +701,7 @@
             fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000, signal)
                 .then((data) => { locationName = approximateLocationLabel(data); }).catch(() => {}).finally(() => { locationSettled = true; render(); });
             try {
-                const data = await fetchEnvironmentJson(`https://api.open-meteo.com/v1/forecast?latitude=${roundedLat}&longitude=${roundedLng}&current=temperature_2m,relative_humidity_2m,uv_index,weather_code,is_day&timezone=auto`, 8000, signal);
+                const data = await fetchEnvironmentJson('/api/environment', 8000, signal, { kind: 'weather', latitude: roundedLat, longitude: roundedLng });
                 const current = data.current;
                 if (!current || !['uv_index', 'temperature_2m', 'relative_humidity_2m'].every((key) => typeof current[key] === 'number' && Number.isFinite(current[key]))
                     || current.uv_index < 0 || current.relative_humidity_2m < 0 || current.relative_humidity_2m > 100) throw new Error('Invalid weather data');

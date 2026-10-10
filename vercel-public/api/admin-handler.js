@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import publicEnvironment from '../lib/public-environment.js';
 import {
   changeOwnPassword,
   clearSession,
@@ -904,6 +905,9 @@ async function mfaStatus(req, res) {
 export default async function handler(req, res) {
   try {
     switch (requestPath(req)) {
+      // Public weather only; every private account/health route keeps its own
+      // existing session, approval and MFA checks below.
+      case 'environment': return await publicEnvironment(req, res);
       case 'overview': return await overview(req, res);
       case 'shared-history': return await adminSharedHistory(req, res);
       case 'shared-image': return await adminSharedImage(req, res);

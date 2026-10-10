@@ -9,7 +9,7 @@ const script = readFileSync(join(__dirname, '../vercel-public/app.js'), 'utf8');
 const flush = async () => { for (let n = 0; n < 5; n++) await new Promise(setImmediate); };
 
 function environment({ secure = true, supported = true, accountFailure = false, gpsError = null, gpsPlan = [], weatherFailure = false, providerResponse = null } = {}) {
-    const nodes = new Map(), documentEvents = new Map(), requests = [], positions = [], redirects = [], gpsCallbacks = [], timers = new Map();
+    const nodes = new Map(), documentEvents = new Map(), requests = [], requestBodies = [], positions = [], redirects = [], gpsCallbacks = [], timers = new Map();
     let nextTimer = 0;
     class Element {
         constructor(id) {
@@ -52,11 +52,18 @@ function environment({ secure = true, supported = true, accountFailure = false, 
             return { ok: true, json: async () => ({ ok: true, user: null }) };
         }
         if (weatherFailure) throw new Error('Provider unavailable');
-        const host = new URL(url).hostname;
+        let providerUrl = url;
+        if (url === '/api/environment') {
+            const body = JSON.parse(options.body);
+            requestBodies.push(body);
+            assert.equal(options.method, 'POST'); assert.equal(options.credentials, 'omit');
+            providerUrl = `https://${body.kind === 'weather' ? 'api.open-meteo.com' : 'air-quality-api.open-meteo.com'}/?latitude=${body.latitude}&longitude=${body.longitude}`;
+        }
+        const host = new URL(providerUrl).hostname;
         const data = host === 'api.open-meteo.com' ? { current: { temperature_2m: 24.3, relative_humidity_2m: 50, uv_index: 3, weather_code: 0, is_day: 1, time: '2026-10-10T10:00' }, timezone: 'UTC' }
             : host === 'air-quality-api.open-meteo.com' ? { current: { us_aqi: 20, time: '2026-10-10T10:00' }, timezone: 'UTC' }
             : { address: { city: 'พื้นที่ทดสอบ' } };
-        return providerResponse ? providerResponse(String(url), options, data) : { ok: true, json: async () => data };
+        return providerResponse ? providerResponse(String(providerUrl), options, data) : { ok: true, json: async () => data };
     };
     const context = vm.createContext({ document, HTMLElement: Element, navigator: { onLine: true,
         ...(supported ? { geolocation: { getCurrentPosition(success, error, options) {
@@ -73,7 +80,7 @@ function environment({ secure = true, supported = true, accountFailure = false, 
             location: { search: '', replace: path => redirects.push(path) } } });
     vm.runInContext(script, context);
     documentEvents.get('DOMContentLoaded')();
-    return { element, requests, positions, redirects, closeConsent, closeDetails, cards, gpsCallbacks,
+    return { element, requests, requestBodies, positions, redirects, closeConsent, closeDetails, cards, gpsCallbacks,
         run: code => vm.runInContext(code, context),
         fireTimers(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { timers.delete(id); timer.fn(); } } };
 }
@@ -113,9 +120,11 @@ test('anonymous opted-in visitor gets fresh GPS and rounded provider coordinates
     assert.equal(e.positions[0].maximumAge, 0); assert.equal(e.positions[0].timeout, 6000);
     assert.equal(e.positions[0].enableHighAccuracy, false);
     assert.equal(e.requests.length, 3);
-    assert.ok(e.requests.every(url => ['api.open-meteo.com', 'air-quality-api.open-meteo.com', 'nominatim.openstreetmap.org'].includes(new URL(url).hostname)));
+    assert.ok(e.requests.every(url => url === '/api/environment' || new URL(url).hostname === 'nominatim.openstreetmap.org'));
     for (const url of e.requests) { assert.doesNotMatch(url, /0\.123456|1\.234567/); }
-    assert.match(e.requests.find(url => new URL(url).hostname === 'api.open-meteo.com'), /latitude=0\.1235&longitude=1\.2346/);
+    assert.equal(e.requestBodies[0].latitude, 0.1235); assert.equal(e.requestBodies[0].longitude, 1.2346);
+    assert.ok(e.requestBodies.every(body => body.latitude === 0.1235 && body.longitude === 1.2346));
+    assert.ok(e.requests.filter(url => url.startsWith('/')).every(url => !url.includes('?')));
     assert.equal(e.element('card-temp-val').textContent, '24.3°C');
     assert.match(e.element('environment-area-text').textContent, /พื้นที่ทดสอบ/);
     assert.match(e.element('environment-current-weather').textContent, /ท้องฟ้าโปร่ง/);
@@ -133,7 +142,7 @@ test('account service outage does not disable public location controls', async (
     e.element('environmentLocationConsentCheck').checked = true;
     e.element('environmentLocationConfirmButton').dispatch(); await flush();
     assert.equal(e.element('card-temp-val').textContent, '24.3°C');
-    assert.ok(e.requests.every(url => url.startsWith('https://'))); assert.deepEqual(e.redirects, []);
+    assert.ok(e.requests.every(url => url === '/api/environment' || url.startsWith('https://'))); assert.deepEqual(e.redirects, []);
 });
 
 test('permission denial, timeout and unavailable GPS show actionable errors without sending coordinates', async () => {
