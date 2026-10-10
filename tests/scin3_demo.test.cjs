@@ -78,3 +78,14 @@ test('landing, scan workspace and result state information-only scope without cl
   const renderer=readFileSync(require.resolve('../vercel-public/research-result.js'),'utf8');
   assert.match(renderer,/node\('p', SCAN_DISCLAIMER,/);
 });
+
+test('landing introduction uses plain-language demo limitations instead of model performance numbers',()=>{
+  const html=readFileSync(require.resolve('../vercel-public/index.html'),'utf8');
+  const introduction=html.match(/ข้อมูลนี้จัดทำขึ้น[\s\S]*?<\/p>/)?.[0];
+  assert.ok(introduction);
+  assert.match(introduction,/รุ่นสาธิตรองรับการวิเคราะห์และจำแนกภาพรอยโรคผิวหนัง 3 กลุ่ม ได้แก่ สิว สะเก็ดเงิน และลมพิษ/);
+  assert.match(introduction,/สำหรับบัญชีที่ผู้ดูแลอนุมัติและยินยอมส่งภาพ/);
+  assert.match(introduction,/ผลลัพธ์เป็นข้อมูลเชิงทดลอง อาจคลาดเคลื่อน และยังไม่ผ่านการประเมินอิสระเพื่อใช้งานสุขภาพทั่วไป/);
+  assert.match(introduction,/ไม่ใช่การวินิจฉัยหรือทดแทนแพทย์/);
+  assert.doesNotMatch(introduction,/17\/27|63%|ผลทดสอบภายในเดิมถูก/);
+});
