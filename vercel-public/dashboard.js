@@ -143,7 +143,7 @@
         }
     }
 
-    const LESION_IMAGE_GUIDANCE = 'ข้อมูลผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นบริเวณรอยโรคชัดเจน ไม่ใช้ภาพสิ่งของ สัตว์ อาหาร เอกสาร ภาพหน้าจอ วิว หรือภาพอื่นที่ไม่เกี่ยวข้อง';
+    const LESION_IMAGE_GUIDANCE = 'ไม่ผ่าน: ข้อมูลผิดพลาด โปรดใช้ภาพรอยโรคผิวหนังของมนุษย์เท่านั้น ไม่ใช้ภาพสิ่งของ สัตว์ อาหาร เอกสาร ภาพหน้าจอ วิว หรือภาพอื่นที่ไม่เกี่ยวข้อง';
 
     function scanError(code, message) {
         return Object.assign(new Error(message), { code });
@@ -152,8 +152,7 @@
     function scanFailureMessage(error) {
         if (error?.code === 'OUT_OF_SCOPE' || error?.code === 'NO_LESION_DETECTED' || error?.code === 'NON_SKIN_IMAGE') return LESION_IMAGE_GUIDANCE;
         if (error?.code === 'UNCERTAIN_CONTENT') return 'ระบบยังตรวจสอบไม่ได้อย่างมั่นใจว่าเป็นภาพรอยโรคผิวหนัง จึงหยุดการจำแนก กรุณาถ่ายภาพรอยโรคให้ชัดเจนแล้วลองใหม่';
-        if (error?.code === 'UNSUPPORTED_LESION') return 'ขออภัย ระบบยังไม่รองรับหรือไม่สามารถจำแนกรอยโรคในภาพนี้ได้อย่างน่าเชื่อถือ จึงไม่ระบุชื่อรอยโรค โปรดพบแพทย์ผู้เชี่ยวชาญด้านผิวหนังเพื่อรับการประเมิน';
-        if (error?.code === 'UNCERTAIN_CLASSIFICATION') return 'ระบบยังแยกกลุ่มรอยโรคในภาพนี้ได้ไม่ชัดเจน จึงไม่แสดงชื่อกลุ่มที่อาจทำให้เข้าใจผิด โปรดพบแพทย์ผู้เชี่ยวชาญด้านผิวหนังเพื่อรับการประเมิน';
+        if (['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(error?.code)) return 'รอการพัฒนาจากระบบ — ระบบยังไม่รองรับหรือยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ โปรดพบแพทย์ผู้เชี่ยวชาญ';
         return error?.message || 'ไม่สามารถเริ่มแสกนภาพได้ กรุณาลองใหม่';
     }
 
@@ -165,9 +164,9 @@
         document.getElementById('dashboardProcessingResultButton').classList.add('hidden');
         document.getElementById('dashboardProcessingImageState').classList.remove('hidden');
         document.getElementById('dashboardProcessingTitle').textContent = ['OUT_OF_SCOPE', 'NO_LESION_DETECTED', 'NO_IMAGE', 'INVALID_IMAGE', 'NON_SKIN_IMAGE'].includes(code)
-            ? 'ข้อมูลผิดพลาด' : code === 'MODEL_UNAVAILABLE' ? 'ระบบวิเคราะห์ภาพยังไม่พร้อม'
-                : code === 'UNSUPPORTED_LESION' ? 'รอยโรคนี้ยังไม่อยู่ในขอบเขตที่ระบบจำแนกได้'
-                    : code === 'UNCERTAIN_CLASSIFICATION' ? 'ยังไม่สามารถสรุปกลุ่มรอยโรคได้' : 'ยังไม่สามารถแสกนภาพได้';
+            ? (code === 'NON_SKIN_IMAGE' ? 'ไม่ผ่าน: ข้อมูลผิดพลาด โปรดใช้ภาพรอยโรคผิวหนังเท่านั้น' : 'ข้อมูลผิดพลาด')
+                : code === 'MODEL_UNAVAILABLE' ? 'ระบบวิเคราะห์ภาพยังไม่พร้อม'
+                    : ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code) ? 'รอการพัฒนาจากระบบ' : 'ยังไม่สามารถแสกนภาพได้';
         document.getElementById('dashboardProcessingDetail').textContent = code === 'NO_IMAGE'
             ? 'ยังไม่ได้รับภาพ กรุณาเลือกภาพหรือถ่ายภาพรอยโรคใหม่'
             : ['UNSUPPORTED_LESION', 'UNCERTAIN_CLASSIFICATION'].includes(code)
@@ -180,6 +179,7 @@
         setProcessingImageState(imageState || `${selectedImageName()} ยังอยู่บนอุปกรณ์ของคุณ และยังไม่ได้ถูกบันทึกเป็นประวัติ`, 'error');
         if (modal.classList.contains('hidden')) showModal('dashboardProcessingModal');
         document.getElementById('dashboardProcessingCloseButton').focus();
+        if (code === 'NON_SKIN_IMAGE') showDashboardAlert(message);
         refreshIcons();
     }
 
@@ -554,6 +554,11 @@
             if (!['RESEARCH_ONLY', 'UNCERTAIN_CLASSIFICATION'].includes(resultView.code)) {
                 throw scanError(resultView.code, resultView.message);
             }
+            // Grad-CAM coordinates refer to the exact metadata-stripped image
+            // sent for inference, not an independently cropped/rotated preview.
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            previewUrl = URL.createObjectURL(preparedImage);
+            document.getElementById('dashboardImagePreview').src = previewUrl;
             showProcessingComplete(completed, resultPresenter, {
                 imageName,
                 previewUrl: document.getElementById('dashboardImagePreview').src,
@@ -595,6 +600,10 @@
         closeModal('dashboardProcessingModal');
         document.getElementById('dashboardAnalysisImage').removeAttribute('src');
         document.getElementById('dashboardAnalysisResult').replaceChildren();
+        document.getElementById('dashboardGradcamPanel').classList.add('hidden');
+        const camCanvas = document.getElementById('dashboardGradcamCanvas');
+        camCanvas._renderMarker = null;
+        camCanvas.width = camCanvas.height = 1;
         document.getElementById('dashboardAnalysisView').classList.add('hidden');
         document.getElementById('dashboardScanView').classList.remove('hidden');
         clearImage();

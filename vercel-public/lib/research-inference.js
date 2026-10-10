@@ -2,6 +2,7 @@
 // this module into dashboard.js. It does NOT enable the public release gate.
 import { researchClassesForVersion } from '../research-catalog.js';
 import { validatedResearchComparison } from '../research-comparison.js';
+import { validatedGradcam } from '../research-gradcam.js';
 
 const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_RESPONSE = 256 * 1024;
@@ -16,8 +17,8 @@ const SAFE_MESSAGES = {
   UNSUPPORTED_FORMAT: 'รองรับ JPG, JPEG, PNG และ WEBP ที่ไม่ใช่ภาพเคลื่อนไหวเท่านั้น',
   INSUFFICIENT_DETAIL: 'ภาพไม่มีรายละเอียดเพียงพอ กรุณาถ่ายรอยโรคให้เห็นชัดเจนแล้วลองใหม่',
   INVALID_MODEL_RESULT: 'ผลจากบริการโมเดลไม่ครบถ้วน จึงไม่แสดงชื่อกลุ่มรอยโรค',
-  NON_SKIN_IMAGE: 'ข้อมูลภาพผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นชัดเจน ตัวกรองเชิงทดลองอาจผิดพลาดได้',
-  UNCERTAIN_CLASSIFICATION: 'ขออภัย ระบบยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ หรืออาจอยู่นอกกลุ่มที่รองรับ โปรดพบแพทย์ผู้เชี่ยวชาญ',
+  NON_SKIN_IMAGE: 'ไม่ผ่าน: ข้อมูลผิดพลาด โปรดใช้ภาพรอยโรคผิวหนังของมนุษย์เท่านั้น ตัวกรองเชิงทดลองอาจผิดพลาดได้',
+  UNCERTAIN_CLASSIFICATION: 'รอการพัฒนาจากระบบ — ระบบยังไม่รองรับหรือยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ โปรดพบแพทย์ผู้เชี่ยวชาญ',
   MODEL_BUSY: 'บริการกำลังประมวลผลภาพก่อนหน้า กรุณารอแล้วลองใหม่',
   RATE_LIMITED: 'มีคำขอจำนวนมาก กรุณารอแล้วลองใหม่',
 };
@@ -115,7 +116,7 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
         method: body ? 'POST' : 'GET', redirect: 'manual', signal: controller.signal,
         headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json',
           ...(body ? { 'Content-Type': 'application/octet-stream', 'X-Image-Consent': 'yes',
-            'X-Research-Comparison': 'research-ranking-v1' } : {}) },
+            'X-Research-Comparison': 'research-ranking-v1', 'X-Image-Explanation': 'gradcam-v1' } : {}) },
         ...(body ? { body } : {}),
       });
       // Never follow redirects with the credential, nor reflect remote HTML,
@@ -178,7 +179,7 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
           && value.analysisStatus === 'input_rejected' && value.classificationStatus === 'not_run';
         const uncertain = value.code === 'UNCERTAIN_CLASSIFICATION' && value.inputCheck.status === 'experimental_continue'
           && value.analysisStatus === 'completed' && value.classificationStatus === 'abstained';
-        if (value.ok !== false || (!object && !uncertain) || value.diagnostics !== undefined) invalid();
+        if (value.ok !== false || (!object && !uncertain) || value.diagnostics !== undefined || value.explanation !== undefined) invalid();
         let comparison;
         if (value.comparison !== undefined) {
           if (!uncertain) invalid();
@@ -203,10 +204,16 @@ export function createResearchInferenceClient({ url, apiKey, modelVersion, fetch
         return Object.freeze({ id: row.id, score: row.score });
       });
       if (Math.abs(mass - 1) > 1e-5) invalid();
+      let explanation;
+      if (value.explanation !== undefined) {
+        const first = [...diagnostics].sort((a, b) => b.score - a.score)[0];
+        explanation = validatedGradcam(value.explanation, modelVersion, first.id);
+        if (!explanation) invalid();
+      }
       return Object.freeze({ ok: true, code: 'RESEARCH_ONLY', modelVersion,
         releaseStatus: 'research_only', classificationStatus: 'experimental',
         scopeValidated: false, unsupportedValidated: false, publicDeployment: false,
-        imageStored: false, diagnostics: Object.freeze(diagnostics) });
+        imageStored: false, diagnostics: Object.freeze(diagnostics), ...(explanation ? { explanation } : {}) });
     },
   });
 }

@@ -233,7 +233,7 @@ test('unsupported lesion keeps specialist guidance distinct from invalid input a
     media.showProcessingError(message, 'ภาพยังอยู่บนอุปกรณ์', 'UNSUPPORTED_LESION');
     assert.match(message, /แพทย์ผู้เชี่ยวชาญ/);
     assert.ok(!message.includes('ข้อมูลผิดพลาด'));
-    assert.match(element('dashboardProcessingTitle').textContent, /ขอบเขต/);
+    assert.equal(element('dashboardProcessingTitle').textContent, 'รอการพัฒนาจากระบบ');
     assert.match(element('dashboardProcessingDetail').textContent, /ไม่ได้หมายความว่าผิวปกติ/);
     assert.equal(element('dashboardProcessingCloseButton').textContent, 'รับทราบ');
     assert.equal(element('dashboardProcessingModal').dataset.processing, 'error');
@@ -339,7 +339,7 @@ test('a semantic rejection never falls back to a quality-only scan record', asyn
     media.mockInspection(); media.mockStorageAndPresenter({});
     await media.submitPrivateScan();
     assert.deepEqual(requests, ['/api/user/scan/research/readiness', '/api/user/storage-status', '/api/user/scan/research/upload']);
-    assert.match(element('dashboardProcessingTitle').textContent, /ขอบเขต/);
+    assert.equal(element('dashboardProcessingTitle').textContent, 'รอการพัฒนาจากระบบ');
     assert.ok(media.selected());
 });
 

@@ -1,10 +1,11 @@
 import { SCAN_DISCLAIMER } from './scan-result.js';
 import { validatedResearchComparison } from './research-comparison.js';
 import { SCIN3_CLASSES, researchClassesForVersion } from './research-catalog.js';
+import { validatedGradcam, renderGradcam, clearGradcam } from './research-gradcam.js';
 
 const FAILURES = {
-  NON_SKIN_IMAGE: 'ข้อมูลภาพผิดพลาด กรุณาใช้ภาพรอยโรคผิวหนังของมนุษย์ที่เห็นชัดเจน ตัวกรองเชิงทดลองอาจผิดพลาดได้',
-  UNCERTAIN_CLASSIFICATION: 'ขออภัย ระบบยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ หรืออาจเป็นรอยโรคที่เว็บยังไม่รองรับ โปรดพบแพทย์ผู้เชี่ยวชาญ',
+  NON_SKIN_IMAGE: 'ไม่ผ่าน: ข้อมูลผิดพลาด โปรดใช้ภาพรอยโรคผิวหนังของมนุษย์เท่านั้น ตัวกรองเชิงทดลองอาจผิดพลาดได้',
+  UNCERTAIN_CLASSIFICATION: 'รอการพัฒนาจากระบบ — ระบบยังไม่รองรับหรือยังจำแนกภาพนี้ไม่ได้อย่างมั่นใจ โปรดพบแพทย์ผู้เชี่ยวชาญ',
 };
 
 export function researchResultView(result) {
@@ -15,13 +16,14 @@ export function researchResultView(result) {
       || result.scopeValidated !== false || result.unsupportedValidated !== false
       || !classes) return invalid;
   if (result.ok === false && Object.hasOwn(FAILURES, result.code) && result.diagnostics === undefined) {
+    if (result.explanation !== undefined) return invalid;
     let comparison;
     if (result.comparison !== undefined) {
       if (result.code !== 'UNCERTAIN_CLASSIFICATION' || result.classificationStatus !== 'abstained') return invalid;
       comparison = validatedResearchComparison(result.comparison, result.modelVersion);
       if (!comparison) return invalid;
     }
-    return { code: result.code, title: result.code === 'NON_SKIN_IMAGE' ? 'ข้อมูลภาพผิดพลาด' : 'ยังไม่สามารถจำแนกรอยโรคได้',
+    return { code: result.code, title: result.code === 'NON_SKIN_IMAGE' ? 'ไม่ผ่าน: ข้อมูลผิดพลาด โปรดใช้ภาพรอยโรคผิวหนังเท่านั้น' : 'รอการพัฒนาจากระบบ',
       message: FAILURES[result.code], candidates: [],
       comparisonCandidates: comparison ? comparison.classIds.map(id => classes.find(item => item.id === id)) : [] };
   }
@@ -34,9 +36,12 @@ export function researchResultView(result) {
   }
   if (Math.abs(total - 1) > 1e-5) return invalid;
   const ranking = [...result.diagnostics].sort((a, b) => b.score - a.score);
+  const explanation = result.explanation === undefined ? undefined
+    : validatedGradcam(result.explanation, result.modelVersion, ranking[0].id);
+  if (result.explanation !== undefined && !explanation) return invalid;
   return { code: 'RESEARCH_ONLY', title: 'ผลวิเคราะห์และจำแนกเชิงทดลอง',
     message: 'กลุ่มอันดับแรกตามคะแนนโมเดล ไม่ใช่การยืนยันว่าคุณเป็นโรคนี้ คะแนนยังไม่ใช่ความน่าจะเป็นของโรค',
-    candidates: ranking.slice(0, 2).map(row => classes.find(item => item.id === row.id)) };
+    candidates: ranking.slice(0, 2).map(row => classes.find(item => item.id === row.id)), explanation };
 }
 
 export function renderResearchResult(container, result) {
@@ -143,6 +148,8 @@ export function completedAnalysisView(completed) {
 export function renderAnalysisScreen(doc, completed, { imageName = '', previewUrl = '' } = {}) {
   const view = completedAnalysisView(completed);
   const accepted = view.code === 'RESEARCH_ONLY';
+  if (accepted) renderGradcam(doc, view.explanation, { previewUrl });
+  else clearGradcam(doc);
   renderResearchResult(doc.getElementById('dashboardAnalysisResult'), completed.analysis);
   const image = doc.getElementById('dashboardAnalysisImage');
   // The preview is the existing local object URL, never a browser-supplied
