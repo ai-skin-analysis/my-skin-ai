@@ -332,6 +332,7 @@
             environmentController?.abort();
             environmentController = new AbortController();
             setEnvironmentBusy(true);
+            resetAdministrativeLocation();
             resetEnvironmentCards('กำลังโหลดอากาศของพื้นที่');
             document.getElementById('location-text').textContent = 'กำลังโหลดอากาศ…';
             document.getElementById('environment-area-text').textContent = `พื้นที่ที่เลือก: ${environmentAreaLabel(place)} — ไม่ใช่ตำแหน่ง GPS ของอุปกรณ์`;
@@ -646,6 +647,7 @@
             environmentController = new AbortController();
             const signal = environmentController.signal;
             setEnvironmentBusy(true);
+            resetAdministrativeLocation();
             resetEnvironmentCards('รอตำแหน่งจากอุปกรณ์');
             document.getElementById('environment-area-text').textContent = 'กำลังขอตำแหน่งปัจจุบันจากอุปกรณ์ของคุณ';
             document.getElementById('environment-current-weather').textContent = 'สภาพอากาศปัจจุบัน';
@@ -682,6 +684,7 @@
                     finished = true;
                     clearTimers();
                     saveFreshBrowserLocation(position);
+                    renderAdministrativeLocation(null, currentLocationMeta, false);
                     document.getElementById('location-text').textContent = 'กำลังโหลดอากาศ…';
                     setEnvironmentSourceText('ได้รับตำแหน่งแล้ว กำลังโหลดสภาพอากาศปัจจุบัน', 'อากาศจะแสดงก่อน โดยไม่ต้องรอชื่อพื้นที่หรือคุณภาพอากาศ');
                     await fetchLiveWeatherData(currentLat, currentLng, { ...currentLocationMeta }, requestId, signal);
@@ -705,22 +708,64 @@
             acquire(false);
         }
 
-        function approximateLocationLabel(data) {
-            const address = data?.address || {};
-            // Reverse geocoding is only a nearby-area label. It is deliberately
-            // not presented as an exact address because device GPS and mapping
-            // boundaries can disagree at subdistrict level.
-            const area = address.suburb || address.quarter || address.neighbourhood || address.village || address.hamlet || address.subdistrict || '';
-            const city = address.municipality || address.town || address.city || address.city_district || address.district || address.county || '';
-            const province = address.state || address.province || '';
-            return [area, city, province].filter(Boolean).filter((value, index, parts) => parts.indexOf(value) === index).join(' · ');
+        function cleanAdministrativeName(value) {
+            return typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 120) : '';
+        }
+
+        function administrativeLocationLabel(location) {
+            if (!location) return '';
+            const withPrefix = (value, prefix, existing) => !value ? '' : existing.test(value) ? value : `${prefix}${value}`;
+            const names = location.isThai ? [
+                location.isBangkok ? location.province : withPrefix(location.province, 'จังหวัด', /^จังหวัด/),
+                withPrefix(location.district, location.isBangkok ? 'เขต' : 'อำเภอ', /^(อำเภอ|เขต)/),
+                withPrefix(location.subdistrict, location.isBangkok ? 'แขวง' : 'ตำบล', /^(ตำบล|แขวง)/),
+            ] : [location.province, location.district, location.subdistrict];
+            if (!names.some(Boolean)) names.push(location.locality);
+            if (!location.isThai) names.push(location.country);
+            return names.filter(Boolean).filter((value, index, parts) => parts.indexOf(value) === index).join(' · ');
+        }
+
+        function resetAdministrativeLocation() {
+            document.getElementById('environmentAdminLocation')?.classList.add('hidden');
+            ['province', 'district', 'subdistrict'].forEach(key => {
+                const node = document.getElementById(`environment-${key}`);
+                if (node) node.textContent = '—';
+            });
+            const note = document.getElementById('environment-location-detail-note');
+            if (note) note.textContent = '';
+        }
+
+        function renderAdministrativeLocation(location, meta, settled) {
+            document.getElementById('environmentAdminLocation')?.classList.remove('hidden');
+            ['province', 'district', 'subdistrict'].forEach(key => {
+                const node = document.getElementById(`environment-${key}`);
+                if (node) node.textContent = location?.[key] || (settled ? 'ยังไม่มีข้อมูลระดับนี้' : 'กำลังค้นหาชื่อพื้นที่…');
+            });
+            document.getElementById('environment-district-label').textContent = location?.isBangkok ? 'เขต' : 'อำเภอ / เขต';
+            document.getElementById('environment-subdistrict-label').textContent = location?.isBangkok ? 'แขวง' : 'ตำบล / แขวง';
+            const detail = !settled ? 'กำลังหาชื่อจังหวัด อำเภอ/เขต และตำบล/แขวง อากาศกับคำแนะนำจะแสดงได้โดยไม่ต้องรอ'
+                : !location ? 'บริการชื่อพื้นที่ยังไม่พร้อม จึงไม่เดาจังหวัด อำเภอ หรือตำบลแทน อากาศยังอ้างอิงตำแหน่งอุปกรณ์ที่ได้รับ'
+                : !location.isThai ? 'ตำแหน่งนี้อยู่นอกประเทศไทย ชื่อเขตการปกครองใช้รูปแบบของพื้นที่นั้น ไม่ใช่อำเภอ/ตำบลของไทย'
+                : !location.district || !location.subdistrict ? 'แผนที่ยังไม่มีชื่อขอบเขตครบทุกระดับ จึงแสดงเฉพาะข้อมูลที่ได้รับ'
+                : 'ชื่อพื้นที่เป็นขอบเขตใกล้เคียงจากแผนที่ ไม่ใช่ที่อยู่ที่ยืนยัน';
+            document.getElementById('environment-location-detail-note').textContent = `${detail} · ${formatGpsAccuracy(meta.accuracyMeters)} · รับตำแหน่งเวลา ${formatEnvironmentUpdatedAt(meta.capturedAt)} หาก GPS คลาดเคลื่อน ชื่อตำบล/แขวงอาจไม่ตรงกับจุดจริง`;
+        }
+
+        async function fetchAdministrativeLocation(lat, lng, signal) {
+            const data = await fetchEnvironmentJson('/api/environment', 12000, signal, {
+                kind: 'location', latitude: roundedCoordinate(lat), longitude: roundedCoordinate(lng),
+            });
+            const raw = data?.location;
+            if (!raw || typeof raw !== 'object') throw new Error('Invalid administrative area');
+            const location = Object.fromEntries(['province', 'district', 'subdistrict', 'locality', 'country'].map(key => [key, cleanAdministrativeName(raw[key])]));
+            location.isThai = raw.isThai === true;
+            location.isBangkok = location.isThai && raw.isBangkok === true;
+            if (!administrativeLocationLabel(location)) throw new Error('Missing administrative area');
+            return location;
         }
 
         async function fetchApproximateLocationName(lat, lng) {
-            const roundedLat = roundedCoordinate(lat);
-            const roundedLng = roundedCoordinate(lng);
-            const data = await fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000);
-            return approximateLocationLabel(data);
+            return administrativeLocationLabel(await fetchAdministrativeLocation(lat, lng));
         }
 
         async function fetchWithTimeout(url, timeoutMs = 12000) {
@@ -819,8 +864,16 @@
                     aqi = Math.round(value);
                     airTime = formatProviderCurrentTime(data.current.time, data.timezone_abbreviation || data.timezone);
                 }).catch(() => {}).finally(() => { airSettled = true; render(); });
-            if (!selectedArea) fetchEnvironmentJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${roundedLat}&lon=${roundedLng}&zoom=14&addressdetails=1&accept-language=th`, 4000, signal)
-                .then((data) => { locationName = approximateLocationLabel(data); }).catch(() => {}).finally(() => { locationSettled = true; render(); });
+            if (!selectedArea) {
+                let administrativeArea = null;
+                fetchAdministrativeLocation(roundedLat, roundedLng, signal)
+                    .then((area) => { administrativeArea = area; locationName = administrativeLocationLabel(area); })
+                    .catch(() => {}).finally(() => {
+                        locationSettled = true;
+                        if (isActive()) renderAdministrativeLocation(administrativeArea, locationMeta, true);
+                        render();
+                    });
+            }
             try {
                 const data = await fetchEnvironmentJson('/api/environment', 8000, signal, { kind: 'weather', latitude: roundedLat, longitude: roundedLng });
                 const current = data.current;
@@ -839,6 +892,7 @@
 
         function showEnvironmentUnavailable(message) {
             resetEnvironmentCards('ไม่มีข้อมูล');
+            resetAdministrativeLocation();
             document.getElementById('location-text').textContent = 'ใช้ตำแหน่งล่าสุดของฉัน';
             document.getElementById('environment-area-text').textContent = message;
             document.getElementById('environment-current-weather').textContent = 'ยังไม่มีข้อมูลอากาศปัจจุบัน';

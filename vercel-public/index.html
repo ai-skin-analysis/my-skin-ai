@@ -292,6 +292,16 @@
             <div class="rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-3" aria-live="polite">
                 <p id="environment-current-weather" class="text-sm font-extrabold text-teal-900">สภาพอากาศปัจจุบันตามตำแหน่งของคุณ</p>
                 <p id="environment-area-text" class="mt-1 text-xs leading-relaxed text-slate-600">กดใช้ตำแหน่งและยืนยัน เพื่อขอตำแหน่งใหม่จากมือถือหรืออุปกรณ์ที่คุณกำลังใช้งาน</p>
+                <div id="environmentAdminLocation" class="hidden mt-3 rounded-2xl border border-teal-100 bg-white/80 p-3" aria-live="polite">
+                    <p class="text-xs font-extrabold text-teal-900">พื้นที่จากตำแหน่งอุปกรณ์ของคุณ · โดยประมาณ</p>
+                    <dl class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div class="rounded-xl bg-teal-50/60 p-3"><dt class="text-[11px] text-slate-500">จังหวัด / รัฐ</dt><dd id="environment-province" class="mt-1 break-words text-sm font-bold text-slate-900">—</dd></div>
+                        <div class="rounded-xl bg-teal-50/60 p-3"><dt id="environment-district-label" class="text-[11px] text-slate-500">อำเภอ / เขต</dt><dd id="environment-district" class="mt-1 break-words text-sm font-bold text-slate-900">—</dd></div>
+                        <div class="rounded-xl bg-teal-50/60 p-3"><dt id="environment-subdistrict-label" class="text-[11px] text-slate-500">ตำบล / แขวง</dt><dd id="environment-subdistrict" class="mt-1 break-words text-sm font-bold text-slate-900">—</dd></div>
+                    </dl>
+                    <p id="environment-location-detail-note" class="mt-2 text-[11px] leading-relaxed text-slate-600"></p>
+                    <p class="mt-1 text-[11px] text-slate-500">ชื่อพื้นที่: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap contributors</a> · ไม่แสดงบ้านเลขที่หรือที่อยู่เต็ม</p>
+                </div>
                 <p class="mt-2 text-xs leading-relaxed text-teal-900">หากอุปกรณ์ไม่ให้สิทธิ์ตำแหน่ง กด “เลือกพื้นที่เอง” เพื่อดูอากาศของเมืองหรือจังหวัดที่เลือก โดยไม่ใช้ GPS</p>
                 <details class="mt-2 text-xs leading-relaxed text-slate-600">
                     <summary class="cursor-pointer font-bold text-teal-800">วิธีแก้เมื่อไม่ได้รับอนุญาตตำแหน่ง</summary>
@@ -481,9 +491,10 @@
                 <p class="font-bold">ข้อมูลที่ส่งเฉพาะหลังยินยอม</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
                     <li>พิกัดที่ปัดเป็นทศนิยม 4 ตำแหน่งผ่านเซิร์ฟเวอร์เว็บไซต์บน Vercel ไปยัง Open-Meteo เพื่ออุณหภูมิ ความชื้น UV และคุณภาพอากาศ</li>
-                    <li>พิกัดที่ปัดแล้วไปยัง OpenStreetMap Nominatim เพื่อแสดงชื่อเขต/จังหวัดโดยประมาณ</li>
+                    <li>พิกัดที่ปัดแล้วผ่านเซิร์ฟเวอร์เว็บไซต์บน Vercel ไปยัง OpenStreetMap Nominatim เพื่อแสดงจังหวัด อำเภอ/เขต และตำบล/แขวงเท่าที่มีข้อมูล โดยไม่ใช่การยืนยันที่อยู่จริง</li>
                 </ul>
                 <p class="mt-2">พิกัดจริงใช้ชั่วคราวในเบราว์เซอร์เพื่อปัดพิกัดเท่านั้น และไม่ถูกบันทึกในหน้านี้ การเปิด Google Maps ต้องยินยอมแยกต่างหาก</p>
+                <p class="mt-2">ชื่อพื้นที่ใช้บริการฟรีที่มีข้อจำกัดปริมาณการเรียก ระบบจำกัดการเรียกรวมและพักผลชั่วคราวในหน่วยความจำ หากบริการไม่พร้อม อากาศยังแสดงได้และจะไม่เดาชื่อพื้นที่แทน <a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noopener noreferrer" class="font-semibold underline">ข้อกำหนดบริการชื่อพื้นที่</a></p>
             </div>
 
             <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left">

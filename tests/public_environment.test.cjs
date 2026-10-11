@@ -70,13 +70,14 @@ function environment({ secure = true, supported = true, accountFailure = false, 
             requestBodies.push(body);
             assert.equal(options.method, 'POST'); assert.equal(options.credentials, 'omit');
             providerUrl = body.kind === 'places' ? `https://geocoding-api.open-meteo.com/?name=${encodeURIComponent(body.query)}`
+                : body.kind === 'location' ? `https://nominatim.openstreetmap.org/reverse?lat=${body.latitude}&lon=${body.longitude}`
                 : `https://${body.kind === 'weather' ? 'api.open-meteo.com' : 'air-quality-api.open-meteo.com'}/?latitude=${body.latitude}&longitude=${body.longitude}`;
         }
         const host = new URL(providerUrl).hostname;
         const data = host === 'api.open-meteo.com' ? { current: { temperature_2m: 24.3, relative_humidity_2m: 50, uv_index: 3, weather_code: 0, is_day: 1, time: '2026-10-10T10:00' }, timezone: 'UTC' }
             : host === 'air-quality-api.open-meteo.com' ? { current: { us_aqi: 20, time: '2026-10-10T10:00' }, timezone: 'UTC' }
             : host === 'geocoding-api.open-meteo.com' ? { results: [{ name: 'พื้นที่ทดสอบ', admin1: 'จังหวัดทดสอบ', country: 'ประเทศทดสอบ', latitude: 0.123456, longitude: 1.234567 }] }
-            : { address: { city: 'พื้นที่ทดสอบ' } };
+            : { location: { province: '', district: '', subdistrict: '', locality: 'พื้นที่ทดสอบ', country: 'ประเทศไทย', isThai: true, isBangkok: false } };
         return providerResponse ? providerResponse(String(providerUrl), options, data) : { ok: true, json: async () => data };
     };
     const context = vm.createContext({ document, HTMLElement: Element, navigator: { onLine: true,
@@ -403,7 +404,7 @@ test('late optional results from an older location cannot overwrite refreshed cu
             return { ok: true, json: async () => data };
         }
         if (!weatherCount) return new Promise(resolve => late.push(() => resolve({ ok: true, json: async () => data })));
-        if (host === 'nominatim.openstreetmap.org') data.address.city = 'พื้นที่ใหม่';
+        if (host === 'nominatim.openstreetmap.org') data.location.locality = 'พื้นที่ใหม่';
         else data.current.us_aqi = 70;
         return { ok: true, json: async () => data };
     } });
@@ -434,4 +435,70 @@ test('invalid browser coordinates are never sent to external weather providers',
     const e = environment({ gpsPlan: [{ timestamp: Date.now(), coords: { latitude: 999, longitude: NaN } }] });
     await flush(); e.requests.length = 0; optIn(e); await flush();
     assert.deepEqual(e.requests, []); assert.equal(e.element('environmentLocationButton').disabled, false);
+});
+
+test('GPS results show province, district and subdistrict with weather and advice, using only rounded same-origin POSTs', async () => {
+    const e = environment({ providerResponse(url, options, data) {
+        if (url.includes('nominatim')) data.location = { province: 'จังหวัดทดสอบ', district: 'อำเภอทดสอบ', subdistrict: 'ตำบลทดสอบ', country: 'ประเทศไทย', isThai: true };
+        return { ok: true, json: async () => data };
+    } });
+    await flush(); e.requests.length = 0; optIn(e); await flush();
+    assert.equal(e.element('environmentAdminLocation').classList.contains('hidden'), false);
+    assert.equal(e.element('environment-province').textContent, 'จังหวัดทดสอบ');
+    assert.equal(e.element('environment-district').textContent, 'อำเภอทดสอบ');
+    assert.equal(e.element('environment-subdistrict').textContent, 'ตำบลทดสอบ');
+    assert.match(e.element('environment-location-detail-note').textContent, /±50 ม.*GPS คลาดเคลื่อน/);
+    assert.match(e.element('env-summary-text').textContent, /จังหวัดทดสอบ.*อำเภอทดสอบ.*ตำบลทดสอบ.*24\.3/);
+    assert.notEqual(e.element('rec-1').textContent, 'คำแนะนำจะแสดงหลังได้รับข้อมูลอากาศ');
+    assert.ok(e.requests.every(url => url === '/api/environment'));
+    assert.ok(e.requestBodies.some(body => body.kind === 'location' && body.latitude === 0.1235 && body.longitude === 1.2346));
+});
+
+test('Bangkok uses khet/khwaeng labels; partial or unavailable administrative results never invent missing levels', async () => {
+    const e = environment({ providerResponse(url, options, data) {
+        if (url.includes('nominatim')) data.location = { province: 'กรุงเทพมหานคร', district: 'เขตพระนคร', subdistrict: '', country: 'ประเทศไทย', isThai: true, isBangkok: true };
+        return { ok: true, json: async () => data };
+    } });
+    await flush(); optIn(e); await flush();
+    assert.equal(e.element('environment-district-label').textContent, 'เขต');
+    assert.equal(e.element('environment-subdistrict-label').textContent, 'แขวง');
+    assert.equal(e.element('environment-subdistrict').textContent, 'ยังไม่มีข้อมูลระดับนี้');
+    assert.match(e.element('environment-location-detail-note').textContent, /ไม่มีชื่อขอบเขตครบ/);
+    const failed = environment({ providerResponse(url, options, data) {
+        if (url.includes('nominatim')) throw new Error('geocoder unavailable');
+        return { ok: true, json: async () => data };
+    } });
+    await flush(); optIn(failed); await flush();
+    assert.equal(failed.element('card-temp-val').textContent, '24.3°C');
+    assert.match(failed.element('environment-location-detail-note').textContent, /ไม่เดาจังหวัด/);
+});
+
+test('denied GPS and switching to manual area clear administrative labels; stale optional results cannot resurrect them', async () => {
+    let finishArea;
+    const e = environment({ providerResponse(url, options, data) {
+        if (url.includes('nominatim')) return new Promise(resolve => { finishArea = () => resolve({ ok: true, json: async () => ({ location: { province: 'เก่า', country: 'ประเทศไทย', isThai: true } }) }); });
+        return { ok: true, json: async () => data };
+    } });
+    await flush(); optIn(e); await flush();
+    e.element('environmentAreaButton').dispatch(); e.element('environmentAreaInput').value = 'พื้นที่';
+    e.element('environmentAreaForm').dispatch('submit'); await flush();
+    e.element('environmentAreaResults').children[0].dispatch(); await flush(); finishArea(); await flush();
+    assert.equal(e.element('environmentAdminLocation').classList.contains('hidden'), true);
+    assert.equal(e.element('environment-province').textContent, '—');
+    const denied = environment({ gpsPlan: [undefined, 1] }); await flush(); optIn(denied); await flush();
+    denied.element('environmentRefreshButton').dispatch(); await flush();
+    assert.equal(denied.element('environmentAdminLocation').classList.contains('hidden'), true);
+    assert.equal(denied.element('environment-province').textContent, '—');
+});
+
+test('provider strings render literally, not as HTML, and foreign areas are not silently assigned Thai administrative levels', async () => {
+    const e = environment({ providerResponse(url, options, data) {
+        if (url.includes('nominatim')) data.location = { province: '<img src=x onerror=alert(1)>', district: null, subdistrict: {}, country: 'Other country', isThai: false, isBangkok: true };
+        return { ok: true, json: async () => data };
+    } });
+    await flush(); optIn(e); await flush();
+    assert.equal(e.element('environment-province').textContent, '<img src=x onerror=alert(1)>');
+    assert.equal(e.element('environment-district').textContent, 'ยังไม่มีข้อมูลระดับนี้');
+    assert.match(e.element('environment-location-detail-note').textContent, /นอกประเทศไทย/);
+    assert.equal(e.element('environment-district-label').textContent, 'อำเภอ / เขต');
 });

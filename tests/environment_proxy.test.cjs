@@ -119,3 +119,24 @@ test('area search refuses missing, huge, non-string, control-character and extra
         assert.equal(calls, 0);
     } finally { global.fetch = original; }
 });
+
+test('anonymous location router validates input, rounds it and returns only the administrative adapter response', async () => {
+    const { createPublicEnvironmentHandler } = await import(pathToFileURL(join(__dirname, '../vercel-public/lib/public-environment.js')));
+    const calls = [];
+    const run = createPublicEnvironmentHandler({ locate: async (lat, lon) => { calls.push([lat, lon]); return { province: 'จังหวัดทดสอบ', district: 'อำเภอทดสอบ', subdistrict: '', isThai: true }; } });
+    const req = request({ kind: 'location', latitude: 0.123456, longitude: 1.234567 }); req.headers['x-forwarded-for'] = 'location-router-test';
+    const res = response(); await run(req, res);
+    assert.equal(res.code, 200); assert.equal(res.headers['Cache-Control'], 'no-store'); assert.deepEqual(calls, [[0.1235, 1.2346]]);
+    assert.equal(res.body.location.province, 'จังหวัดทดสอบ'); assert.equal(res.body.latitude, undefined);
+    const forged = response(); await run(request({ ...req.body, url: 'http://localhost' }), forged); assert.equal(forged.code, 400);
+});
+
+test('location provider busy/failure yields generic uncached errors without affecting public weather or exposing the supplied position', async () => {
+    const { createPublicEnvironmentHandler } = await import(pathToFileURL(join(__dirname, '../vercel-public/lib/public-environment.js')));
+    for (const busy of [true, false]) {
+        const run = createPublicEnvironmentHandler({ locate: async () => { const error = new Error('private position'); if (busy) error.status = 429; throw error; } });
+        const req = request({ kind: 'location', latitude: 0.1, longitude: 1.2 }); req.headers['x-forwarded-for'] = `location-failure-${busy}`;
+        const res = response(); await run(req, res); assert.equal(res.code, busy ? 429 : 502);
+        assert.doesNotMatch(JSON.stringify(res.body), /private position|0\.1|1\.2/); assert.equal(res.headers['Cache-Control'], 'no-store');
+    }
+});

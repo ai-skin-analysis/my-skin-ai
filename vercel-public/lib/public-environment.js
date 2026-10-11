@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { json, requirePost, requireSameOrigin, requestJson } from './account-auth.js';
+import { locateAdministrativeArea } from './environment-location.js';
 
 // Best-effort per-instance abuse control, not an account or location store.
 const buckets = new Map();
@@ -14,7 +15,8 @@ function withinBudget(req) {
   return ++buckets.get(key).count <= 24;
 }
 
-export default async function handler(req, res) {
+export function createPublicEnvironmentHandler({ locate = locateAdministrativeArea } = {}) {
+return async function handler(req, res) {
   if (!requirePost(req, res) || !requireSameOrigin(req, res)) return;
   if (!String(req.headers['content-type'] || '').startsWith('application/json')) return json(res, 415, { ok: false });
   if (Number(req.headers['content-length']) > 512) return json(res, 413, { ok: false });
@@ -42,8 +44,12 @@ export default async function handler(req, res) {
       return json(res, 200, { results });
     }
     if (Object.keys(body).some(key => !['kind', 'latitude', 'longitude'].includes(key))) return json(res, 400, { ok: false });
-    if (!['weather', 'air'].includes(kind) || typeof latitude !== 'number' || typeof longitude !== 'number'
+    if (!['weather', 'air', 'location'].includes(kind) || typeof latitude !== 'number' || typeof longitude !== 'number'
       || !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return json(res, 400, { ok: false });
+    if (kind === 'location') {
+      const location = await locate(Number(latitude.toFixed(4)), Number(longitude.toFixed(4)));
+      return json(res, 200, { location });
+    }
     // Round again on the server. Never put coordinates in our request URL,
     // application logs, database, or a persistent cache.
     const query = new URLSearchParams({ latitude: String(Number(latitude.toFixed(4))), longitude: String(Number(longitude.toFixed(4))),
@@ -61,6 +67,13 @@ export default async function handler(req, res) {
   } catch (error) {
     // Do not log upstream URLs, request bodies or positions on failure.
     if (error?.status === 400) return json(res, 400, { ok: false, message: 'ข้อมูลไม่ถูกต้อง' });
+    if (error?.status === 429) {
+      res.setHeader('Retry-After', '2');
+      return json(res, 429, { ok: false, message: 'บริการชื่อพื้นที่กำลังมีผู้ใช้งาน โปรดอัปเดตอีกครั้งภายหลัง อากาศยังดูได้' });
+    }
     return json(res, 502, { ok: false, message: 'เชื่อมต่อบริการข้อมูลอากาศไม่สำเร็จ โปรดลองอีกครั้ง' });
   }
 }
+}
+
+export default createPublicEnvironmentHandler();
